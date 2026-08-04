@@ -1,0 +1,927 @@
+<!DOCTYPE html>
+<html lang="th"><head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>แบบฝึกพิมพ์ภาษาไทย — Kedmanee</title>
+<script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<script src="https://unpkg.com/@babel/standalone@7.24.0/babel.min.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>*{box-sizing:border-box;margin:0;padding:0}body{background:#F1F5F9;font-family:system-ui,sans-serif}
+#loading{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;
+flex-direction:column;gap:12px;font-family:'Sarabun',sans-serif;font-size:18px;color:#64748B;background:#F1F5F9}
+#loading span{font-size:40px}</style></head>
+<body>
+<div id="loading"><span>⌨️</span>กำลังโหลด...</div>
+<div id="root" style="display:none"></div>
+<script type="text/babel">
+const { useState, useEffect, useCallback, useRef } = React;
+
+// ═══════════════════════════════════════════════════════════════
+// TEACHER SETUP  ← Edit this one line before distributing.
+// Paste your deployed Apps Script URL. Leave '' for offline mode.
+// ═══════════════════════════════════════════════════════════════
+const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwpp0IvmQjrv0O8MZ6XSX3SQDfJIIii4RsidX5IvaPDaKyJ5x0QLhbdKPle4TX4BKhsmQ/exec'; // e.g. 'https://script.google.com/macros/s/AKfy.../exec'
+
+// Fetch student roster for a given class code
+async function fetchRoster(classCode) {
+  const url = SCRIPT_URL + '?action=roster&code=' + encodeURIComponent(classCode);
+  const res = await fetch(url, { redirect: 'follow' });
+  if (!res.ok) throw new Error('HTTP ' + res.status);
+  return res.json();
+}
+
+// Save one completed session to Google Sheets
+// Uses GET (not POST) to avoid Apps Script redirect stripping the body.
+async function saveSession(data) {
+  const p = new URLSearchParams({
+    action: 'saveSession',
+    code:     data.classCode,
+    student:  data.studentName,
+    lessonId: String(data.lessonId),
+    exercise: data.exerciseTitle,
+    cpm:      String(data.cpm),
+    wpm:      String(data.wpm),
+    accuracy: String(data.accuracy),
+    errors:   String(data.errors),
+    chars:    String(data.totalChars),
+    duration: String(data.duration),
+  });
+  const res = await fetch(SCRIPT_URL + '?' + p.toString(), { redirect: 'follow' });
+  if (!res.ok) throw new Error('HTTP ' + res.status);
+  return res.json();
+}
+
+// PHASE 0 ENGINE  (source: KBDTH0.DLL / TIS 820-2538)
+
+const KEYMAP = {
+  Backquote:['_','%'],   Digit1:['ๅ','+'],  Digit2:['/','๑'],   Digit3:['-','๒'],
+  Digit4:['ภ','๓'],      Digit5:['ถ','๔'],  Digit6:['ุ','ู'],   Digit7:['ึ','฿'],
+  Digit8:['ค','๕'],      Digit9:['ต','๖'],  Digit0:['จ','๗'],   Minus:['ข','๘'],
+  Equal:['ช','๙'],
+  KeyQ:['ๆ','๐'],        KeyW:['ไ','"'],    KeyE:['ำ','ฎ'],     KeyR:['พ','ฑ'],
+  KeyT:['ะ','ธ'],        KeyY:['ั','ํ'],    KeyU:['ี','๊'],     KeyI:['ร','ณ'],
+  KeyO:['น','ฯ'],        KeyP:['ย','ญ'],    BracketLeft:['บ','ฐ'],BracketRight:['ล',','],
+  KeyA:['ฟ','ฤ'],        KeyS:['ห','ฆ'],    KeyD:['ก','ฏ'],     KeyF:['ด','โ'],
+  KeyG:['เ','ฌ'],        KeyH:['้','็'],    KeyJ:['่','๋'],     KeyK:['า','ษ'],
+  KeyL:['ส','ศ'],        Semicolon:['ว','ซ'],Quote:['ง','.'],   Backslash:['ฃ','ฅ'],
+  KeyZ:['ผ','('],        KeyX:['ป',')'],    KeyC:['แ','ฉ'],     KeyV:['อ','ฮ'],
+  KeyB:['ิ','ฺ'],        KeyN:['ื','์'],    KeyM:['ท','?'],     Comma:['ม','ฒ'],
+  Period:['ใ','ฬ'],      Slash:['ฝ','ฦ'],   Space:[' ',' '],
+};
+
+const CHAR_CLASS = {
+  'ก':'CONS','ข':'CONS','ฃ':'CONS','ค':'CONS','ฅ':'CONS','ฆ':'CONS','ง':'CONS',
+  'จ':'CONS','ฉ':'CONS','ช':'CONS','ซ':'CONS','ฌ':'CONS','ญ':'CONS','ฎ':'CONS',
+  'ฏ':'CONS','ฐ':'CONS','ฑ':'CONS','ฒ':'CONS','ณ':'CONS','ด':'CONS','ต':'CONS',
+  'ถ':'CONS','ท':'CONS','ธ':'CONS','น':'CONS','บ':'CONS','ป':'CONS','ผ':'CONS',
+  'ฝ':'CONS','พ':'CONS','ฟ':'CONS','ภ':'CONS','ม':'CONS','ย':'CONS','ร':'CONS',
+  'ล':'CONS','ว':'CONS','ศ':'CONS','ษ':'CONS','ส':'CONS','ห':'CONS','ฬ':'CONS',
+  'อ':'CONS','ฮ':'CONS','ฤ':'CONS','ฦ':'CONS',
+  'เ':'LV','แ':'LV','โ':'LV','ใ':'LV','ไ':'LV',
+  'า':'FV','ำ':'FV','ะ':'FV',
+  'ุ':'BV','ู':'BV','ฺ':'BD',
+  '่':'TONE','้':'TONE','๊':'TONE','๋':'TONE',
+  '็':'AD','ํ':'AD','์':'AD',
+  'ิ':'AV','ั':'AV','ี':'AV','ึ':'AV','ื':'AV',
+  '๐':'NON','๑':'NON','๒':'NON','๓':'NON','๔':'NON',
+  '๕':'NON','๖':'NON','๗':'NON','๘':'NON','๙':'NON',
+  'ๆ':'NON','ฯ':'NON','฿':'NON',' ':'NON',
+};
+
+const KEY_META = {
+  Backquote:{f:'LP'},Digit1:{f:'LP'},Digit2:{f:'LR'},Digit3:{f:'LM'},
+  Digit4:{f:'LI'},Digit5:{f:'LI'},Digit6:{f:'RI'},Digit7:{f:'RI'},
+  Digit8:{f:'RM'},Digit9:{f:'RR'},Digit0:{f:'RP'},Minus:{f:'RP'},Equal:{f:'RP'},
+  KeyQ:{f:'LP'},KeyW:{f:'LR'},KeyE:{f:'LM'},KeyR:{f:'LI'},KeyT:{f:'LI'},
+  KeyY:{f:'RI'},KeyU:{f:'RI'},KeyI:{f:'RM'},KeyO:{f:'RR'},KeyP:{f:'RP'},
+  BracketLeft:{f:'RP'},BracketRight:{f:'RP'},Backslash:{f:'RP'},
+  KeyA:{f:'LP',home:true},KeyS:{f:'LR',home:true},KeyD:{f:'LM',home:true},
+  KeyF:{f:'LI',home:true},KeyG:{f:'LI'},KeyH:{f:'RI'},
+  KeyJ:{f:'RI',home:true},KeyK:{f:'RM',home:true},KeyL:{f:'RR',home:true},
+  Semicolon:{f:'RP',home:true},Quote:{f:'RP'},
+  KeyZ:{f:'LP'},KeyX:{f:'LR'},KeyC:{f:'LM'},KeyV:{f:'LI'},KeyB:{f:'LI'},
+  KeyN:{f:'RI'},KeyM:{f:'RI'},Comma:{f:'RM'},Period:{f:'RR'},Slash:{f:'RP'},
+  Space:{f:'TH',home:true},
+};
+
+const FINGER_COLORS = {
+  LP:'#7C3AED',LR:'#D97706',LM:'#2563EB',LI:'#059669',
+  RI:'#10B981',RM:'#3B82F6',RR:'#F59E0B',RP:'#8B5CF6',TH:'#64748B',
+};
+
+function mapKey(e) {
+  if (e.ctrlKey || e.altKey || e.metaKey) return null;
+  const entry = KEYMAP[e.code];
+  return entry ? (entry[e.shiftKey ? 1 : 0] ?? null) : null;
+}
+
+function validateInput(expected, typed) {
+  const pos = typed.length - 1;
+  if (pos < 0) return { ok: true };
+  const got = typed[pos], want = expected[pos];
+  if (got === want) return { ok: true, position: pos };
+  if (pos >= expected.length) return { ok:false, errorType:'OVERFLOW', costsLife:true };
+  const gC = CHAR_CLASS[got] ?? 'NON', wC = CHAR_CLASS[want] ?? 'NON';
+  if (wC==='AV'  && gC==='TONE') return { ok:false, expected:want, got, hint:`พิมพ์สระ (${want}) ก่อนวรรณยุกต์ (${got})`, costsLife:false };
+  if (wC==='TONE'&& gC==='AV')   return { ok:false, expected:want, got, hint:`พิมพ์วรรณยุกต์ (${want}) หลังสระ`,          costsLife:false };
+  if (wC==='LV'  && gC==='CONS') return { ok:false, expected:want, got, hint:`สระหน้า (${want}) พิมพ์ก่อนพยัญชนะ (${got})`, costsLife:false };
+  return { ok:false, hint:null, costsLife:true };
+}
+
+function findKeyForChar(char) {
+  for (const [code, [u, s]] of Object.entries(KEYMAP)) {
+    if (u === char) return { code, needsShift: false };
+    if (s === char) return { code, needsShift: true };
+  }
+  return null;
+}
+
+// TEXT GENERATOR
+
+function generateText(words, minChars) {
+  const arr = [...words];
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  const result = [];
+  let chars = 0, i = 0;
+  while (chars < minChars) {
+    const word = arr[i % arr.length];
+    result.push(word);
+    chars += [...word].length + 1;
+    i++;
+    if (i > arr.length * 6) break;
+  }
+  return result.join(' ');
+}
+
+// SPAM THRESHOLDS
+const SPEED_CPM       = 750;
+const ERROR_WINDOW_MS = 3000;
+const ERROR_BURST     = 9;
+const SPAM_COUNTDOWN  = 4;
+
+// LESSONS
+
+const LESSONS = [
+  {
+    id:1, thaiName:'แถวกลาง', engName:'Home Row',
+    desc:'ฟ ห ก ด เ ้ ่ า ส ว ง', accent:'#059669', al:'#D1FAE5',
+    exercises:[
+      { title:'1.1 คำสั้น',      minChars:70,
+        words:['กา','ดา','หา','สา','วา','งา','กด','เกา','เสา','เหา','เดา','กาง','วาง','หาง','สาด','ฟาก','ราง','สาง'] },
+      { title:'1.2 คำสามตัว',   minChars:100,
+        words:['กาว','หาว','ดาว','สาว','วาด','หาด','สาด','เกา','เสา','เหา','เดา','กาง','วาง','หาง','ฟาก','ราง','สาง'] },
+      { title:'1.3 วรรณยุกต์', minChars:100,
+        words:['เก้า','เก่า','ว่าง','กว่า','ส่ง','เก่ง','ฟ้า','ว่า','ดาวฟ้า','เก่งกด','เก้าว่า','ส่งดาว','ว่างหาว'] },
+      { title:'1.4 ผสม',         minChars:160,
+        words:['กา','กาว','เก่า','เก้า','ดาว','หาว','สาว','ว่าง','กว่า','เก่ง','ส่ง','ฟ้า','เกา','เสา','เหา','วาด','หาด','กาง','วาง','กด','ว่า','สาด','ราง'] },
+      { title:'1.5 ความเร็ว',   minChars:230,
+        words:['กา','กาว','เก่า','เก้า','ดาว','หาว','สาว','ว่าง','กว่า','เก่ง','ส่ง','ฟ้า','เกา','เสา','เหา','วาด','หาด','กาง','วาง','กด','ว่า','สาด','ราง','ฟาก','สาง','หาง'] },
+    ],
+  },
+  {
+    id:2, thaiName:'แถวบน', engName:'Top Row Added',
+    desc:'ๆ ไ ำ พ ะ ั ี ร น ย บ ล', accent:'#2563EB', al:'#DBEAFE',
+    exercises:[
+      { title:'2.1 สระบน',       minChars:80,
+        words:['ดี','สี','นี้','ยัง','กัน','พัน','วัน','ดัง','ยาว','ไว','ลาย','บาน','พาน','ลาน','บาง','ราง','สาร','การ'] },
+      { title:'2.2 สระไ',         minChars:90,
+        words:['ไว','ไหน','ไหว','ไร่','ไร่นา','กาล','ยาวนาน','บางวัน','วันนี้','ดีนะ','บาง','ลาย','ราง','พาน'] },
+      { title:'2.3 คำยาว',        minChars:100,
+        words:['สวัสดี','ดีๆ','ยังดี','ดีนะ','วันนี้','บางวัน','ยาวนาน','สวัสดีๆ','กาลนาน','ลายบาง','สารดี'] },
+      { title:'2.4 ผสม',           minChars:170,
+        words:['ดี','สี','นี้','ยัง','กัน','พัน','วัน','ดัง','ยาว','ไว','ลาย','บาน','พาน','ลาน','ไหน','ไหว','ไร่','สวัสดี','ดีๆ','วันนี้','บางวัน','ดีนะ','กาล','สาร','การ'] },
+      { title:'2.5 ความเร็ว',     minChars:250,
+        words:['ดี','สี','นี้','ยัง','กัน','พัน','วัน','ดัง','ยาว','ไว','ลาย','บาน','พาน','ลาน','ไหน','ไหว','ไร่','สวัสดี','ดีๆ','วันนี้','บางวัน','ดีนะ','กาล','สาร','การ','ยาวนาน','สวัสดีๆ','บาง','ราง','ไร่นา'] },
+    ],
+  },
+  {
+    id:3, thaiName:'แถวล่าง', engName:'Bottom Row Added',
+    desc:'ผ ป แ อ ิ ื ท ม ใ ฝ', accent:'#7C3AED', al:'#EDE9FE',
+    exercises:[
+      { title:'3.1 สระอิ สระือ', minChars:90,
+        words:['ผิด','ปิด','กิน','ดิน','หิน','บิน','ริน','มือ','ลือ','ฝืน','ยื่น','สืบ','ผล','ใน','ใส','ใหม่'] },
+      { title:'3.2 สระแ',          minChars:100,
+        words:['แมว','แบน','แดง','แทน','แสน','แสง','แนว','แยก','มา','มาก','ไม่','ไม้','มือ','มัน','ทาง','ทาน','ทาย'] },
+      { title:'3.3 สระใ',          minChars:100,
+        words:['ใน','ใส','ใด','ใหม่','ใหญ่','ใกล้','ใส่','ผ่าน','ปาก','ปาน','ปวด','ผัน','ผล','ฝน','ฝาก'] },
+      { title:'3.4 ผสม',             minChars:180,
+        words:['ผิด','ปิด','กิน','มือ','ลือ','ฝืน','แมว','แดง','แสน','ใน','ใส','ใหม่','ใหญ่','ผ่าน','ปาก','ทาง','มาก','ไม่','ไม้','มัน','ดิน','หิน','บิน','แบน','แทน','แนว','ผล','ฝน'] },
+      { title:'3.5 ความเร็ว',       minChars:260,
+        words:['ผิด','ปิด','กิน','มือ','ลือ','ฝืน','แมว','แดง','แสน','ใน','ใส','ใหม่','ใหญ่','ผ่าน','ปาก','ทาง','มาก','ไม่','ไม้','มัน','ดิน','หิน','บิน','แบน','แทน','แนว','ผล','ฝน','ฝาก','ปวด','ผัน','ทาน','ทาย','ยื่น','สืบ','ริน'] },
+    ],
+  },
+  {
+    id:4, thaiName:'แถวบนสุด', engName:'Number Row Added',
+    desc:'ๅ / - ภ ถ ุ ึ ค ต จ ข ช', accent:'#D97706', al:'#FEF3C7',
+    exercises:[
+      { title:'4.1 พยัญชนะใหม่', minChars:90,
+        words:['ถาม','ตาม','ชา','ค่า','คน','ขัน','ถัง','ตัว','จาน','ขาว','ชาว','ขาย','ขาม','จาก','คาน','ถาด','ตาก'] },
+      { title:'4.2 สระ ุ ู',       minChars:100,
+        words:['กุ้ง','คุณ','ดุ','ตูน','หุ่น','รู้','ถุง','ขุด','ตุ่น','จุด','คุ้น','ขุน','กู้','ขู่','ตู้'] },
+      { title:'4.3 คำยาว',         minChars:110,
+        words:['ขอบคุณ','ถ่ายรูป','ภาษาไทย','คุณภาพ','ขอบคุณมาก','ถามตาม','ขายชา','ตามถาม','คนขาว','ชาวนา'] },
+      { title:'4.4 ผสม',             minChars:190,
+        words:['ถาม','ตาม','ชา','ค่า','คน','ขัน','ถัง','ตัว','จาน','ขาว','ชาว','ขาย','กุ้ง','คุณ','ดุ','ตูน','หุ่น','รู้','ถุง','ขุด','ขอบคุณ','ภาษาไทย','คุณภาพ','ถ่ายรูป','ตุ่น','จุด','คุ้น','ขุน','จาก','ตาก'] },
+      { title:'4.5 ความเร็ว',       minChars:280,
+        words:['ถาม','ตาม','ชา','ค่า','คน','ขัน','ถัง','ตัว','จาน','ขาว','ชาว','ขาย','กุ้ง','คุณ','ดุ','ตูน','หุ่น','รู้','ถุง','ขุด','ขอบคุณ','ภาษาไทย','คุณภาพ','ถ่ายรูป','ตุ่น','จุด','คุ้น','ขุน','จาก','ตาก','คาน','ถาด','กู้','ขู่','ตู้','คนขาว','ชาวนา'] },
+    ],
+  },
+];
+
+// KEYBOARD LAYOUT
+
+const KB_ROWS = [
+  [ {c:'Backquote'},{c:'Digit1'},{c:'Digit2'},{c:'Digit3'},{c:'Digit4'},{c:'Digit5'},
+    {c:'Digit6'},{c:'Digit7'},{c:'Digit8'},{c:'Digit9'},{c:'Digit0'},{c:'Minus'},{c:'Equal'},
+    {c:'Backspace',lbl:'⌫',w:2,sp:true} ],
+  [ {c:'Tab',lbl:'Tab',w:1.5,sp:true},
+    {c:'KeyQ'},{c:'KeyW'},{c:'KeyE'},{c:'KeyR'},{c:'KeyT'},{c:'KeyY'},{c:'KeyU'},
+    {c:'KeyI'},{c:'KeyO'},{c:'KeyP'},{c:'BracketLeft'},{c:'BracketRight'},
+    {c:'Backslash',w:1.5} ],
+  [ {c:'CapsLock',lbl:'Caps',w:1.75,sp:true},
+    {c:'KeyA'},{c:'KeyS'},{c:'KeyD'},{c:'KeyF'},{c:'KeyG'},{c:'KeyH'},{c:'KeyJ'},
+    {c:'KeyK'},{c:'KeyL'},{c:'Semicolon'},{c:'Quote'},
+    {c:'Enter',lbl:'↵',w:2.25,sp:true} ],
+  [ {c:'ShiftLeft',lbl:'⇧ Shift',w:2.25,sp:true},
+    {c:'KeyZ'},{c:'KeyX'},{c:'KeyC'},{c:'KeyV'},{c:'KeyB'},{c:'KeyN'},{c:'KeyM'},
+    {c:'Comma'},{c:'Period'},{c:'Slash'},
+    {c:'ShiftRight',lbl:'⇧ Shift',w:2.75,sp:true} ],
+  [ {c:'CtrlL',lbl:'Ctrl',w:1.5,sp:true},{c:'AltL',lbl:'Alt',w:1.5,sp:true},
+    {c:'Space',lbl:'⎵ Space',w:7,sp:true},
+    {c:'AltR',lbl:'Alt',w:1.5,sp:true},{c:'CtrlR',lbl:'Ctrl',w:1.5,sp:true} ],
+];
+
+// KEY component
+
+function Key({ kdef, nextCode, needsShift, flashCode }) {
+  const { c, lbl, w=1, sp=false } = kdef;
+  const meta=KEY_META[c], chars=KEYMAP[c];
+  const isNext=(nextCode===c), isShift=(c==='ShiftLeft'||c==='ShiftRight')&&needsShift;
+  const isFlash=flashCode===c, active=isNext||isShift;
+  const bg=isFlash?'#FCA5A5':active?'#1D4ED8':sp?'#CBD5E1':meta?FINGER_COLORS[meta.f]:'#E2E8F0';
+  const shadow=active?'0 0 0 2px #1D4ED8,0 0 16px #93C5FD':'0 1px 3px rgba(0,0,0,.2)';
+  return (
+    <div style={{ flex:w,height:44,background:bg,boxShadow:shadow,borderRadius:6,
+      display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',
+      position:'relative',cursor:'default',userSelect:'none',
+      transition:'background .1s,box-shadow .1s',minWidth:0 }}>
+      {sp ? (
+        <span style={{fontSize:11,fontWeight:700,color:active?'#fff':'#475569'}}>{lbl}</span>
+      ) : chars ? (
+        <>
+          <span style={{position:'absolute',top:3,right:5,fontSize:9,
+            color:active?'#BFDBFE':'#64748B',fontWeight:600,
+            fontFamily:"'Sarabun','Noto Sans Thai',sans-serif"}}>{chars[1]}</span>
+          <span style={{fontSize:18,fontWeight:700,lineHeight:1,
+            color:active?'#fff':'#0F172A',
+            fontFamily:"'Sarabun','Noto Sans Thai',sans-serif"}}>{chars[0]}</span>
+          {meta?.home&&<span style={{position:'absolute',bottom:3,width:4,height:4,
+            borderRadius:'50%',background:active?'#BFDBFE':'rgba(0,0,0,.25)'}}/>}
+        </>
+      ) : null}
+    </div>
+  );
+}
+
+// ON-SCREEN KEYBOARD
+
+function OnScreenKeyboard({ nextCode, needsShift, flashCode }) {
+  return (
+    <div style={{display:'flex',flexDirection:'column',gap:3,width:'100%'}}>
+      {KB_ROWS.map((row,ri)=>(
+        <div key={ri} style={{display:'flex',gap:3}}>
+          {row.map(kdef=><Key key={kdef.c} kdef={kdef} nextCode={nextCode}
+            needsShift={needsShift} flashCode={flashCode}/>)}
+        </div>
+      ))}
+      <div style={{display:'flex',gap:10,marginTop:6,flexWrap:'wrap',justifyContent:'center'}}>
+        {[['LP','ซ้ายก้อย'],['LR','ซ้ายนาง'],['LM','ซ้ายกลาง'],['LI','ซ้ายชี้'],
+          ['RI','ขวาชี้'],['RM','ขวากลาง'],['RR','ขวานาง'],['RP','ขวาก้อย']].map(([f,lbl])=>(
+          <div key={f} style={{display:'flex',alignItems:'center',gap:4,fontSize:10,color:'#64748B',
+            fontFamily:"'Sarabun','Noto Sans Thai',sans-serif"}}>
+            <span style={{width:11,height:11,borderRadius:2,background:FINGER_COLORS[f],
+              display:'inline-block',flexShrink:0}}/>
+            {lbl}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// TEXT DISPLAY
+
+function TextDisplay({ targetChars, pos }) {
+  return (
+    <div style={{fontFamily:"'Sarabun','Noto Sans Thai',sans-serif",
+      fontSize:34,letterSpacing:2,lineHeight:1.9,
+      display:'flex',flexWrap:'wrap',gap:0,
+      justifyContent:'center',minHeight:80,alignItems:'center'}}>
+      {targetChars.map((ch,i)=>{
+        const done=i<pos,cur=i===pos,isSpace=ch===' ';
+        return (
+          <span key={i} style={{
+            color:done?'#059669':cur?'#0F172A':'#CBD5E1',
+            background:cur?'#FEF08A':'transparent',
+            borderBottom:cur?'3px solid #F59E0B':'none',
+            display:isSpace?'inline-block':'inline',
+            width:isSpace?16:'auto',textAlign:'center'}}>
+            {isSpace?(done?'·':cur?'⎵':' '):ch}
+          </span>
+        );
+      })}
+    </div>
+  );
+}
+
+// STAT PILL
+
+function StatPill({ label, value, color }) {
+  return (
+    <div style={{background:'#F8FAFC',border:'1.5px solid #E2E8F0',
+      borderRadius:12,padding:'8px 16px',textAlign:'center',minWidth:80}}>
+      <div style={{fontSize:21,fontWeight:800,color:color??'#0F172A'}}>{value}</div>
+      <div style={{fontSize:10,color:'#94A3B8',marginTop:2,fontWeight:600,letterSpacing:.5,
+        fontFamily:"'Sarabun','Noto Sans Thai',sans-serif"}}>{label}</div>
+    </div>
+  );
+}
+
+// SPAM SCREEN
+
+function SpamScreen({ countdown }) {
+  return (
+    <div style={{position:'fixed',inset:0,background:'rgba(185,28,28,.96)',
+      display:'flex',flexDirection:'column',alignItems:'center',
+      justifyContent:'center',zIndex:1000,gap:16,
+      fontFamily:"'Sarabun','Noto Sans Thai',sans-serif"}}>
+      <div style={{fontSize:72}}>⚠️</div>
+      <div style={{fontSize:30,fontWeight:800,color:'#fff',textAlign:'center',lineHeight:1.3}}>
+        กดแป้นพิมพ์เร็วเกินไป!
+      </div>
+      <div style={{fontSize:16,color:'rgba(255,255,255,.8)',textAlign:'center',lineHeight:1.7}}>
+        ตรวจพบการกดแป้นแบบสุ่ม<br/>
+        <span style={{fontSize:13,opacity:.7}}>Key spamming detected — random pressing is not allowed</span>
+      </div>
+      <div style={{marginTop:8,width:96,height:96,borderRadius:'50%',
+        border:'5px solid rgba(255,255,255,.35)',
+        display:'flex',alignItems:'center',justifyContent:'center',
+        background:'rgba(255,255,255,.12)'}}>
+        <span style={{fontSize:48,fontWeight:800,color:'#fff'}}>{countdown}</span>
+      </div>
+      <div style={{fontSize:14,color:'rgba(255,255,255,.6)'}}>
+        กลับสู่หน้าเลือกบทเรียนอัตโนมัติ...
+      </div>
+    </div>
+  );
+}
+
+// JOIN SCREEN  (Phase 2)
+
+function JoinScreen({ onJoin, onSolo }) {
+  const [code,   setCode]   = useState('');
+  const [status, setStatus] = useState('idle'); // idle | loading | error
+  const [errMsg, setErrMsg] = useState('');
+
+  const submit = async () => {
+    const c = code.trim().toUpperCase();
+    if (!c) return;
+    setStatus('loading'); setErrMsg('');
+    try {
+      const data = await fetchRoster(c);
+      if (!data.students?.length) {
+        setErrMsg('ไม่พบรหัสห้องนี้ — กรุณาตรวจสอบอีกครั้ง'); setStatus('error'); return;
+      }
+      onJoin(c, data.students);
+    } catch {
+      setErrMsg('เชื่อมต่อไม่ได้ — ตรวจสอบสัญญาณและลองใหม่'); setStatus('error');
+    }
+  };
+
+  const thaiFont = "'Sarabun','Noto Sans Thai',sans-serif";
+  return (
+    <div style={{textAlign:'center',padding:'40px 0',maxWidth:380,margin:'0 auto'}}>
+      <div style={{fontSize:60,marginBottom:14}}>⌨️</div>
+      <h1 style={{fontFamily:thaiFont,fontSize:26,fontWeight:800,color:'#0F172A',marginBottom:4}}>
+        แบบฝึกพิมพ์ภาษาไทย</h1>
+      <p style={{color:'#94A3B8',fontSize:12,marginBottom:32}}>Thai Typing Practice — Kedmanee</p>
+
+      <div style={{background:'#F8FAFC',border:'1.5px solid #E2E8F0',
+        borderRadius:16,padding:24,marginBottom:14}}>
+        <label style={{display:'block',fontSize:12,fontWeight:700,color:'#475569',
+          marginBottom:8,fontFamily:thaiFont,textAlign:'left'}}>
+          รหัสห้อง / Class Code</label>
+        <input value={code}
+          onChange={e => setCode(e.target.value.toUpperCase())}
+          onKeyDown={e => e.key==='Enter' && submit()}
+          placeholder="เช่น P52A"
+          maxLength={10}
+          style={{width:'100%',fontSize:30,fontWeight:800,textAlign:'center',
+            padding:'12px',border:'2px solid #CBD5E1',borderRadius:10,
+            letterSpacing:5,color:'#0F172A',outline:'none',marginBottom:10,
+            fontFamily:'system-ui,monospace',boxSizing:'border-box'}}/>
+        {errMsg && (
+          <div style={{color:'#DC2626',fontSize:12,marginBottom:10,
+            fontFamily:thaiFont}}>{errMsg}</div>
+        )}
+        <button onClick={submit}
+          disabled={status==='loading' || !code.trim()}
+          style={{width:'100%',background:'#0F172A',color:'#fff',border:'none',
+            borderRadius:10,padding:'13px',cursor:'pointer',fontSize:16,fontWeight:700,
+            fontFamily:thaiFont,opacity:(status==='loading'||!code.trim())?0.5:1,
+            transition:'opacity .15s'}}>
+          {status==='loading' ? 'กำลังโหลด...' : 'เข้าร่วม →'}
+        </button>
+      </div>
+
+      <button onClick={onSolo}
+        style={{background:'transparent',border:'none',color:'#94A3B8',
+          cursor:'pointer',fontSize:12,fontFamily:thaiFont,textDecoration:'underline'}}>
+        ฝึกคนเดียว (ไม่บันทึกผล)
+      </button>
+    </div>
+  );
+}
+
+// ROSTER SCREEN  (Phase 2)
+
+function RosterScreen({ classCode, students, onSelect, onBack }) {
+  const [filter, setFilter] = useState('');
+  const thaiFont = "'Sarabun','Noto Sans Thai',sans-serif";
+  const filtered = students.filter(s =>
+    s.name.includes(filter) || (s.displayName||'').includes(filter)
+  );
+
+  return (
+    <div>
+      <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:22}}>
+        <button onClick={onBack}
+          style={{background:'transparent',border:'1.5px solid #CBD5E1',borderRadius:7,
+            padding:'5px 11px',cursor:'pointer',fontSize:12,color:'#64748B'}}>←</button>
+        <div>
+          <div style={{fontSize:10,color:'#94A3B8',fontWeight:600,letterSpacing:1}}>รหัสห้อง</div>
+          <div style={{fontSize:22,fontWeight:800,color:'#0F172A',
+            letterSpacing:3,fontFamily:'system-ui,monospace'}}>{classCode}</div>
+        </div>
+      </div>
+      <h2 style={{fontFamily:thaiFont,fontSize:22,fontWeight:800,
+        color:'#0F172A',marginBottom:4}}>คุณคือใคร?</h2>
+      <p style={{color:'#64748B',fontSize:12,marginBottom:16,fontFamily:thaiFont}}>
+        Select your name from the list</p>
+
+      {students.length > 8 && (
+        <input value={filter} onChange={e => setFilter(e.target.value)}
+          placeholder="ค้นหาชื่อ / Search..."
+          style={{width:'100%',padding:'8px 12px',border:'1.5px solid #E2E8F0',
+            borderRadius:8,fontSize:14,marginBottom:14,outline:'none',
+            fontFamily:thaiFont,boxSizing:'border-box'}}/>
+      )}
+
+      <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:8}}>
+        {filtered.map(s => (
+          <button key={s.name} onClick={() => onSelect(s)}
+            style={{background:'#F8FAFC',border:'1.5px solid #E2E8F0',
+              borderRadius:10,padding:'12px 8px',cursor:'pointer',textAlign:'center',
+              transition:'all .15s'}}
+            onMouseEnter={e=>{e.currentTarget.style.background='#EFF6FF';e.currentTarget.style.borderColor='#BFDBFE'}}
+            onMouseLeave={e=>{e.currentTarget.style.background='#F8FAFC';e.currentTarget.style.borderColor='#E2E8F0'}}>
+            <div style={{fontFamily:thaiFont,fontSize:16,fontWeight:700,
+              color:'#0F172A'}}>{s.name}</div>
+            {s.displayName && s.displayName !== s.name && (
+              <div style={{fontSize:10,color:'#94A3B8',marginTop:2,
+                fontFamily:thaiFont}}>{s.displayName}</div>
+            )}
+          </button>
+        ))}
+      </div>
+      {filtered.length === 0 && (
+        <div style={{textAlign:'center',color:'#94A3B8',padding:24,
+          fontFamily:thaiFont}}>ไม่พบชื่อที่ค้นหา</div>
+      )}
+    </div>
+  );
+}
+
+// LESSON SELECTOR
+
+function LessonScreen({ onSelect }) {
+  return (
+    <div>
+      <h1 style={{fontFamily:"'Sarabun','Noto Sans Thai',sans-serif",
+        fontSize:26,fontWeight:800,color:'#0F172A',marginBottom:6}}>
+        แบบฝึกพิมพ์ภาษาไทย
+      </h1>
+      <p style={{color:'#64748B',fontSize:13,marginBottom:24}}>
+        เลือกบทเรียน / Choose a lesson — 🎲 คำจะสุ่มใหม่ทุกครั้ง
+      </p>
+      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:14}}>
+        {LESSONS.map(lesson=>(
+          <div key={lesson.id} style={{border:`2px solid ${lesson.accent}`,borderRadius:16,
+            padding:18,background:'#fff',transition:'transform .15s,box-shadow .15s'}}
+            onMouseEnter={e=>{e.currentTarget.style.transform='translateY(-2px)';e.currentTarget.style.boxShadow='0 8px 24px rgba(0,0,0,.1)'}}
+            onMouseLeave={e=>{e.currentTarget.style.transform='none';e.currentTarget.style.boxShadow='none'}}>
+            <div style={{display:'inline-block',background:lesson.al,borderRadius:6,
+              padding:'3px 9px',marginBottom:8,fontSize:10,fontWeight:700,
+              color:lesson.accent,letterSpacing:.5}}>บทที่ {lesson.id}</div>
+            <div style={{fontFamily:"'Sarabun','Noto Sans Thai',sans-serif",
+              fontSize:19,fontWeight:800,color:'#0F172A',marginBottom:2}}>{lesson.thaiName}</div>
+            <div style={{fontSize:12,color:'#64748B',marginBottom:10}}>{lesson.engName}</div>
+            <div style={{fontSize:12,color:'#475569',marginBottom:14,lineHeight:1.6,
+              fontFamily:"'Sarabun','Noto Sans Thai',sans-serif"}}>{lesson.desc}</div>
+            <div style={{display:'flex',flexDirection:'column',gap:5}}>
+              {lesson.exercises.map((ex,i)=>(
+                <button key={i} onClick={()=>onSelect(lesson,ex)} style={{
+                  background:'transparent',border:`1.5px solid ${lesson.accent}`,
+                  borderRadius:7,padding:'6px 10px',cursor:'pointer',
+                  display:'flex',justifyContent:'space-between',alignItems:'center',
+                  fontSize:11,color:lesson.accent,fontWeight:600,transition:'background .1s',
+                  fontFamily:"'Sarabun','Noto Sans Thai',sans-serif"}}
+                  onMouseEnter={e=>e.currentTarget.style.background=lesson.al}
+                  onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
+                  <span>{ex.title}</span>
+                  <span style={{display:'flex',alignItems:'center',gap:6}}>
+                    <span style={{fontSize:10,opacity:.7}}>~{ex.minChars} ตัว · {ex.words.length} คำ</span>
+                    <span>→</span>
+                  </span>
+                </button>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// RESULTS SCREEN
+
+function ResultsScreen({ cpm, accuracy, errors, totalChars, lesson, saveStatus, studentName, onRestart, onBack }) {
+  const grade =
+    accuracy>=98&&cpm>=40 ? {label:'ยอดเยี่ยม 🏆',color:'#D97706'} :
+    accuracy>=95&&cpm>=25 ? {label:'ดีมาก ⭐',     color:'#2563EB'} :
+    accuracy>=90           ? {label:'ดี 👍',         color:'#059669'} :
+                             {label:'ฝึกต่อ 💪',    color:'#7C3AED'};
+  return (
+    <div style={{textAlign:'center',fontFamily:"'Sarabun','Noto Sans Thai',sans-serif"}}>
+      <div style={{fontSize:52,marginBottom:8}}>{accuracy>=95?'🎉':accuracy>=85?'👏':'💪'}</div>
+      <h2 style={{fontSize:26,fontWeight:800,color:'#0F172A',marginBottom:4}}>เสร็จแล้ว!</h2>
+      <div style={{color:grade.color,fontWeight:800,fontSize:18,marginBottom:22}}>{grade.label}</div>
+      <div style={{display:'flex',gap:14,justifyContent:'center',marginBottom:24,flexWrap:'wrap'}}>
+        <StatPill label="CPM"       value={cpm}              color={cpm>=30?'#059669':'#D97706'}/>
+        <StatPill label="WPM"       value={Math.round(cpm/5)} color="#2563EB"/>
+        <StatPill label="ความแม่น" value={`${accuracy}%`}   color={accuracy>=95?'#059669':'#D97706'}/>
+        <StatPill label="ผิด"       value={errors}           color={errors===0?'#059669':'#EF4444'}/>
+        <StatPill label="ตัวอักษร" value={totalChars}/>
+      </div>
+      <div style={{background:'#F1F5F9',borderRadius:12,height:10,marginBottom:22,overflow:'hidden'}}>
+        <div style={{width:`${accuracy}%`,height:'100%',borderRadius:12,
+          background:accuracy>=95?'#059669':accuracy>=85?'#2563EB':'#F59E0B',
+          transition:'width 1s ease-out'}}/>
+      </div>
+      <div style={{display:'flex',gap:12,justifyContent:'center'}}>
+        <button onClick={onRestart} style={{background:'#0F172A',color:'#fff',border:'none',
+          borderRadius:10,padding:'11px 26px',cursor:'pointer',fontSize:14,fontWeight:700}}>
+          สุ่มคำใหม่ / ลองอีกครั้ง
+        </button>
+        <button onClick={onBack} style={{background:'#F1F5F9',color:'#0F172A',border:'none',
+          borderRadius:10,padding:'11px 26px',cursor:'pointer',fontSize:14,fontWeight:600}}>
+          เลือกบทเรียน
+        </button>
+      </div>
+      {studentName && (
+        <div style={{marginTop:18,fontSize:12,color:'#94A3B8',
+          fontFamily:"'Sarabun','Noto Sans Thai',sans-serif"}}>
+          {saveStatus==='saving' && '💾 กำลังบันทึกผล...'}
+          {saveStatus==='saved'  && '✅ บันทึกผลแล้ว'}
+          {saveStatus==='error'  && '⚠️ บันทึกไม่ได้ — ตรวจสอบสัญญาณ'}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// MAIN APP
+
+const CLASS_NAMES = {
+  LV:'สระหน้า',CONS:'พยัญชนะ',FV:'สระหลัง',AV:'สระบน',
+  BV:'สระล่าง',BD:'จุดล่าง',TONE:'วรรณยุกต์',AD:'ทัณฑฆาต',NON:'อื่นๆ',
+};
+
+function ThaiTypingApp() {
+  const [screen,        setScreen]        = useState(SCRIPT_URL ? 'join' : 'lessons');
+  const [classCode,     setClassCode]     = useState('');
+  const [studentName,   setStudentName]   = useState('');
+  const [displayName,   setDisplayName]   = useState('');
+  const [students,      setStudents]      = useState([]);
+  const [saveStatus,    setSaveStatus]    = useState('idle'); // idle|saving|saved|error
+  const [lesson,        setLesson]        = useState(null);
+  const [exercise,      setExercise]      = useState(null);
+  const [target,        setTarget]        = useState('');
+  const [pos,           setPos]           = useState(0);
+  const [errors,        setErrors]        = useState(0);
+  const [startTime,     setStartTime]     = useState(null);
+  const [endTime,       setEndTime]       = useState(null);
+  const [hint,          setHint]          = useState(null);
+  const [flashCode,     setFlashCode]     = useState(null);
+  const [shiftHeld,     setShiftHeld]     = useState(false);
+  const [now,           setNow]           = useState(Date.now());
+  const [spamCountdown, setSpamCountdown] = useState(SPAM_COUNTDOWN);
+
+  const keystrokeTimes = useRef([]);
+  const errorTimes     = useRef([]);
+  const hasSaved       = useRef(false);   // prevents double-save on same results screen
+
+  useEffect(() => {
+    if (screen!=='practice'||!startTime||endTime) return;
+    const id=setInterval(()=>setNow(Date.now()),500);
+    return ()=>clearInterval(id);
+  },[screen,startTime,endTime]);
+
+  useEffect(() => {
+    if (screen!=='spam') return;
+    if (spamCountdown<=0) { setScreen('lessons'); return; }
+    const t=setTimeout(()=>setSpamCountdown(c=>c-1),1000);
+    return ()=>clearTimeout(t);
+  },[screen,spamCountdown]);
+
+  // Save session to Google Sheets when results screen appears (class mode only)
+  useEffect(() => {
+    if (screen !== 'results') return;
+    if (!studentName || !SCRIPT_URL) return;
+    if (hasSaved.current) return;         // guard — only save once per results view
+    hasSaved.current = true;
+    setSaveStatus('saving');
+    const elapsed = startTime && endTime ? (endTime - startTime) / 60000 : 0;
+    const finalCpm = elapsed > 0 ? Math.round(pos / elapsed) : 0;
+    const finalAcc = (pos + errors) > 0 ? Math.round((pos / (pos + errors)) * 100) : 100;
+    saveSession({
+      classCode, studentName,
+      lessonId: lesson?.id || 0,
+      exerciseTitle: exercise?.title || '',
+      cpm: finalCpm, wpm: Math.round(finalCpm / 5),
+      accuracy: finalAcc, errors,
+      totalChars: pos,
+      duration: endTime && startTime ? Math.round((endTime - startTime) / 1000) : 0,
+    })
+      .then(d => setSaveStatus(d.ok ? 'saved' : 'error'))
+      .catch(()  => setSaveStatus('error'));
+  }, [screen]);
+
+  const targetChars = target ? [...target] : [];
+  const totalChars  = targetChars.length;
+  const elapsed     = startTime ? ((endTime??now)-startTime)/60000 : 0;
+  const cpm         = elapsed>0 ? Math.round(pos/elapsed) : 0;
+  const accuracy    = (pos+errors)>0 ? Math.round((pos/(pos+errors))*100) : 100;
+  const nextChar    = pos<targetChars.length ? targetChars[pos] : null;
+  const nextKey     = nextChar ? findKeyForChar(nextChar) : null;
+  const nextCode    = nextKey?.code ?? null;
+  const needsShift  = nextKey?.needsShift ?? false;
+
+  const stateRef = useRef({});
+  stateRef.current = { pos, target, targetChars, startTime };
+
+  const startExercise = useCallback((les,ex) => {
+    setLesson(les); setExercise(ex);
+    setTarget(generateText(ex.words,ex.minChars));
+    setPos(0); setErrors(0); setStartTime(null); setEndTime(null);
+    setHint(null); setFlashCode(null); setShiftHeld(false); setNow(Date.now());
+    keystrokeTimes.current=[]; errorTimes.current=[];
+    hasSaved.current = false;
+    setSaveStatus('idle');
+    setScreen('practice');
+  },[]);
+
+  // Log the student out → back to join screen
+  const handleLogout = useCallback(() => {
+    setClassCode(''); setStudentName(''); setDisplayName(''); setStudents([]);
+    setLesson(null); setExercise(null); setTarget(''); setPos(0);
+    setErrors(0); setStartTime(null); setEndTime(null); setSaveStatus('idle');
+    setScreen(SCRIPT_URL ? 'join' : 'lessons');
+  },[]);
+
+  useEffect(() => {
+    if (screen!=='practice') return;
+    const handleKeyDown=(e)=>{
+      if (e.key==='Shift') { setShiftHeld(true); return; }
+      if (e.ctrlKey||e.altKey||e.metaKey) return;
+      e.preventDefault();
+      if (e.key==='Escape') { setScreen('lessons'); return; }
+      const { pos,target,targetChars,startTime } = stateRef.current;
+      if (e.code==='Backspace') {
+        if (pos>0) setPos(p=>p-1);
+        setHint(null); return;
+      }
+      const char=mapKey(e);
+      if (!char) return;
+
+      // SPAM CHECK 1: speed
+      const nowMs=Date.now();
+      const kBuf=keystrokeTimes.current;
+      kBuf.push(nowMs);
+      if (kBuf.length>15) kBuf.shift();
+      if (kBuf.length>=8) {
+        const span=kBuf[kBuf.length-1]-kBuf[0];
+        if (span>0 && ((kBuf.length-1)/span)*60000>SPEED_CPM) {
+          keystrokeTimes.current=[]; errorTimes.current=[];
+          setSpamCountdown(SPAM_COUNTDOWN); setScreen('spam'); return;
+        }
+      }
+
+      if (!startTime) setStartTime(Date.now());
+      const typedSoFar=targetChars.slice(0,pos).join('')+char;
+      const result=validateInput(target,typedSoFar);
+
+      if (result.ok) {
+        setHint(null); setFlashCode(null);
+        setPos(p=>{
+          const next=p+1;
+          if (next>=targetChars.length){ setEndTime(Date.now()); setTimeout(()=>setScreen('results'),600); }
+          return next;
+        });
+      } else {
+        if (result.costsLife) {
+          setErrors(er=>er+1);
+          setFlashCode(e.code);
+          setTimeout(()=>setFlashCode(null),400);
+          // SPAM CHECK 2: error burst
+          const eBuf=errorTimes.current;
+          eBuf.push(nowMs);
+          const cutoff=nowMs-ERROR_WINDOW_MS;
+          while (eBuf.length&&eBuf[0]<cutoff) eBuf.shift();
+          if (eBuf.length>=ERROR_BURST) {
+            keystrokeTimes.current=[]; errorTimes.current=[];
+            setSpamCountdown(SPAM_COUNTDOWN); setScreen('spam'); return;
+          }
+        }
+        if (result.hint) setHint(result.hint);
+      }
+    };
+    const handleKeyUp=(e)=>{ if (e.key==='Shift') setShiftHeld(false); };
+    window.addEventListener('keydown',handleKeyDown);
+    window.addEventListener('keyup',handleKeyUp);
+    return ()=>{ window.removeEventListener('keydown',handleKeyDown); window.removeEventListener('keyup',handleKeyUp); };
+  },[screen]);
+
+  return (
+    <div style={{minHeight:'100vh',background:'#F1F5F9',fontFamily:'system-ui,sans-serif',
+      display:'flex',flexDirection:'column',alignItems:'center',padding:'24px 16px 40px'}}>
+      <style>{`@import url('https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600;700;800&display=swap');`}</style>
+
+      {screen==='spam' && <SpamScreen countdown={spamCountdown}/>}
+
+      {/* Header */}
+      <div style={{width:'100%',maxWidth:860,display:'flex',
+        justifyContent:'space-between',alignItems:'center',marginBottom:22}}>
+        <div style={{display:'flex',alignItems:'center',gap:10}}>
+          <span style={{fontSize:26}}>⌨️</span>
+          <div>
+            <div style={{fontWeight:800,fontSize:15,color:'#0F172A',
+              fontFamily:"'Sarabun','Noto Sans Thai',sans-serif"}}>แบบฝึกพิมพ์ภาษาไทย</div>
+            <div style={{fontSize:10,color:'#94A3B8'}}>Thai Typing Practice — Kedmanee (TIS 820-2538)</div>
+          </div>
+        </div>
+        <div style={{display:'flex',gap:8,alignItems:'center'}}>
+          {/* Student badge */}
+          {studentName && (
+            <div style={{background:'#F1F5F9',border:'1.5px solid #E2E8F0',
+              borderRadius:8,padding:'5px 10px',fontSize:11,color:'#475569',
+              fontFamily:"'Sarabun','Noto Sans Thai',sans-serif"}}>
+              ห้อง {classCode} | <strong>{studentName}</strong>
+            </div>
+          )}
+          {/* Back to lessons */}
+          {screen!=='lessons'&&screen!=='join'&&screen!=='roster'&&screen!=='spam'&&(
+            <button onClick={()=>setScreen('lessons')} style={{background:'transparent',
+              border:'1.5px solid #CBD5E1',borderRadius:8,padding:'6px 12px',cursor:'pointer',
+              fontSize:11,color:'#64748B',fontWeight:600,
+              fontFamily:"'Sarabun','Noto Sans Thai',sans-serif"}}>← บทเรียน</button>
+          )}
+          {/* Logout (class mode only) */}
+          {studentName && (
+            <button onClick={handleLogout} style={{background:'transparent',
+              border:'1.5px solid #FCA5A5',borderRadius:8,padding:'6px 12px',cursor:'pointer',
+              fontSize:11,color:'#DC2626',fontWeight:600,
+              fontFamily:"'Sarabun','Noto Sans Thai',sans-serif"}}>ออกจากระบบ</button>
+          )}
+          {/* Link to teacher panel */}
+          <a href="teacher.html" style={{fontSize:11,color:'#94A3B8',textDecoration:'none',
+            fontWeight:600,padding:'6px 10px',border:'1.5px solid #E2E8F0',borderRadius:8,
+            display:'flex',alignItems:'center',gap:3}}>🎓 ครู</a>
+        </div>
+      </div>
+
+      {/* Card */}
+      <div style={{width:'100%',maxWidth:860,background:'#fff',borderRadius:20,
+        boxShadow:'0 4px 24px rgba(0,0,0,.08)',padding:'30px 26px'}}>
+
+        {screen==='join' && (
+          <JoinScreen
+            onJoin={(code, sts) => { setClassCode(code); setStudents(sts); setScreen('roster'); }}
+            onSolo={() => { setClassCode(''); setStudentName(''); setScreen('lessons'); }}
+          />
+        )}
+        {screen==='roster' && (
+          <RosterScreen
+            classCode={classCode}
+            students={students}
+            onSelect={s => { setStudentName(s.name); setDisplayName(s.displayName||s.name); setScreen('lessons'); }}
+            onBack={() => setScreen('join')}
+          />
+        )}
+        {screen==='lessons' && <LessonScreen onSelect={startExercise}/>}
+
+        {screen==='practice'&&lesson&&exercise&&(
+          <div>
+            <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:18}}>
+              <div style={{background:lesson.al,color:lesson.accent,borderRadius:7,
+                padding:'3px 9px',fontSize:10,fontWeight:700,letterSpacing:.5,
+                fontFamily:"'Sarabun','Noto Sans Thai',sans-serif"}}>{lesson.thaiName}</div>
+              <div style={{fontSize:13,color:'#64748B',fontWeight:600,
+                fontFamily:"'Sarabun','Noto Sans Thai',sans-serif"}}>{exercise.title}</div>
+              <div style={{fontSize:11,color:'#94A3B8'}}>🎲 คำสุ่ม</div>
+              <div style={{marginLeft:'auto',fontSize:10,color:'#94A3B8'}}>Esc = ออก</div>
+            </div>
+
+            <div style={{display:'flex',gap:10,marginBottom:20,flexWrap:'wrap',alignItems:'center'}}>
+              <StatPill label="CPM"       value={cpm}              color={cpm>=30?'#059669':'#0F172A'}/>
+              <StatPill label="WPM"       value={Math.round(cpm/5)} color="#2563EB"/>
+              <StatPill label="ความแม่น" value={`${accuracy}%`}   color={accuracy>=95?'#059669':'#D97706'}/>
+              <StatPill label="ผิด"       value={errors}           color={errors===0?'#0F172A':'#EF4444'}/>
+              <div style={{flex:1,minWidth:120}}>
+                <div style={{fontSize:10,color:'#94A3B8',marginBottom:5,fontWeight:600}}>
+                  {pos} / {totalChars} ตัวอักษร</div>
+                <div style={{background:'#F1F5F9',borderRadius:8,height:8,overflow:'hidden'}}>
+                  <div style={{width:`${totalChars>0?(pos/totalChars)*100:0}%`,height:'100%',
+                    borderRadius:8,background:lesson.accent,transition:'width .15s'}}/>
+                </div>
+              </div>
+            </div>
+
+            <div style={{background:'#F8FAFC',borderRadius:14,padding:'22px 18px',
+              marginBottom:14,border:'1.5px solid #E2E8F0',minHeight:96,
+              display:'flex',alignItems:'center',justifyContent:'center'}}>
+              <TextDisplay targetChars={targetChars} pos={pos}/>
+            </div>
+
+            {nextChar&&(
+              <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:10,
+                padding:'9px 14px',background:'#EFF6FF',borderRadius:9,
+                border:'1.5px solid #BFDBFE'}}>
+                <span style={{fontSize:10,color:'#2563EB',fontWeight:700,
+                  fontFamily:"'Sarabun','Noto Sans Thai',sans-serif"}}>กำลังพิมพ์:</span>
+                <span style={{fontFamily:"'Sarabun','Noto Sans Thai',sans-serif",
+                  fontSize:22,fontWeight:800,color:'#1D4ED8'}}>
+                  {nextChar===' '?'(เว้นวรรค)':nextChar}</span>
+                <span style={{fontSize:10,color:'#3B82F6',
+                  fontFamily:"'Sarabun','Noto Sans Thai',sans-serif"}}>
+                  {CLASS_NAMES[CHAR_CLASS[nextChar]]??''}</span>
+                {nextKey&&(
+                  <span style={{marginLeft:'auto',fontSize:10,color:'#3B82F6',fontWeight:700}}>
+                    {needsShift?'⇧ + ':''}
+                    {nextKey.code.replace('Key','').replace('Digit','')
+                      .replace('BracketLeft','[').replace('BracketRight',']')
+                      .replace('Semicolon',';').replace('Quote',"'")
+                      .replace('Comma',',').replace('Period','.').replace('Slash','/')}
+                  </span>
+                )}
+              </div>
+            )}
+
+            {hint&&(
+              <div style={{padding:'9px 14px',background:'#FEF3C7',borderRadius:9,
+                border:'1.5px solid #FCD34D',marginBottom:10,
+                display:'flex',alignItems:'center',gap:8}}>
+                <span style={{fontSize:16}}>💡</span>
+                <span style={{fontFamily:"'Sarabun','Noto Sans Thai',sans-serif",
+                  fontSize:13,color:'#92400E',fontWeight:600}}>{hint}</span>
+              </div>
+            )}
+
+            <div style={{marginTop:8}}>
+              <OnScreenKeyboard nextCode={nextCode} needsShift={needsShift} flashCode={flashCode}/>
+            </div>
+          </div>
+        )}
+
+        {screen==='results'&&(
+          <ResultsScreen cpm={cpm} accuracy={accuracy} errors={errors}
+            totalChars={totalChars} lesson={lesson}
+            saveStatus={saveStatus} studentName={studentName}
+            onRestart={()=>startExercise(lesson,exercise)}
+            onBack={()=>setScreen('lessons')}/>
+        )}
+      </div>
+    </div>
+  );
+}
+
+const container=document.getElementById('root');
+const loading=document.getElementById('loading');
+ReactDOM.createRoot(container).render(<ThaiTypingApp/>);
+loading.style.display='none';container.style.display='block';
+</script></body></html>

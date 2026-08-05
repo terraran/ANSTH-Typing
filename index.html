@@ -1467,7 +1467,7 @@ function ThaiTypingApp() {
             joinError={joinError} mpBusy={mpBusy}/>
         )}
 
-        {screen==='practice'&&lesson&&exercise&&(
+        {screen==='practice'&&lesson&&target&&(
           <div>
             <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:18}}>
               <div style={{background:lesson.al,color:lesson.accent,borderRadius:7,
@@ -1644,7 +1644,8 @@ function ThaiTypingApp() {
             roomPlayers={roomPlayers} myName={studentName||'ผู้เล่น1'}
             onRestart={()=>{
               if(rcRef.current){handleLeaveRoom();}
-              else startExercise(lesson,exercise);
+              else if(lesson&&exercise) startExercise(lesson,exercise);
+              else setScreen('lessons');
             }}
             onBack={()=>{
               if(rcRef.current){handleLeaveRoom();}

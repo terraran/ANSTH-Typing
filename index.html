@@ -5,15 +5,11 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>แบบฝึกพิมพ์ภาษาไทย — Kedmanee</title>
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⌨️</text></svg>">
-  <!-- Firebase -->
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
-  <!-- React 18 -->
   <script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
   <script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
-  <!-- Babel (JSX compiler) -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.10/babel.min.js"></script>
-  <!-- Sarabun font -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600;700;800&display=swap" rel="stylesheet">
@@ -32,10 +28,8 @@
 <body>
   <div id="loading"><span>⌨️</span>กำลังโหลด...</div>
   <div id="root"></div>
-
   <script type="text/babel">
     const { useState, useEffect, useCallback, useRef } = React;
-
 // ═══════════════════════════════════════════════════════════════
 // TEACHER SETUP  ← Edit this one line before distributing.
 // Paste your deployed Apps Script URL. Leave '' for offline mode.
@@ -1017,6 +1011,12 @@ function ThaiTypingApp() {
   const nextCode    = nextKey?.code ?? null;
   const needsShift  = nextKey?.needsShift ?? false;
 
+  // Hide loading screen after React's first render completes
+  useEffect(() => {
+    const el = document.getElementById('loading');
+    if (el) el.style.display = 'none';
+  }, []);
+
   useEffect(() => {
     if (screen!=='practice'||!startTime||endTime) return;
     const id=setInterval(()=>setNow(Date.now()),500);
@@ -1656,12 +1656,7 @@ function ThaiTypingApp() {
   );
 }
 
-
-    const container = document.getElementById('root');
-    const loading   = document.getElementById('loading');
-    ReactDOM.createRoot(container).render(<ThaiTypingApp />);
-    // Hide loader after a short delay to let React paint first
-    setTimeout(() => { loading.style.display = 'none'; }, 100);
+    ReactDOM.createRoot(document.getElementById('root')).render(<ThaiTypingApp />);
   </script>
 </body>
 </html>

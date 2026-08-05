@@ -2,6 +2,8 @@
 <html lang="th"><head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
 <title>แบบฝึกพิมพ์ภาษาไทย — Kedmanee</title>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
 <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
 <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
 <script src="https://unpkg.com/@babel/standalone@7.24.0/babel.min.js"></script>
@@ -23,6 +25,80 @@ const { useState, useEffect, useCallback, useRef } = React;
 // Paste your deployed Apps Script URL. Leave '' for offline mode.
 // ═══════════════════════════════════════════════════════════════
 const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwpp0IvmQjrv0O8MZ6XSX3SQDfJIIii4RsidX5IvaPDaKyJ5x0QLhbdKPle4TX4BKhsmQ/exec'; // e.g. 'https://script.google.com/macros/s/AKfy.../exec'
+
+// ═══════════════════════════════════════════════════════════════
+// PHASE 4 — FIREBASE  (real-time 1v1 + Battle Royale)
+// ═══════════════════════════════════════════════════════════════
+const FB_CFG = {
+  apiKey:'AIzaSyCtCCkevo5cz0zFRLgfh1ixPZpUHf7mKz4',
+  authDomain:'thai-typing.firebaseapp.com',
+  databaseURL:'https://thai-typing-default-rtdb.asia-southeast1.firebasedatabase.app',
+  projectId:'thai-typing',
+  storageBucket:'thai-typing.firebasestorage.app',
+  messagingSenderId:'501163435800',
+  appId:'1:501163435800:web:bfc8b7d56b7ce5bf51206d',
+};
+
+let _db = null;
+function getDB() {
+  if (_db) return _db;
+  if (typeof firebase === 'undefined') return null;
+  if (!firebase.apps.length) firebase.initializeApp(FB_CFG);
+  _db = firebase.database();
+  return _db;
+}
+
+function makeCode() {
+  const c='ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  return Array.from({length:4},()=>c[Math.floor(Math.random()*c.length)]).join('');
+}
+
+// ── SAFE ZONE CONFIG ──────────────────────────────────────────────────
+// Zone starts 30s into the race, advances at ZONE_CPM chars/min.
+// Players more than ZONE_GAP chars behind lose 1 life every ZONE_TICK ms.
+const ZONE_GRACE = 30;    // seconds before zone starts moving
+const ZONE_CPM   = 18;    // zone advance speed in chars/minute
+const ZONE_GAP   = 40;    // chars behind zone before taking damage
+const ZONE_TICK  = 10000; // damage check every 10 seconds
+
+function getZonePos(startTime, totalChars) {
+  if (!startTime) return 0;
+  const elapsed = (Date.now() - startTime) / 1000;
+  if (elapsed < ZONE_GRACE) return 0;
+  const active = elapsed - ZONE_GRACE;
+  return Math.min(Math.floor((active / 60) * ZONE_CPM), totalChars);
+}
+
+async function fbCreate(code,info) {
+  const db=getDB(); if(!db) return;
+  await db.ref('rooms/'+code).set({info:{...info,createdAt:Date.now(),status:'lobby'},players:{}});
+}
+async function fbJoin(code,name,lives=3) {
+  const db=getDB(); if(!db) return;
+  await db.ref('rooms/'+code+'/players/'+name).set({pos:0,cpm:0,errors:0,lives,status:'waiting',finishedAt:0});
+}
+async function fbGet(code) {
+  const db=getDB(); if(!db) return null;
+  const s=await db.ref('rooms/'+code).once('value'); return s.val();
+}
+function fbListen(code,cb) {
+  const db=getDB(); if(!db) return ()=>{};
+  const ref=db.ref('rooms/'+code);
+  ref.on('value',s=>cb(s.val()));
+  return ()=>ref.off('value');
+}
+async function fbUpdatePlayer(code,name,data) {
+  const db=getDB(); if(!db) return;
+  await db.ref('rooms/'+code+'/players/'+name).update(data);
+}
+async function fbSetStatus(code,status,extra={}) {
+  const db=getDB(); if(!db) return;
+  await db.ref('rooms/'+code+'/info').update({status,...extra});
+}
+async function fbRemove(code) {
+  const db=getDB(); if(!db) return;
+  await db.ref('rooms/'+code).remove();
+}
 
 // Fetch student roster for a given class code
 async function fetchRoster(classCode) {
@@ -381,6 +457,152 @@ function SpamScreen({ countdown }) {
   );
 }
 
+// MULTIPLAYER SETUP — host picks which ROW LEVEL to race on
+// Text is generated from that lesson's full word bank
+
+function MPSetupScreen({ mode, onSelect, onBack, busy }) {
+  const tf = "'Sarabun','Noto Sans Thai',sans-serif";
+  const isRoyale = mode === 'royale';
+  const accent  = isRoyale ? '#D97706' : '#2563EB';
+  const accentL = isRoyale ? '#FEF3C7' : '#DBEAFE';
+
+  return (
+    <div>
+      {/* Header */}
+      <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:8}}>
+        <button onClick={onBack}
+          style={{background:'transparent',border:'1.5px solid #CBD5E1',borderRadius:7,
+            padding:'5px 11px',cursor:'pointer',fontSize:12,color:'#64748B'}}>←</button>
+        <div>
+          <div style={{fontSize:11,color:accent,fontWeight:700,letterSpacing:1}}>
+            {isRoyale ? '🏆 BATTLE ROYALE' : '⚡ 1V1'}</div>
+          <div style={{fontSize:20,fontWeight:800,color:'#0F172A',fontFamily:tf}}>
+            เลือกระดับแถวที่จะแข่ง</div>
+        </div>
+      </div>
+
+      {isRoyale && (
+        <div style={{background:'#FEF3C7',border:'1.5px solid #FCD34D',borderRadius:10,
+          padding:'10px 14px',marginBottom:16,
+          fontFamily:tf,fontSize:13,color:'#92400E',lineHeight:1.6}}>
+          🏆 <strong>Battle Royale:</strong> แต่ละคนมี 3 ชีวิต (❤️❤️❤️)
+          — ผิด 3 ครั้ง = ถูกคัดออก · ผู้ที่เหลือสุดท้ายหรือพิมพ์ครบก่อน = ชนะ
+        </div>
+      )}
+
+      {/* Level picker — one card per lesson row */}
+      <div style={{display:'flex',flexDirection:'column',gap:10}}>
+        {LESSONS.map(lesson => (
+          <button key={lesson.id} onClick={()=>!busy&&onSelect(lesson)}
+            disabled={busy}
+            style={{background:busy?'#F8FAFC':'#fff',
+              border:`2px solid ${lesson.accent}`,
+              borderRadius:14,padding:'16px 18px',cursor:busy?'not-allowed':'pointer',
+              display:'flex',justifyContent:'space-between',alignItems:'center',
+              transition:'all .15s',opacity:busy?0.5:1,textAlign:'left'}}
+            onMouseEnter={e=>{if(!busy){e.currentTarget.style.background=lesson.al;e.currentTarget.style.transform='translateY(-2px)';}}}
+            onMouseLeave={e=>{e.currentTarget.style.background='#fff';e.currentTarget.style.transform='none';}}>
+            <div>
+              <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:4}}>
+                <span style={{background:lesson.al,color:lesson.accent,borderRadius:6,
+                  padding:'2px 8px',fontSize:10,fontWeight:700}}>ระดับ {lesson.id}</span>
+                <span style={{fontFamily:tf,fontSize:17,fontWeight:800,color:'#0F172A'}}>
+                  {lesson.thaiName}</span>
+              </div>
+              <div style={{fontFamily:tf,fontSize:12,color:'#64748B'}}>{lesson.desc}</div>
+            </div>
+            <span style={{fontSize:20,color:lesson.accent}}>{busy?'⏳':'→'}</span>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// LOBBY SCREEN  (Phase 4)
+
+function LobbyScreen({ roomCode, roomInfo, roomPlayers, isHost, roomType, myName, onStart, onLeave }) {
+  const tf = "'Sarabun','Noto Sans Thai',sans-serif";
+  const players = Object.entries(roomPlayers||{});
+  const canStart = players.length >= 2;
+  return (
+    <div style={{textAlign:'center'}}>
+      {/* Room code */}
+      <div style={{marginBottom:24}}>
+        <div style={{fontSize:11,color:'#94A3B8',letterSpacing:2,marginBottom:6,fontWeight:700}}>
+          {roomType==='royale'?'🏆 BATTLE ROYALE':'⚡ 1V1'} — รหัสห้อง</div>
+        <div style={{fontSize:56,fontWeight:800,letterSpacing:10,color:'#0F172A',
+          fontFamily:'system-ui,monospace',lineHeight:1}}>{roomCode}</div>
+        <div style={{fontSize:12,color:'#94A3B8',marginTop:6,fontFamily:tf}}>
+          แจ้งรหัสนี้ให้เพื่อนพิมพ์เพื่อเข้าร่วม</div>
+      </div>
+      {/* Exercise info */}
+      {roomInfo&&(
+        <div style={{background:'#F8FAFC',border:'1.5px solid #E2E8F0',borderRadius:10,
+          padding:'8px 16px',marginBottom:20,display:'inline-block',fontFamily:tf,fontSize:13,color:'#475569'}}>
+          📝 {roomInfo.exerciseTitle}
+        </div>
+      )}
+      {/* Players */}
+      <div style={{marginBottom:24}}>
+        <div style={{fontSize:11,color:'#64748B',fontWeight:700,letterSpacing:.5,marginBottom:10}}>
+          ผู้เล่น ({players.length}{roomType==='1v1'?'/2':''})</div>
+        <div style={{display:'flex',gap:8,justifyContent:'center',flexWrap:'wrap'}}>
+          {players.map(([name])=>(
+            <div key={name} style={{background:name===myName?'#EFF6FF':'#F8FAFC',
+              border:'1.5px solid '+(name===myName?'#BFDBFE':'#E2E8F0'),
+              borderRadius:10,padding:'8px 18px',fontFamily:tf,fontWeight:700,fontSize:15}}>
+              {name===myName?'👤':''} {name}
+            </div>
+          ))}
+          {roomType==='1v1'&&players.length<2&&(
+            <div style={{border:'1.5px dashed #CBD5E1',borderRadius:10,
+              padding:'8px 18px',color:'#94A3B8',fontSize:13}}>
+              รอผู้เล่น...</div>
+          )}
+        </div>
+      </div>
+      {/* Start (BR host) */}
+      {isHost&&roomType==='royale'&&(
+        <button onClick={onStart} disabled={!canStart} style={{
+          background:canStart?'#059669':'#94A3B8',color:'#fff',border:'none',
+          borderRadius:10,padding:'12px 28px',cursor:canStart?'pointer':'not-allowed',
+          fontSize:16,fontWeight:700,fontFamily:tf,marginBottom:12,display:'block',
+          width:'100%',transition:'background .15s'}}>
+          {canStart?'▶ เริ่ม Battle Royale!':'รอผู้เล่นเพิ่ม... ('+players.length+'/2+)'}
+        </button>
+      )}
+      {roomType==='1v1'&&players.length<2&&(
+        <div style={{color:'#64748B',fontSize:13,marginBottom:16,fontFamily:tf}}>
+          จะเริ่มอัตโนมัติเมื่อเพื่อนเข้าร่วม...</div>
+      )}
+      <button onClick={onLeave} style={{background:'transparent',
+        border:'1.5px solid #FCA5A5',color:'#DC2626',borderRadius:8,
+        padding:'8px 16px',cursor:'pointer',fontSize:13,fontWeight:600,fontFamily:tf}}>
+        ออกจากห้อง
+      </button>
+    </div>
+  );
+}
+
+// COUNTDOWN SCREEN  (Phase 4)
+
+function CountdownScreen({ num, roomCode, roomType }) {
+  const tf = "'Sarabun','Noto Sans Thai',sans-serif";
+  return (
+    <div style={{textAlign:'center',padding:'48px 20px',fontFamily:tf}}>
+      <div style={{fontSize:11,color:'#94A3B8',letterSpacing:2,marginBottom:24,fontWeight:700}}>
+        {roomType==='royale'?'🏆 BATTLE ROYALE':'⚡ 1V1'} — ห้อง {roomCode}</div>
+      <div style={{fontSize:96,fontWeight:800,lineHeight:1,color:'#1D4ED8',
+        transition:'transform .2s',transform:num===1?'scale(1.3)':'scale(1)'}}>
+        {num}
+      </div>
+      <div style={{fontSize:18,color:'#64748B',marginTop:20}}>
+        {num>0?'วางนิ้วบน Home Row...':'🏃 พิมพ์เลย!'}</div>
+    </div>
+  );
+}
+
 // JOIN SCREEN  (Phase 2)
 
 function JoinScreen({ onJoin, onSolo }) {
@@ -509,7 +731,7 @@ function RosterScreen({ classCode, students, onSelect, onBack }) {
 
 // LESSON SELECTOR
 
-function LessonScreen({ onSelect }) {
+function LessonScreen({ onSelect, onOpenSetup, onJoin, joinCode, setJoinCode, joinError, mpBusy }) {
   return (
     <div>
       <h1 style={{fontFamily:"'Sarabun','Noto Sans Thai',sans-serif",
@@ -546,6 +768,9 @@ function LessonScreen({ onSelect }) {
                   <span>{ex.title}</span>
                   <span style={{display:'flex',alignItems:'center',gap:6}}>
                     <span style={{fontSize:10,opacity:.7}}>~{ex.minChars} ตัว · {ex.words.length} คำ</span>
+                    {(()=>{try{return localStorage.getItem('ghost_'+lesson.id+'_'+encodeURIComponent(ex.title));}catch{return null;}})() && (
+                      <span style={{fontSize:11}} title="มี Ghost บันทึกไว้">👻</span>
+                    )}
                     <span>→</span>
                   </span>
                 </button>
@@ -554,13 +779,62 @@ function LessonScreen({ onSelect }) {
           </div>
         ))}
       </div>
+
+      {/* ── Multiplayer section ── */}
+      <div style={{marginTop:22,borderTop:'1.5px solid #E2E8F0',paddingTop:18}}>
+        <div style={{fontSize:14,fontWeight:800,color:'#0F172A',marginBottom:14,
+          fontFamily:"'Sarabun','Noto Sans Thai',sans-serif"}}>⚡ Multiplayer</div>
+        {/* Create buttons */}
+        <div style={{display:'flex',gap:8,marginBottom:14}}>
+          <button onClick={()=>onOpenSetup&&onOpenSetup('1v1')} style={{
+            flex:1,background:'#2563EB',color:'#fff',border:'none',borderRadius:10,
+            padding:'11px 14px',cursor:'pointer',fontSize:14,fontWeight:700,
+            fontFamily:"'Sarabun','Noto Sans Thai',sans-serif",transition:'opacity .15s'}}
+            onMouseEnter={e=>e.currentTarget.style.opacity='.85'}
+            onMouseLeave={e=>e.currentTarget.style.opacity='1'}>
+            ⚡ สร้างห้อง 1v1
+          </button>
+          <button onClick={()=>onOpenSetup&&onOpenSetup('royale')} style={{
+            flex:1,background:'#D97706',color:'#fff',border:'none',borderRadius:10,
+            padding:'11px 14px',cursor:'pointer',fontSize:14,fontWeight:700,
+            fontFamily:"'Sarabun','Noto Sans Thai',sans-serif",transition:'opacity .15s'}}
+            onMouseEnter={e=>e.currentTarget.style.opacity='.85'}
+            onMouseLeave={e=>e.currentTarget.style.opacity='1'}>
+            🏆 Battle Royale
+          </button>
+        </div>
+        {/* Divider */}
+        <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:12}}>
+          <div style={{flex:1,height:'1px',background:'#E2E8F0'}}/>
+          <div style={{fontSize:11,color:'#94A3B8',fontWeight:600}}>หรือเข้าร่วมด้วยรหัส</div>
+          <div style={{flex:1,height:'1px',background:'#E2E8F0'}}/>
+        </div>
+        {/* Join input */}
+        <div style={{display:'flex',gap:8}}>
+          <input value={joinCode||''} onChange={e=>setJoinCode&&setJoinCode(e.target.value.toUpperCase())}
+            onKeyDown={e=>e.key==='Enter'&&onJoin&&onJoin(joinCode)}
+            placeholder="รหัสห้อง เช่น A7K2" maxLength={4}
+            style={{flex:1,padding:'10px 12px',border:'1.5px solid #E2E8F0',borderRadius:8,
+              fontSize:20,fontWeight:800,letterSpacing:5,textAlign:'center',
+              fontFamily:'system-ui,monospace',outline:'none',boxSizing:'border-box'}}/>
+          <button onClick={()=>onJoin&&onJoin(joinCode)}
+            disabled={!joinCode||joinCode.length<4||mpBusy}
+            style={{background:'#0F172A',color:'#fff',border:'none',borderRadius:8,
+              padding:'10px 18px',cursor:'pointer',fontSize:13,fontWeight:700,
+              opacity:(!joinCode||joinCode.length<4||mpBusy)?0.4:1}}>
+            {mpBusy?'...':'เข้าร่วม →'}
+          </button>
+        </div>
+        {joinError&&<div style={{fontSize:12,color:'#DC2626',marginTop:6,
+          fontFamily:"'Sarabun','Noto Sans Thai',sans-serif"}}>{joinError}</div>}
+      </div>
     </div>
   );
 }
 
 // RESULTS SCREEN
 
-function ResultsScreen({ cpm, accuracy, errors, totalChars, lesson, saveStatus, studentName, onRestart, onBack }) {
+function ResultsScreen({ cpm, accuracy, errors, totalChars, lesson, saveStatus, studentName, ghostData, newRecord, roomCode, roomType, roomPlayers, myName, onRestart, onBack }) {
   const grade =
     accuracy>=98&&cpm>=40 ? {label:'ยอดเยี่ยม 🏆',color:'#D97706'} :
     accuracy>=95&&cpm>=25 ? {label:'ดีมาก ⭐',     color:'#2563EB'} :
@@ -570,7 +844,32 @@ function ResultsScreen({ cpm, accuracy, errors, totalChars, lesson, saveStatus, 
     <div style={{textAlign:'center',fontFamily:"'Sarabun','Noto Sans Thai',sans-serif"}}>
       <div style={{fontSize:52,marginBottom:8}}>{accuracy>=95?'🎉':accuracy>=85?'👏':'💪'}</div>
       <h2 style={{fontSize:26,fontWeight:800,color:'#0F172A',marginBottom:4}}>เสร็จแล้ว!</h2>
-      <div style={{color:grade.color,fontWeight:800,fontSize:18,marginBottom:22}}>{grade.label}</div>
+      <div style={{color:grade.color,fontWeight:800,fontSize:18,marginBottom:ghostData||newRecord?12:22}}>
+        {grade.label}
+      </div>
+      {/* Ghost comparison */}
+      {(ghostData || newRecord) && (
+        <div style={{marginBottom:22,padding:'12px 20px',borderRadius:12,
+          background: !ghostData ? '#EDE9FE'
+            : cpm > ghostData.cpm ? '#D1FAE5'
+            : cpm === ghostData.cpm ? '#EFF6FF'
+            : '#EDE9FE',
+          border:`1.5px solid ${!ghostData ? '#8B5CF6'
+            : cpm > ghostData.cpm ? '#059669'
+            : cpm === ghostData.cpm ? '#2563EB'
+            : '#8B5CF6'}`,
+          fontFamily:"'Sarabun','Noto Sans Thai',sans-serif",
+          fontSize:15, fontWeight:700,
+        }}>
+          {!ghostData
+            ? `👻 บันทึก Ghost แล้ว! (${cpm} CPM) — ลองแข่งรอบหน้า`
+            : cpm > ghostData.cpm
+            ? `🏆 ชนะ Ghost! ${cpm} vs ${ghostData.cpm} CPM${newRecord ? ' — สถิติใหม่! 🎉' : ''}`
+            : cpm === ghostData.cpm
+            ? `🤝 เสมอกับ Ghost! (${cpm} CPM)`
+            : `👻 Ghost ชนะ — ${ghostData.cpm} vs ${cpm} CPM — สู้ต่อไป!`}
+        </div>
+      )}
       <div style={{display:'flex',gap:14,justifyContent:'center',marginBottom:24,flexWrap:'wrap'}}>
         <StatPill label="CPM"       value={cpm}              color={cpm>=30?'#059669':'#D97706'}/>
         <StatPill label="WPM"       value={Math.round(cpm/5)} color="#2563EB"/>
@@ -583,6 +882,35 @@ function ResultsScreen({ cpm, accuracy, errors, totalChars, lesson, saveStatus, 
           background:accuracy>=95?'#059669':accuracy>=85?'#2563EB':'#F59E0B',
           transition:'width 1s ease-out'}}/>
       </div>
+      {/* Race standings */}
+      {roomCode && Object.keys(roomPlayers||{}).length > 0 && (
+        <div style={{background:'#F8FAFC',border:'1.5px solid #E2E8F0',borderRadius:12,
+          padding:'14px 16px',marginBottom:20,textAlign:'left'}}>
+          <div style={{fontSize:13,fontWeight:800,marginBottom:10,
+            fontFamily:"'Sarabun','Noto Sans Thai',sans-serif"}}>
+            {roomType==='royale'?'🏆 Battle Royale':'⚡ 1v1'} — ผลการแข่ง</div>
+          {Object.entries(roomPlayers)
+            .sort((a,b)=>{
+              const [,ap]= a, [,bp]=b;
+              if (ap.status==='done'&&bp.status!=='done') return -1;
+              if (bp.status==='done'&&ap.status!=='done') return 1;
+              if (ap.finishedAt&&bp.finishedAt) return ap.finishedAt-bp.finishedAt;
+              return (bp.pos||0)-(ap.pos||0);
+            })
+            .map(([name,p],i)=>(
+              <div key={name} style={{display:'flex',alignItems:'center',gap:10,
+                padding:'8px 0',borderBottom:'1px solid #F1F5F9'}}>
+                <span style={{fontSize:18,width:28}}>{i===0?'🥇':i===1?'🥈':i===2?'🥉':'  '}</span>
+                <span style={{flex:1,fontFamily:"'Sarabun','Noto Sans Thai',sans-serif",
+                  fontWeight:700,color:name===(myName||'ผู้เล่น1')?'#059669':'#0F172A',fontSize:14}}>
+                  {name}
+                  {p.status==='eliminated'&&' 💀'}
+                </span>
+                <span style={{fontSize:13,color:'#64748B'}}>{p.cpm||0} CPM</span>
+              </div>
+            ))}
+        </div>
+      )}
       <div style={{display:'flex',gap:12,justifyContent:'center'}}>
         <button onClick={onRestart} style={{background:'#0F172A',color:'#fff',border:'none',
           borderRadius:10,padding:'11px 26px',cursor:'pointer',fontSize:14,fontWeight:700}}>
@@ -631,10 +959,36 @@ function ThaiTypingApp() {
   const [shiftHeld,     setShiftHeld]     = useState(false);
   const [now,           setNow]           = useState(Date.now());
   const [spamCountdown, setSpamCountdown] = useState(SPAM_COUNTDOWN);
+  // Multiplayer (Phase 4)
+  const [roomCode,    setRoomCode]    = useState('');
+  const [roomType,    setRoomType]    = useState(''); // '1v1'|'royale'
+  const [isHost,      setIsHost]      = useState(false);
+  const [roomPlayers, setRoomPlayers] = useState({});
+  const [roomInfo,    setRoomInfo]    = useState(null);
+  const [playerLives, setPlayerLives] = useState(3);
+  const [countNum,    setCountNum]    = useState(3);
+  const [joinCode,    setJoinCode]    = useState('');
+  const [joinError,   setJoinError]   = useState('');
+  const [mpBusy,      setMpBusy]      = useState(false);
+  const [raceStand,   setRaceStand]   = useState([]);
+  const [mpSetupMode, setMpSetupMode] = useState(''); // '1v1'|'royale'
+  const [zonePos,     setZonePos]     = useState(0); // safe zone boundary position
+  const [ghostData,     setGhostData]     = useState(null);  // best previous run {timings,cpm,accuracy}
+  const [ghostPos,      setGhostPos]      = useState(0);     // ghost's current character position
+  const [ghostKey,      setGhostKey]      = useState('');    // localStorage key for this exercise
+  const [newRecord,     setNewRecord]     = useState(false); // did this run set a new ghost record?
 
   const keystrokeTimes = useRef([]);
   const errorTimes     = useRef([]);
   const hasSaved       = useRef(false);   // prevents double-save on same results screen
+  const fbUnsub        = useRef(null);    // Firebase listener cleanup
+  const lastFBUp       = useRef(0);       // throttle Firebase position writes
+  const rcRef          = useRef('');      // roomCode ref (avoids stale closures)
+  const rtRef          = useRef('');      // roomType ref
+  const plRef          = useRef(3);       // playerLives ref
+  const snRef          = useRef('');      // studentName ref
+  const currentTimings = useRef([]);       // inter-keystroke intervals for ghost recording
+  const lastCorrectTime= useRef(null);     // timestamp of last correct keypress
 
   useEffect(() => {
     if (screen!=='practice'||!startTime||endTime) return;
@@ -648,6 +1002,131 @@ function ThaiTypingApp() {
     const t=setTimeout(()=>setSpamCountdown(c=>c-1),1000);
     return ()=>clearTimeout(t);
   },[screen,spamCountdown]);
+
+  // Firebase room listener — active during lobby / countdown / practice
+  useEffect(() => {
+    if (!roomCode) return;
+    if (screen!=='mp-lobby' && screen!=='countdown' && screen!=='practice') return;
+    const unsub = fbListen(roomCode, (data) => {
+      if (!data) return;
+      setRoomInfo(data.info);
+      const players = data.players || {};
+      setRoomPlayers(players);
+      const status = data.info?.status;
+      // 1v1 auto-start: host triggers countdown when 2nd player joins
+      if (isHost && data.info?.type==='1v1' && status==='lobby') {
+        if (Object.keys(players).length >= 2) fbSetStatus(roomCode,'countdown');
+      }
+      // All clients: move to countdown screen
+      if (status==='countdown' && screen==='mp-lobby') setScreen('countdown');
+    });
+    fbUnsub.current = unsub;
+    return () => { unsub(); fbUnsub.current=null; };
+  },[roomCode, screen, isHost]);
+
+  // Countdown 3,2,1 → start race
+  useEffect(() => {
+    if (screen !== 'countdown') return;
+    let n=3; setCountNum(n);
+    const id = setInterval(() => {
+      n--;
+      if (n <= 0) {
+        clearInterval(id);
+        // Reset practice state and begin race
+        setPos(0); setErrors(0); setStartTime(null); setEndTime(null);
+        setHint(null); setFlashCode(null); setShiftHeld(false); setNow(Date.now());
+        keystrokeTimes.current=[]; errorTimes.current=[];
+        currentTimings.current=[]; lastCorrectTime.current=null;
+        hasSaved.current=false; setSaveStatus('idle');
+        setNewRecord(false); setGhostPos(0);
+        setPlayerLives(3); plRef.current=3;
+        setRaceStand([]); setZonePos(0);
+        setScreen('practice');
+        // Keep full-room listener active so we catch status='done' (first finisher)
+        if (rcRef.current) {
+          if (fbUnsub.current) { fbUnsub.current(); fbUnsub.current=null; }
+          const db=getDB();
+          if (db) {
+            const ref=db.ref('rooms/'+rcRef.current);
+            ref.on('value', snap => {
+              const data=snap.val()||{};
+              setRoomInfo(data.info);
+              setRoomPlayers(data.players||{});
+              // If any player finished → race is over for everyone
+              const done=Object.values(data.players||{}).find(p=>p.status==='done');
+              if (done) setScreen(s=>s==='practice'?'results':s);
+            });
+            fbUnsub.current=()=>ref.off('value');
+          }
+        }
+      } else { setCountNum(n); }
+    }, 1000);
+    return () => clearInterval(id);
+  },[screen]);
+
+  // Live zone position ticker (updates every second for smooth UI)
+  useEffect(() => {
+    if (screen !== 'practice' || roomType !== 'royale' || !startTime) return;
+    const id = setInterval(() => setZonePos(getZonePos(startTime, totalChars)), 1000);
+    return () => clearInterval(id);
+  }, [screen, roomType, startTime, totalChars]);
+
+  // Zone damage check (every ZONE_TICK ms during BR)
+  useEffect(() => {
+    if (screen !== 'practice' || roomType !== 'royale' || !startTime) return;
+    const id = setInterval(() => {
+      const zp  = getZonePos(stateRef.current.startTime, totalChars);
+      const myPos = stateRef.current.pos;
+      if (zp > 0 && myPos < zp - ZONE_GAP) {
+        const newLives = Math.max(0, plRef.current - 1);
+        setPlayerLives(newLives); plRef.current = newLives;
+        fbUpdatePlayer(rcRef.current, snRef.current||'Player', {lives:newLives});
+        if (newLives === 0) {
+          fbUpdatePlayer(rcRef.current, snRef.current||'Player', {status:'eliminated'});
+          setTimeout(()=>setScreen('results'), 800);
+        }
+      }
+    }, ZONE_TICK);
+    return () => clearInterval(id);
+  }, [screen, roomType, startTime]);
+
+  // Animate the ghost cursor during practice
+  useEffect(() => {
+    if (screen !== 'practice' || !ghostData || !startTime) return;
+    const id = setInterval(() => {
+      const elapsed = Date.now() - startTime;
+      let cum = 0, gp = 0;
+      for (const t of ghostData.timings) {
+        cum += t;
+        if (cum <= elapsed) gp++;
+        else break;
+      }
+      setGhostPos(Math.min(gp, ghostData.timings.length));
+    }, 60);
+    return () => clearInterval(id);
+  }, [screen, ghostData, startTime]);
+
+  // Save ghost to localStorage when results screen appears
+  useEffect(() => {
+    if (screen !== 'results') return;
+    if (currentTimings.current.length < 5) return;   // too short to be meaningful
+    const elapsed = startTime && endTime ? (endTime - startTime) / 60000 : 0;
+    const finalCpm = elapsed > 0 ? Math.round(pos / elapsed) : 0;
+    const finalAcc = (pos + errors) > 0 ? Math.round((pos / (pos + errors)) * 100) : 100;
+    if (finalCpm < 5 || finalAcc < 70) return;       // too poor to save
+    try {
+      const existing   = localStorage.getItem(ghostKey);
+      const existingData = existing ? JSON.parse(existing) : null;
+      if (!existingData || finalCpm > existingData.cpm) {
+        localStorage.setItem(ghostKey, JSON.stringify({
+          timings:  [...currentTimings.current],
+          cpm:      finalCpm,
+          accuracy: finalAcc,
+        }));
+        setNewRecord(true);
+      }
+    } catch (e) { /* localStorage unavailable */ }
+  }, [screen]);
 
   // Save session to Google Sheets when results screen appears (class mode only)
   useEffect(() => {
@@ -684,6 +1163,8 @@ function ThaiTypingApp() {
 
   const stateRef = useRef({});
   stateRef.current = { pos, target, targetChars, startTime };
+  rcRef.current = roomCode; rtRef.current = roomType;
+  plRef.current = playerLives; snRef.current = studentName;
 
   const startExercise = useCallback((les,ex) => {
     setLesson(les); setExercise(ex);
@@ -691,10 +1172,102 @@ function ThaiTypingApp() {
     setPos(0); setErrors(0); setStartTime(null); setEndTime(null);
     setHint(null); setFlashCode(null); setShiftHeld(false); setNow(Date.now());
     keystrokeTimes.current=[]; errorTimes.current=[];
+    currentTimings.current=[]; lastCorrectTime.current=null;
     hasSaved.current = false;
     setSaveStatus('idle');
+    setNewRecord(false);
+    setGhostPos(0);
+    const gk = 'ghost_' + les.id + '_' + encodeURIComponent(ex.title);
+    setGhostKey(gk);
+    try {
+      const saved = localStorage.getItem(gk);
+      setGhostData(saved ? JSON.parse(saved) : null);
+    } catch { setGhostData(null); }
     setScreen('practice');
   },[]);
+
+  // Create a 1v1 room for a specific exercise
+  const handleCreate1v1 = useCallback(async (les) => {
+    setMpBusy(true); setJoinError('');
+    const code = makeCode();
+    // Combine all words from the lesson's word bank for the race
+    const allWords = [...new Set(les.exercises.flatMap(ex=>ex.words))];
+    const text = generateText(allWords, 200);
+    try {
+      await fbCreate(code,{type:'1v1',lessonId:les.id,
+        exerciseTitle:les.thaiName,targetText:text,
+        hostName:snRef.current||'ผู้เล่น1'});
+      await fbJoin(code, snRef.current||'ผู้เล่น1');
+      setRoomCode(code); rcRef.current=code;
+      setRoomType('1v1'); rtRef.current='1v1';
+      setIsHost(true);
+      setLesson(les); setExercise(null); setTarget(text);
+      setScreen('mp-lobby');
+    } catch(e) { setJoinError('สร้างห้องไม่ได้: '+e.message); }
+    setMpBusy(false);
+  },[]);
+
+  // Create a Battle Royale room (called from teacher panel link)
+  const handleCreateBR = useCallback(async (les) => {
+    setMpBusy(true); setJoinError('');
+    const code = makeCode();
+    // Combine all words from lesson for BR — longer text, more competitive
+    const allWords = [...new Set(les.exercises.flatMap(ex=>ex.words))];
+    const text = generateText(allWords, 500);
+    try {
+      await fbCreate(code,{type:'royale',lessonId:les.id,
+        exerciseTitle:les.thaiName,targetText:text,
+        hostName:snRef.current||'ครู'});
+      await fbJoin(code, snRef.current||'ครู', 3);
+      setRoomCode(code); rcRef.current=code;
+      setRoomType('royale'); rtRef.current='royale';
+      setIsHost(true);
+      setLesson(les); setExercise(null); setTarget(text);
+      setScreen('mp-lobby');
+    } catch(e) { setJoinError('สร้างห้องไม่ได้'); }
+    setMpBusy(false);
+  },[]);
+
+  // Join an existing room by code
+  const handleJoin = useCallback(async (code) => {
+    if (!code.trim()) return;
+    setMpBusy(true); setJoinError('');
+    try {
+      const data = await fbGet(code.trim().toUpperCase());
+      if (!data) { setJoinError('ไม่พบห้อง '+code.toUpperCase()); setMpBusy(false); return; }
+      if (data.info?.status!=='lobby') { setJoinError('ห้องนี้กำลังแข่งอยู่แล้ว'); setMpBusy(false); return; }
+      const name = snRef.current || ('ผู้เล่น'+(Object.keys(data.players||{}).length+1));
+      await fbJoin(code.trim().toUpperCase(), name, 3);
+      const les = LESSONS.find(l=>l.id===data.info.lessonId)||null;
+      setRoomCode(code.trim().toUpperCase()); rcRef.current=code.trim().toUpperCase();
+      setRoomType(data.info.type); rtRef.current=data.info.type;
+      setIsHost(false);
+      setLesson(les); setTarget(data.info.targetText);
+      setScreen('mp-lobby');
+    } catch(e) { setJoinError('เชื่อมต่อไม่ได้'); }
+    setMpBusy(false);
+  },[]);
+
+  // Host starts Battle Royale manually
+  const handleStartBR = useCallback(async () => {
+    await fbSetStatus(rcRef.current,'countdown');
+  },[]);
+
+  // Leave/cleanup room
+  const handleLeaveRoom = useCallback(async () => {
+    const code=rcRef.current, name=snRef.current||'ผู้เล่น1';
+    if (code) {
+      try {
+        await getDB()?.ref('rooms/'+code+'/players/'+name).remove();
+        if (isHost) await fbRemove(code);
+      } catch{}
+    }
+    if (fbUnsub.current) { fbUnsub.current(); fbUnsub.current=null; }
+    setRoomCode(''); rcRef.current='';
+    setRoomType(''); rtRef.current='';
+    setIsHost(false); setRoomPlayers({}); setRoomInfo(null);
+    setScreen('lessons');
+  },[isHost]);
 
   // Log the student out → back to join screen
   const handleLogout = useCallback(() => {
@@ -738,16 +1311,52 @@ function ThaiTypingApp() {
 
       if (result.ok) {
         setHint(null); setFlashCode(null);
+        // Record timing for ghost replay
+        const nowForGhost = Date.now();
+        if (lastCorrectTime.current !== null) {
+          currentTimings.current.push(nowForGhost - lastCorrectTime.current);
+        }
+        lastCorrectTime.current = nowForGhost;
         setPos(p=>{
           const next=p+1;
-          if (next>=targetChars.length){ setEndTime(Date.now()); setTimeout(()=>setScreen('results'),600); }
+          if (next>=targetChars.length){
+            setEndTime(Date.now());
+            // Mark race finish in Firebase
+            if (rcRef.current) {
+              fbUpdatePlayer(rcRef.current, snRef.current||'ผู้เล่น1',
+                {pos:next,status:'done',finishedAt:Date.now()});
+              fbSetStatus(rcRef.current,'done').catch(()=>{});
+            }
+            setTimeout(()=>setScreen('results'),600);
+          }
           return next;
         });
+        // Throttled Firebase position sync
+        if (rcRef.current) {
+          const nowFB=Date.now();
+          if (nowFB-lastFBUp.current>350) {
+            lastFBUp.current=nowFB;
+            const el=stateRef.current.startTime?(nowFB-stateRef.current.startTime)/60000:0;
+            const np=stateRef.current.pos+1;
+            const nc=el>0?Math.round(np/el):0;
+            fbUpdatePlayer(rcRef.current,snRef.current||'ผู้เล่น1',{pos:np,cpm:nc,status:'racing'});
+          }
+        }
       } else {
         if (result.costsLife) {
           setErrors(er=>er+1);
           setFlashCode(e.code);
           setTimeout(()=>setFlashCode(null),400);
+          // Battle Royale lives
+          if (rcRef.current && rtRef.current==='royale') {
+            const newLives=Math.max(0,plRef.current-1);
+            setPlayerLives(newLives); plRef.current=newLives;
+            fbUpdatePlayer(rcRef.current,snRef.current||'ผู้เล่น1',{lives:newLives});
+            if (newLives===0) {
+              fbUpdatePlayer(rcRef.current,snRef.current||'ผู้เล่น1',{status:'eliminated'});
+              setTimeout(()=>setScreen('results'),800);
+            }
+          }
           // SPAM CHECK 2: error burst
           const eBuf=errorTimes.current;
           eBuf.push(nowMs);
@@ -833,7 +1442,13 @@ function ThaiTypingApp() {
             onBack={() => setScreen('join')}
           />
         )}
-        {screen==='lessons' && <LessonScreen onSelect={startExercise}/>}
+        {screen==='lessons' && (
+          <LessonScreen onSelect={startExercise}
+            onOpenSetup={(mode)=>{ setMpSetupMode(mode); setScreen('mp-setup'); }}
+            onJoin={handleJoin}
+            joinCode={joinCode} setJoinCode={setJoinCode}
+            joinError={joinError} mpBusy={mpBusy}/>
+        )}
 
         {screen==='practice'&&lesson&&exercise&&(
           <div>
@@ -855,10 +1470,36 @@ function ThaiTypingApp() {
               <div style={{flex:1,minWidth:120}}>
                 <div style={{fontSize:10,color:'#94A3B8',marginBottom:5,fontWeight:600}}>
                   {pos} / {totalChars} ตัวอักษร</div>
-                <div style={{background:'#F1F5F9',borderRadius:8,height:8,overflow:'hidden'}}>
-                  <div style={{width:`${totalChars>0?(pos/totalChars)*100:0}%`,height:'100%',
-                    borderRadius:8,background:lesson.accent,transition:'width .15s'}}/>
+                {/* Progress bar with optional zone marker */}
+                <div style={{position:'relative',height:10}}>
+                  <div style={{position:'absolute',inset:0,background:'#F1F5F9',borderRadius:8,overflow:'hidden'}}>
+                    <div style={{width:`${totalChars>0?(pos/totalChars)*100:0}%`,height:'100%',
+                      borderRadius:8,background:lesson?.accent??'#059669',transition:'width .15s'}}/>
+                  </div>
+                  {/* Zone marker — red line on the bar */}
+                  {roomType==='royale'&&zonePos>0&&(
+                    <div style={{position:'absolute',top:-2,bottom:-2,
+                      left:`${Math.min((zonePos/totalChars)*100,100)}%`,
+                      width:3,background:'#EF4444',borderRadius:2,
+                      boxShadow:'0 0 6px #EF4444',zIndex:2,transition:'left 1s linear'}}/>
+                  )}
                 </div>
+                {ghostData && (
+                  <div style={{marginTop:5}}>
+                    <div style={{display:'flex',justifyContent:'space-between',marginBottom:3}}>
+                      <span style={{fontSize:9,color:'#8B5CF6',fontWeight:700,
+                        fontFamily:"'Sarabun','Noto Sans Thai',sans-serif"}}>
+                        👻 Ghost {ghostData.cpm} CPM</span>
+                      <span style={{fontSize:9,color:'#8B5CF6'}}>
+                        {Math.round((ghostPos/totalChars)*100)}%</span>
+                    </div>
+                    <div style={{background:'#F1F5F9',borderRadius:6,height:5,overflow:'hidden'}}>
+                      <div style={{width:`${totalChars>0?(ghostPos/totalChars)*100:0}%`,
+                        height:'100%',borderRadius:6,background:'#8B5CF6',
+                        transition:'width .06s'}}/>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
 
@@ -902,18 +1543,96 @@ function ThaiTypingApp() {
               </div>
             )}
 
+            {/* Zone warning — BR only */}
+            {roomType==='royale'&&roomCode&&zonePos>0&&pos<(zonePos-ZONE_GAP+10)&&(
+              <div style={{background:'#FEF2F2',border:'1.5px solid #FCA5A5',borderRadius:10,
+                padding:'8px 14px',marginBottom:10,display:'flex',alignItems:'center',gap:8}}>
+                <span style={{fontSize:18}}>⚠️</span>
+                <span style={{fontFamily:"'Sarabun','Noto Sans Thai',sans-serif",
+                  fontSize:13,fontWeight:700,color:'#DC2626'}}>
+                  กำลังออกนอก Safe Zone! ต้องไวกว่านี้แล้วนะ !
+                </span>
+              </div>
+            )}
+            {/* Opponents panel */}
+            {roomCode&&Object.keys(roomPlayers).length>0&&(
+              <div style={{background:'#F8FAFC',borderRadius:12,padding:'12px 14px',
+                marginBottom:10,border:'1.5px solid #E2E8F0'}}>
+                <div style={{fontSize:11,color:'#64748B',fontWeight:700,marginBottom:10,
+                  fontFamily:"'Sarabun','Noto Sans Thai',sans-serif"}}>
+                  {roomType==='royale'?'🏆 Battle Royale':'⚡ 1v1'} — ห้อง {roomCode}
+                </div>
+                {Object.entries(roomPlayers).map(([name,p])=>{
+                  const isMe=name===(studentName||'ผู้เล่น1');
+                  const pct=totalChars>0?Math.round((p.pos/totalChars)*100):0;
+                  const col=p.status==='eliminated'?'#94A3B8':isMe?'#059669':'#EF4444';
+                  return(
+                    <div key={name} style={{marginBottom:8}}>
+                      <div style={{display:'flex',justifyContent:'space-between',marginBottom:3}}>
+                        <span style={{fontSize:12,fontWeight:700,color:col,
+                          fontFamily:"'Sarabun','Noto Sans Thai',sans-serif"}}>
+                          {p.status==='eliminated'?'💀':p.status==='done'?'🏁':isMe?'👤':'🏃'} {name}
+                          {roomType==='royale'&&(p.lives||0)>0&&(
+                            <span style={{fontSize:10,marginLeft:4}}>{'❤️'.repeat(p.lives)}</span>
+                          )}
+                        </span>
+                        <span style={{fontSize:11,color:'#64748B'}}>{p.cpm||0} CPM · {pct}%</span>
+                      </div>
+                      <div style={{background:'#E2E8F0',borderRadius:4,height:5,overflow:'hidden'}}>
+                        <div style={{width:pct+'%',height:'100%',borderRadius:4,
+                          background:col,transition:'width .3s'}}/>
+                      </div>
+                    </div>
+                  );
+                })}
+                {roomType==='royale'&&(
+                  <div style={{marginTop:8,fontSize:12,color:'#64748B',
+                    fontFamily:"'Sarabun','Noto Sans Thai',sans-serif"}}>
+                    ชีวิตของคุณ: {playerLives>0?'❤️'.repeat(playerLives):'💀 ถูกคัดออก'}
+                  </div>
+                )}
+              </div>
+            )}
             <div style={{marginTop:8}}>
               <OnScreenKeyboard nextCode={nextCode} needsShift={needsShift} flashCode={flashCode}/>
             </div>
           </div>
         )}
 
+        {screen==='mp-setup'&&(
+          <MPSetupScreen
+            mode={mpSetupMode} busy={mpBusy}
+            onBack={()=>setScreen('lessons')}
+            onSelect={(les)=>{
+              if(mpSetupMode==='1v1') handleCreate1v1(les);
+              else handleCreateBR(les);
+            }}/>
+        )}
+        {screen==='mp-lobby'&&(
+          <LobbyScreen
+            roomCode={roomCode} roomInfo={roomInfo}
+            roomPlayers={roomPlayers} isHost={isHost}
+            roomType={roomType} myName={studentName||'ผู้เล่น1'}
+            onStart={handleStartBR} onLeave={handleLeaveRoom}/>
+        )}
+        {screen==='countdown'&&(
+          <CountdownScreen num={countNum} roomCode={roomCode} roomType={roomType}/>
+        )}
         {screen==='results'&&(
           <ResultsScreen cpm={cpm} accuracy={accuracy} errors={errors}
             totalChars={totalChars} lesson={lesson}
             saveStatus={saveStatus} studentName={studentName}
-            onRestart={()=>startExercise(lesson,exercise)}
-            onBack={()=>setScreen('lessons')}/>
+            ghostData={ghostData} newRecord={newRecord}
+            roomCode={roomCode} roomType={roomType}
+            roomPlayers={roomPlayers} myName={studentName||'ผู้เล่น1'}
+            onRestart={()=>{
+              if(rcRef.current){handleLeaveRoom();}
+              else startExercise(lesson,exercise);
+            }}
+            onBack={()=>{
+              if(rcRef.current){handleLeaveRoom();}
+              else setScreen('lessons');
+            }}/>
         )}
       </div>
     </div>

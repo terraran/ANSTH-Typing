@@ -3493,7 +3493,22 @@ function ThaiTypingApp() {
 }
 const container = document.getElementById('root');
 const loading = document.getElementById('loading');
-ReactDOM.createRoot(container).render(React.createElement(ThaiTypingApp));
+
+class AppErrorBoundary extends React.Component {
+  constructor(props) { super(props); this.state = { error: null }; }
+  static getDerivedStateFromError(e) { return { error: e }; }
+  render() {
+    if (this.state.error) {
+      return React.createElement('div', {
+        style: {padding:'40px',fontFamily:'monospace',background:'#FEF2F2',
+                color:'#DC2626',borderRadius:'8px',margin:'20px',fontSize:'13px',
+                whiteSpace:'pre-wrap',wordBreak:'break-all'}
+      }, '❌ App Error:\n' + this.state.error.toString() + '\n\nStack:\n' + (this.state.error.stack||''));
+    }
+    return this.props.children;
+  }
+}
+ReactDOM.createRoot(container).render(React.createElement(AppErrorBoundary, null, React.createElement(ThaiTypingApp)));
 loading.style.display = 'none';
 container.style.display = 'block';</script>
 </body></html>

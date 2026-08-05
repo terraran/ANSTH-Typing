@@ -16,10 +16,12 @@
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body { background: #F1F5F9; font-family: system-ui, sans-serif; }
-    #loading { position: fixed; inset: 0; display: flex; align-items: center;
+    #loading {
+      position: fixed; inset: 0; display: flex; align-items: center;
       justify-content: center; flex-direction: column; gap: 12px;
       font-family: 'Sarabun', sans-serif; font-size: 18px;
-      color: #64748B; background: #F1F5F9; z-index: 9999; }
+      color: #64748B; background: #F1F5F9; z-index: 9999;
+    }
     #loading span { font-size: 40px; }
   </style>
 </head>
@@ -1465,14 +1467,14 @@ function ThaiTypingApp() {
             joinError={joinError} mpBusy={mpBusy}/>
         )}
 
-        {screen==='practice'&&lesson&&target&&(
+        {screen==='practice'&&lesson&&exercise&&(
           <div>
             <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:18}}>
               <div style={{background:lesson.al,color:lesson.accent,borderRadius:7,
                 padding:'3px 9px',fontSize:10,fontWeight:700,letterSpacing:.5,
                 fontFamily:"'Sarabun','Noto Sans Thai',sans-serif"}}>{lesson.thaiName}</div>
               <div style={{fontSize:13,color:'#64748B',fontWeight:600,
-                fontFamily:"'Sarabun','Noto Sans Thai',sans-serif"}}>{exercise?.title ?? (roomType==='royale'?'🏆 Battle Royale':'⚡ 1v1')}</div>
+                fontFamily:"'Sarabun','Noto Sans Thai',sans-serif"}}>{exercise.title}</div>
               <div style={{fontSize:11,color:'#94A3B8'}}>🎲 คำสุ่ม</div>
               <div style={{marginLeft:'auto',fontSize:10,color:'#94A3B8'}}>Esc = ออก</div>
             </div>
@@ -1642,8 +1644,7 @@ function ThaiTypingApp() {
             roomPlayers={roomPlayers} myName={studentName||'ผู้เล่น1'}
             onRestart={()=>{
               if(rcRef.current){handleLeaveRoom();}
-              else if(lesson&&exercise) startExercise(lesson,exercise);
-              else setScreen('lessons');
+              else startExercise(lesson,exercise);
             }}
             onBack={()=>{
               if(rcRef.current){handleLeaveRoom();}

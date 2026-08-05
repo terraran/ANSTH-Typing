@@ -1,35 +1,25 @@
 <!DOCTYPE html>
-<html lang="th">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>แบบฝึกพิมพ์ภาษาไทย — Kedmanee</title>
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⌨️</text></svg>">
-  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
-  <script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
-  <script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.10/babel.min.js"></script>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600;700;800&display=swap" rel="stylesheet">
-  <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { background: #F1F5F9; font-family: system-ui, sans-serif; }
-    #loading {
-      position: fixed; inset: 0; display: flex; align-items: center;
-      justify-content: center; flex-direction: column; gap: 12px;
-      font-family: 'Sarabun', sans-serif; font-size: 18px;
-      color: #64748B; background: #F1F5F9; z-index: 9999;
-    }
-    #loading span { font-size: 40px; }
-  </style>
-</head>
-<body>
-  <div id="loading"><span>⌨️</span>กำลังโหลด...</div>
-  <div id="root"></div>
-  <script type="text/babel">
-    const { useState, useEffect, useCallback, useRef } = React;
+<html lang="th"><head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>แบบฝึกพิมพ์ภาษาไทย — Kedmanee</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⌨️</text></svg>">
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+<script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.10/babel.min.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>*{box-sizing:border-box;margin:0;padding:0}body{background:#F1F5F9;font-family:system-ui,sans-serif}
+#loading{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;
+flex-direction:column;gap:12px;font-family:'Sarabun',sans-serif;font-size:18px;color:#64748B;background:#F1F5F9;z-index:9999}
+#loading span{font-size:40px}</style>
+</head><body>
+<div id="loading"><span>⌨️</span>กำลังโหลด...</div>
+<div id="root"></div>
+<script type="text/babel">
+const { useState, useEffect, useCallback, useRef } = React;
 // ═══════════════════════════════════════════════════════════════
 // TEACHER SETUP  ← Edit this one line before distributing.
 // Paste your deployed Apps Script URL. Leave '' for offline mode.
@@ -66,6 +56,29 @@ function makeCode() {
 // ── SAFE ZONE CONFIG ──────────────────────────────────────────────────
 // Zone starts 30s into the race, advances at ZONE_CPM chars/min.
 // Players more than ZONE_GAP chars behind lose 1 life every ZONE_TICK ms.
+// Text display: show ~2 lines at a time, advance on completion
+const CHUNK_CHARS = 76; // chars per chunk (~2 lines at 34px Thai font)
+
+// Build word-boundary chunks — extracted to module level so Babel handles it reliably
+function buildChunks(targetChars) {
+  if (!targetChars.length) return [{start:0,end:0}];
+  const result = [];
+  let start = 0;
+  while (start < targetChars.length) {
+    let end = Math.min(start + CHUNK_CHARS, targetChars.length);
+    if (end < targetChars.length) {
+      // Advance to end of current word — never split mid-word
+      while (end < targetChars.length && targetChars[end] !== ' ') end++;
+      // Include the trailing space in this chunk
+      if (end < targetChars.length) end++;
+    }
+    result.push({start, end});
+    start = end;
+    if (result.length > 200) break; // safety cap
+  }
+  return result;
+}
+
 const ZONE_GRACE = 30;    // seconds before zone starts moving
 const ZONE_CPM   = 18;    // zone advance speed in chars/minute
 const ZONE_GAP   = 40;    // chars behind zone before taking damage
@@ -402,22 +415,49 @@ function OnScreenKeyboard({ nextCode, needsShift, flashCode }) {
 
 // TEXT DISPLAY
 
-function TextDisplay({ targetChars, pos }) {
+function TextDisplay({ displayChars, displayPos }) {
+  // Group chars into word tokens — whiteSpace:nowrap prevents Thai word splitting
+  const tokens = [];
+  let wordBuf=[], wordStart=0;
+  displayChars.forEach((ch,i) => {
+    if (ch===' ') {
+      if (wordBuf.length) { tokens.push({type:'word',chars:wordBuf,start:wordStart}); wordBuf=[]; }
+      tokens.push({type:'space',start:i});
+    } else {
+      if (!wordBuf.length) wordStart=i;
+      wordBuf.push({ch,idx:i});
+    }
+  });
+  if (wordBuf.length) tokens.push({type:'word',chars:wordBuf,start:wordStart});
+
   return (
     <div style={{fontFamily:"'Sarabun','Noto Sans Thai',sans-serif",
-      fontSize:34,letterSpacing:2,lineHeight:1.9,
-      display:'flex',flexWrap:'wrap',gap:0,
-      justifyContent:'center',minHeight:80,alignItems:'center'}}>
-      {targetChars.map((ch,i)=>{
-        const done=i<pos,cur=i===pos,isSpace=ch===' ';
+      fontSize:34,lineHeight:2,display:'flex',flexWrap:'wrap',
+      alignContent:'flex-start',gap:'0 2px',minHeight:130}}>
+      {tokens.map((tok,ti) => {
+        if (tok.type==='space') {
+          const done=tok.start<displayPos,cur=tok.start===displayPos;
+          return (
+            <span key={ti} style={{display:'inline-block',width:14,textAlign:'center',
+              color:done?'#059669':'#CBD5E1',
+              background:cur?'#FEF08A':'transparent',
+              borderBottom:cur?'3px solid #F59E0B':'none'}}>
+              {done?'·':cur?'⎵':' '}
+            </span>
+          );
+        }
         return (
-          <span key={i} style={{
-            color:done?'#059669':cur?'#0F172A':'#CBD5E1',
-            background:cur?'#FEF08A':'transparent',
-            borderBottom:cur?'3px solid #F59E0B':'none',
-            display:isSpace?'inline-block':'inline',
-            width:isSpace?16:'auto',textAlign:'center'}}>
-            {isSpace?(done?'·':cur?'⎵':' '):ch}
+          <span key={ti} style={{display:'inline-block',whiteSpace:'nowrap'}}>
+            {tok.chars.map(({ch,idx}) => {
+              const done=idx<displayPos,cur=idx===displayPos;
+              return (
+                <span key={idx} style={{
+                  color:done?'#059669':cur?'#0F172A':'#CBD5E1',
+                  background:cur?'#FEF08A':'transparent',
+                  borderBottom:cur?'3px solid #F59E0B':'none',
+                }}>{ch}</span>
+              );
+            })}
           </span>
         );
       })}
@@ -1003,6 +1043,17 @@ function ThaiTypingApp() {
   // ── Derived values — declared early so all effects can reference them ──
   const targetChars = target ? [...target] : [];
   const totalChars  = targetChars.length;
+  // Split target into ~2-line word-boundary chunks (see buildChunks above)
+  const chunks = buildChunks(targetChars);
+  // Derive chunkIdx from pos — always in sync, no stale-state lag
+  const chunkIdx = (() => {
+    for (let i=0; i<chunks.length; i++) { if (pos < chunks[i].end) return i; }
+    return Math.max(0, chunks.length-1);
+  })();
+  const curChunk    = chunks[chunkIdx] || {start:0, end:totalChars};
+  const displayChars = targetChars.slice(curChunk.start, curChunk.end);
+  const displayPos   = Math.max(0, pos - curChunk.start);
+
   const elapsed     = startTime ? ((endTime??now)-startTime)/60000 : 0;
   const cpm         = elapsed>0 ? Math.round(pos/elapsed) : 0;
   const accuracy    = (pos+errors)>0 ? Math.round((pos/(pos+errors))*100) : 100;
@@ -1467,14 +1518,14 @@ function ThaiTypingApp() {
             joinError={joinError} mpBusy={mpBusy}/>
         )}
 
-        {screen==='practice'&&lesson&&exercise&&(
+        {screen==='practice'&&lesson&&target&&(
           <div>
             <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:18}}>
               <div style={{background:lesson.al,color:lesson.accent,borderRadius:7,
                 padding:'3px 9px',fontSize:10,fontWeight:700,letterSpacing:.5,
                 fontFamily:"'Sarabun','Noto Sans Thai',sans-serif"}}>{lesson.thaiName}</div>
               <div style={{fontSize:13,color:'#64748B',fontWeight:600,
-                fontFamily:"'Sarabun','Noto Sans Thai',sans-serif"}}>{exercise.title}</div>
+                fontFamily:"'Sarabun','Noto Sans Thai',sans-serif"}}>{exercise?.title ?? (roomType==='royale'?'🏆 Battle Royale':'⚡ 1v1')}</div>
               <div style={{fontSize:11,color:'#94A3B8'}}>🎲 คำสุ่ม</div>
               <div style={{marginLeft:'auto',fontSize:10,color:'#94A3B8'}}>Esc = ออก</div>
             </div>
@@ -1523,7 +1574,7 @@ function ThaiTypingApp() {
             <div style={{background:'#F8FAFC',borderRadius:14,padding:'22px 18px',
               marginBottom:14,border:'1.5px solid #E2E8F0',minHeight:96,
               display:'flex',alignItems:'center',justifyContent:'center'}}>
-              <TextDisplay targetChars={targetChars} pos={pos}/>
+              <TextDisplay displayChars={displayChars} displayPos={displayPos}/>
             </div>
 
             {nextChar&&(
@@ -1644,7 +1695,8 @@ function ThaiTypingApp() {
             roomPlayers={roomPlayers} myName={studentName||'ผู้เล่น1'}
             onRestart={()=>{
               if(rcRef.current){handleLeaveRoom();}
-              else startExercise(lesson,exercise);
+              else if(lesson&&exercise) startExercise(lesson,exercise);
+              else setScreen('lessons');
             }}
             onBack={()=>{
               if(rcRef.current){handleLeaveRoom();}
@@ -1656,7 +1708,5 @@ function ThaiTypingApp() {
   );
 }
 
-    ReactDOM.createRoot(document.getElementById('root')).render(<ThaiTypingApp />);
-  </script>
-</body>
-</html>
+ReactDOM.createRoot(document.getElementById('root')).render(<ThaiTypingApp/>);
+</script></body></html>

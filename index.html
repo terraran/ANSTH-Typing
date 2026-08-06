@@ -261,7 +261,17 @@ function generateText(words, minChars) {
 const SPEED_CPM       = 750;
 const ERROR_WINDOW_MS = 3000;
 const ERROR_BURST     = 9;
-const SPAM_COUNTDOWN  = 4;
+const SPAM_PENALTY    = 5;   // seconds frozen after spam detection (no longer a kick)
+const PRESSURE_SECS   = 30;  // 1v1: seconds the loser gets after opponent finishes
+
+// Battle Royale difficulty — host picks life count before creating the room
+const BR_DIFFICULTIES = [
+  { lives:1,  emoji:'💀', thai:'ศาสตราจารย์ด้านการพิมพ์',            en:'Professor', color:'#DC2626', bg:'#FEF2F2' },
+  { lives:3,  emoji:'⚔️', thai:'ผู้ชำนาญการด้านการพิมพ์',            en:'Expert',    color:'#2563EB', bg:'#DBEAFE' },
+  { lives:5,  emoji:'🛡️', thai:'นักพิมพ์ฝึกหัด',                     en:'Trainee',   color:'#059669', bg:'#D1FAE5' },
+  { lives:10, emoji:'🌱', thai:'เอาแบบเบา ๆ ให้พวกผมฝึกเถอะจารย์',   en:'Rookie',    color:'#D97706', bg:'#FEF3C7' },
+];
+function difficultyOf(lives){ return BR_DIFFICULTIES.find(d=>d.lives===lives) || BR_DIFFICULTIES[1]; }
 
 // LESSONS
 
@@ -480,7 +490,7 @@ function StatPill({ label, value, color }) {
 
 // SPAM SCREEN
 
-function SpamScreen({ countdown }) {
+function PenaltyScreen({ countdown }) {
   return (
     <div style={{position:'fixed',inset:0,background:'rgba(185,28,28,.96)',
       display:'flex',flexDirection:'column',alignItems:'center',
@@ -491,8 +501,8 @@ function SpamScreen({ countdown }) {
         กดแป้นพิมพ์เร็วเกินไป!
       </div>
       <div style={{fontSize:16,color:'rgba(255,255,255,.8)',textAlign:'center',lineHeight:1.7}}>
-        ตรวจพบการกดแป้นแบบสุ่ม<br/>
-        <span style={{fontSize:13,opacity:.7}}>Key spamming detected — random pressing is not allowed</span>
+        ตรวจพบการกดแป้นแบบสุ่ม — หยุดพัก {SPAM_PENALTY} วินาที<br/>
+        <span style={{fontSize:13,opacity:.7}}>Spam detected — {SPAM_PENALTY} second penalty</span>
       </div>
       <div style={{marginTop:8,width:96,height:96,borderRadius:'50%',
         border:'5px solid rgba(255,255,255,.35)',
@@ -501,7 +511,7 @@ function SpamScreen({ countdown }) {
         <span style={{fontSize:48,fontWeight:800,color:'#fff'}}>{countdown}</span>
       </div>
       <div style={{fontSize:14,color:'rgba(255,255,255,.6)'}}>
-        กลับสู่หน้าเลือกบทเรียนอัตโนมัติ...
+        จะกลับไปพิมพ์ต่ออัตโนมัติ...
       </div>
     </div>
   );
@@ -515,6 +525,53 @@ function MPSetupScreen({ mode, onSelect, onBack, busy }) {
   const isRoyale = mode === 'royale';
   const accent  = isRoyale ? '#D97706' : '#2563EB';
   const accentL = isRoyale ? '#FEF3C7' : '#DBEAFE';
+  const [pickedLesson, setPickedLesson] = useState(null);
+
+  // ── Step 2 (BR only): pick difficulty by life count ──
+  if (isRoyale && pickedLesson) {
+    return (
+      <div>
+        <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:6}}>
+          <button onClick={()=>setPickedLesson(null)}
+            style={{background:'transparent',border:'1.5px solid #CBD5E1',borderRadius:7,
+              padding:'5px 11px',cursor:'pointer',fontSize:12,color:'#64748B'}}>←</button>
+          <div>
+            <div style={{fontSize:11,color:accent,fontWeight:700,letterSpacing:1}}>
+              🏆 BATTLE ROYALE · {pickedLesson.thaiName}</div>
+            <div style={{fontSize:20,fontWeight:800,color:'#0F172A',fontFamily:tf}}>
+              เลือกความยาก</div>
+          </div>
+        </div>
+        <div style={{fontSize:12,color:'#64748B',fontFamily:tf,marginBottom:16}}>
+          ยิ่งชีวิตน้อย ยิ่งยาก — พิมพ์ผิดครบตามจำนวนชีวิตแล้วถูกคัดออก
+        </div>
+        <div style={{display:'flex',flexDirection:'column',gap:10}}>
+          {BR_DIFFICULTIES.map(d=>(
+            <button key={d.lives} onClick={()=>!busy&&onSelect(pickedLesson,d.lives)}
+              disabled={busy}
+              style={{background:busy?'#F8FAFC':'#fff',border:`2px solid ${d.color}`,
+                borderRadius:14,padding:'14px 18px',cursor:busy?'not-allowed':'pointer',
+                display:'flex',alignItems:'center',gap:14,textAlign:'left',
+                transition:'all .15s',opacity:busy?0.5:1}}
+              onMouseEnter={e=>{if(!busy){e.currentTarget.style.background=d.bg;e.currentTarget.style.transform='translateY(-2px)';}}}
+              onMouseLeave={e=>{e.currentTarget.style.background='#fff';e.currentTarget.style.transform='none';}}>
+              <span style={{fontSize:30}}>{d.emoji}</span>
+              <div style={{flex:1}}>
+                <div style={{fontFamily:tf,fontSize:15,fontWeight:800,color:'#0F172A',lineHeight:1.4}}>
+                  {d.thai}</div>
+                <div style={{fontSize:11,color:'#94A3B8',marginTop:2}}>{d.en}</div>
+              </div>
+              <div style={{textAlign:'right'}}>
+                <div style={{fontSize:20,fontWeight:800,color:d.color}}>
+                  {'❤️'.repeat(Math.min(d.lives,5))}{d.lives>5?'…':''}</div>
+                <div style={{fontSize:11,color:d.color,fontWeight:700}}>{d.lives} ชีวิต</div>
+              </div>
+            </button>
+          ))}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div>
@@ -535,15 +592,16 @@ function MPSetupScreen({ mode, onSelect, onBack, busy }) {
         <div style={{background:'#FEF3C7',border:'1.5px solid #FCD34D',borderRadius:10,
           padding:'10px 14px',marginBottom:16,
           fontFamily:tf,fontSize:13,color:'#92400E',lineHeight:1.6}}>
-          🏆 <strong>Battle Royale:</strong> แต่ละคนมี 3 ชีวิต (❤️❤️❤️)
-          — ผิด 3 ครั้ง = ถูกคัดออก · ผู้ที่เหลือสุดท้ายหรือพิมพ์ครบก่อน = ชนะ
+          🏆 <strong>Battle Royale:</strong> ผู้ที่พิมพ์ครบก่อน หรือเหลือรอดคนสุดท้าย = ชนะ
+          · เลือกความยากในขั้นถัดไป
         </div>
       )}
 
       {/* Level picker — one card per lesson row */}
       <div style={{display:'flex',flexDirection:'column',gap:10}}>
         {LESSONS.map(lesson => (
-          <button key={lesson.id} onClick={()=>!busy&&onSelect(lesson)}
+          <button key={lesson.id}
+            onClick={()=>{ if(busy) return; isRoyale ? setPickedLesson(lesson) : onSelect(lesson); }}
             disabled={busy}
             style={{background:busy?'#F8FAFC':'#fff',
               border:`2px solid ${lesson.accent}`,
@@ -586,11 +644,22 @@ function LobbyScreen({ roomCode, roomInfo, roomPlayers, isHost, roomType, myName
         <div style={{fontSize:12,color:'#94A3B8',marginTop:6,fontFamily:tf}}>
           แจ้งรหัสนี้ให้เพื่อนพิมพ์เพื่อเข้าร่วม</div>
       </div>
-      {/* Exercise info */}
+      {/* Exercise + difficulty info */}
       {roomInfo&&(
-        <div style={{background:'#F8FAFC',border:'1.5px solid #E2E8F0',borderRadius:10,
-          padding:'8px 16px',marginBottom:20,display:'inline-block',fontFamily:tf,fontSize:13,color:'#475569'}}>
-          📝 {roomInfo.exerciseTitle}
+        <div style={{display:'flex',gap:8,justifyContent:'center',flexWrap:'wrap',marginBottom:20}}>
+          <div style={{background:'#F8FAFC',border:'1.5px solid #E2E8F0',borderRadius:10,
+            padding:'8px 16px',fontFamily:tf,fontSize:13,color:'#475569'}}>
+            📝 {roomInfo.exerciseTitle}
+          </div>
+          {roomType==='royale'&&roomInfo.maxLives&&(()=>{
+            const d=difficultyOf(roomInfo.maxLives);
+            return (
+              <div style={{background:d.bg,border:`1.5px solid ${d.color}`,borderRadius:10,
+                padding:'8px 16px',fontFamily:tf,fontSize:13,color:d.color,fontWeight:700}}>
+                {d.emoji} {d.thai} · {d.lives} ชีวิต
+              </div>
+            );
+          })()}
         </div>
       )}
       {/* Players */}
@@ -612,19 +681,21 @@ function LobbyScreen({ roomCode, roomInfo, roomPlayers, isHost, roomType, myName
           )}
         </div>
       </div>
-      {/* Start (BR host) */}
-      {isHost&&roomType==='royale'&&(
+      {/* Host starts the race — both modes */}
+      {isHost&&(
         <button onClick={onStart} disabled={!canStart} style={{
           background:canStart?'#059669':'#94A3B8',color:'#fff',border:'none',
           borderRadius:10,padding:'12px 28px',cursor:canStart?'pointer':'not-allowed',
           fontSize:16,fontWeight:700,fontFamily:tf,marginBottom:12,display:'block',
           width:'100%',transition:'background .15s'}}>
-          {canStart?'▶ เริ่ม Battle Royale!':'รอผู้เล่นเพิ่ม... ('+players.length+'/2+)'}
+          {canStart
+            ? (roomType==='royale'?'▶ เริ่ม Battle Royale!':'▶ เริ่มแข่ง 1v1!')
+            : 'รอผู้เล่นเพิ่ม... ('+players.length+(roomType==='1v1'?'/2':'/2+')+')'}
         </button>
       )}
-      {roomType==='1v1'&&players.length<2&&(
+      {!isHost&&(
         <div style={{color:'#64748B',fontSize:13,marginBottom:16,fontFamily:tf}}>
-          จะเริ่มอัตโนมัติเมื่อเพื่อนเข้าร่วม...</div>
+          รอเจ้าของห้องกดเริ่ม...</div>
       )}
       <button onClick={onLeave} style={{background:'transparent',
         border:'1.5px solid #FCA5A5',color:'#DC2626',borderRadius:8,
@@ -941,11 +1012,17 @@ function ResultsScreen({ cpm, accuracy, errors, totalChars, lesson, saveStatus, 
             {roomType==='royale'?'🏆 Battle Royale':'⚡ 1v1'} — ผลการแข่ง</div>
           {Object.entries(roomPlayers)
             .sort((a,b)=>{
-              const [,ap]= a, [,bp]=b;
-              if (ap.status==='done'&&bp.status!=='done') return -1;
-              if (bp.status==='done'&&ap.status!=='done') return 1;
-              if (ap.finishedAt&&bp.finishedAt) return ap.finishedAt-bp.finishedAt;
-              return (bp.pos||0)-(ap.pos||0);
+              const [,ap]=a, [,bp]=b;
+              // Tier: finished (0) > still racing (1) > eliminated (2)
+              const tier=p=>p.status==='done'?0:p.status==='eliminated'?2:1;
+              const ta=tier(ap), tb=tier(bp);
+              if (ta!==tb) return ta-tb;
+              // Both finished → earliest finish time wins
+              if (ta===0 && ap.finishedAt && bp.finishedAt) return ap.finishedAt-bp.finishedAt;
+              // Otherwise → most characters typed
+              if ((bp.pos||0)!==(ap.pos||0)) return (bp.pos||0)-(ap.pos||0);
+              // Tiebreak → higher CPM
+              return (bp.cpm||0)-(ap.cpm||0);
             })
             .map(([name,p],i)=>(
               <div key={name} style={{display:'flex',alignItems:'center',gap:10,
@@ -954,6 +1031,7 @@ function ResultsScreen({ cpm, accuracy, errors, totalChars, lesson, saveStatus, 
                 <span style={{flex:1,fontFamily:"'Sarabun','Noto Sans Thai',sans-serif",
                   fontWeight:700,color:name===(myName||'ผู้เล่น1')?'#059669':'#0F172A',fontSize:14}}>
                   {name}
+                  {p.status==='done'&&' 🏁'}
                   {p.status==='eliminated'&&' 💀'}
                 </span>
                 <span style={{fontSize:13,color:'#64748B'}}>{p.cpm||0} CPM</span>
@@ -1008,7 +1086,9 @@ function ThaiTypingApp() {
   const [flashCode,     setFlashCode]     = useState(null);
   const [shiftHeld,     setShiftHeld]     = useState(false);
   const [now,           setNow]           = useState(Date.now());
-  const [spamCountdown, setSpamCountdown] = useState(SPAM_COUNTDOWN);
+  const [penaltySecs,   setPenaltySecs]   = useState(0);  // >0 = frozen by spam penalty
+  const [maxLives,      setMaxLives]      = useState(3);  // BR life count for this room
+  const [pressureSecs,  setPressureSecs]  = useState(0);  // 1v1 countdown after opponent finishes
   // Multiplayer (Phase 4)
   const [roomCode,    setRoomCode]    = useState('');
   const [roomType,    setRoomType]    = useState(''); // '1v1'|'royale'
@@ -1037,8 +1117,11 @@ function ThaiTypingApp() {
   const rtRef          = useRef('');      // roomType ref
   const plRef          = useRef(3);       // playerLives ref
   const snRef          = useRef('');      // studentName ref
+  const myRoomName     = useRef('');      // name used when joining/creating room (used for all Firebase writes)
   const currentTimings = useRef([]);       // inter-keystroke intervals for ghost recording
   const lastCorrectTime= useRef(null);     // timestamp of last correct keypress
+  const frozenRef      = useRef(false);    // true while spam penalty is active
+  const raceEndedRef   = useRef(false);    // guards against double race-end triggers
 
   // ── Derived values — declared early so all effects can reference them ──
   const targetChars = target ? [...target] : [];
@@ -1057,6 +1140,7 @@ function ThaiTypingApp() {
   const elapsed     = startTime ? ((endTime??now)-startTime)/60000 : 0;
   const cpm         = elapsed>0 ? Math.round(pos/elapsed) : 0;
   const accuracy    = (pos+errors)>0 ? Math.round((pos/(pos+errors))*100) : 100;
+  const isEliminated = roomType==='royale' && playerLives<=0;
   const nextChar    = pos<targetChars.length ? targetChars[pos] : null;
   const nextKey     = nextChar ? findKeyForChar(nextChar) : null;
   const nextCode    = nextKey?.code ?? null;
@@ -1074,12 +1158,34 @@ function ThaiTypingApp() {
     return ()=>clearInterval(id);
   },[screen,startTime,endTime]);
 
+  // Spam penalty freeze — 5s, then resume the SAME race at the same position
   useEffect(() => {
-    if (screen!=='spam') return;
-    if (spamCountdown<=0) { setScreen('lessons'); return; }
-    const t=setTimeout(()=>setSpamCountdown(c=>c-1),1000);
+    if (penaltySecs<=0) return;
+    const t=setTimeout(()=>{
+      const next=penaltySecs-1;
+      setPenaltySecs(next);
+      if (next<=0) {
+        frozenRef.current=false;
+        keystrokeTimes.current=[]; errorTimes.current=[];
+        lastCorrectTime.current=null;   // don't count frozen time as a keystroke gap
+      }
+    },1000);
     return ()=>clearTimeout(t);
-  },[screen,spamCountdown]);
+  },[penaltySecs]);
+
+  // 1v1 pressure timer — starts when the opponent finishes first
+  useEffect(() => {
+    if (pressureSecs<=0) return;
+    const t=setTimeout(()=>{
+      const next=pressureSecs-1;
+      setPressureSecs(next);
+      if (next<=0 && screen==='practice') {
+        setEndTime(Date.now());
+        setScreen('results');
+      }
+    },1000);
+    return ()=>clearTimeout(t);
+  },[pressureSecs,screen]);
 
   // Firebase room listener — active during lobby / countdown / practice
   useEffect(() => {
@@ -1088,15 +1194,37 @@ function ThaiTypingApp() {
     const unsub = fbListen(roomCode, (data) => {
       if (!data) return;
       setRoomInfo(data.info);
-      const players = data.players || {};
-      setRoomPlayers(players);
-      const status = data.info?.status;
-      // 1v1 auto-start: host triggers countdown when 2nd player joins
-      if (isHost && data.info?.type==='1v1' && status==='lobby') {
-        if (Object.keys(players).length >= 2) fbSetStatus(roomCode,'countdown');
+      const pl = data.players || {};
+      setRoomPlayers(pl);
+      if (data.info?.maxLives) setMaxLives(data.info.maxLives);
+
+      // ── Lobby/countdown: host manually triggers countdown ──
+      if (data.info?.status==='countdown' && screen==='mp-lobby') setScreen('countdown');
+
+      // ── Practice: race-end detection (consolidated here to avoid dual-listener issues) ──
+      if (screen==='practice') {
+        const type     = data.info?.type;
+        const me       = myRoomName.current||snRef.current||'ผู้เล่น1';
+        const entries  = Object.entries(pl);
+        const someoneDone = entries.some(([,p])=>p.status==='done');
+        const iAmDone  = pl[me]?.status==='done';
+
+        if (type==='royale') {
+          const stillRacing = entries.filter(([,p])=>
+            p.status!=='eliminated' && p.status!=='done');
+          const lastStanding = entries.length>=2 && stillRacing.length<=1 && !someoneDone;
+          if ((someoneDone || lastStanding) && !raceEndedRef.current) {
+            raceEndedRef.current=true;
+            setEndTime(Date.now());
+            setTimeout(()=>setScreen(s=>s==='practice'?'results':s),400);
+          }
+        } else if (type==='1v1') {
+          if (someoneDone && !iAmDone && !raceEndedRef.current) {
+            raceEndedRef.current=true;
+            setPressureSecs(PRESSURE_SECS);
+          }
+        }
       }
-      // All clients: move to countdown screen
-      if (status==='countdown' && screen==='mp-lobby') setScreen('countdown');
     });
     fbUnsub.current = unsub;
     return () => { unsub(); fbUnsub.current=null; };
@@ -1117,26 +1245,12 @@ function ThaiTypingApp() {
         currentTimings.current=[]; lastCorrectTime.current=null;
         hasSaved.current=false; setSaveStatus('idle');
         setNewRecord(false); setGhostPos(0);
-        setPlayerLives(3); plRef.current=3;
+        setPlayerLives(maxLives); plRef.current=maxLives;
         setRaceStand([]); setZonePos(0);
+        setPenaltySecs(0); setPressureSecs(0);
+        frozenRef.current=false; raceEndedRef.current=false;
         setScreen('practice');
-        // Keep full-room listener active so we catch status='done' (first finisher)
-        if (rcRef.current) {
-          if (fbUnsub.current) { fbUnsub.current(); fbUnsub.current=null; }
-          const db=getDB();
-          if (db) {
-            const ref=db.ref('rooms/'+rcRef.current);
-            ref.on('value', snap => {
-              const data=snap.val()||{};
-              setRoomInfo(data.info);
-              setRoomPlayers(data.players||{});
-              // If any player finished → race is over for everyone
-              const done=Object.values(data.players||{}).find(p=>p.status==='done');
-              if (done) setScreen(s=>s==='practice'?'results':s);
-            });
-            fbUnsub.current=()=>ref.off('value');
-          }
-        }
+        // Race-end detection is now in the lobby useEffect listener (consolidated)
       } else { setCountNum(n); }
     }, 1000);
     return () => clearInterval(id);
@@ -1158,10 +1272,9 @@ function ThaiTypingApp() {
       if (zp > 0 && myPos < zp - ZONE_GAP) {
         const newLives = Math.max(0, plRef.current - 1);
         setPlayerLives(newLives); plRef.current = newLives;
-        fbUpdatePlayer(rcRef.current, snRef.current||'Player', {lives:newLives});
+        fbUpdatePlayer(rcRef.current, myRoomName.current||snRef.current||'Player', {lives:newLives});
         if (newLives === 0) {
-          fbUpdatePlayer(rcRef.current, snRef.current||'Player', {status:'eliminated'});
-          setTimeout(()=>setScreen('results'), 800);
+          fbUpdatePlayer(rcRef.current, myRoomName.current||snRef.current||'Player', {status:'eliminated'});
         }
       }
     }, ZONE_TICK);
@@ -1242,6 +1355,8 @@ function ThaiTypingApp() {
     keystrokeTimes.current=[]; errorTimes.current=[];
     currentTimings.current=[]; lastCorrectTime.current=null;
     hasSaved.current = false;
+    frozenRef.current = false; raceEndedRef.current = false;
+    setPenaltySecs(0); setPressureSecs(0);
     setSaveStatus('idle');
     setNewRecord(false);
     setGhostPos(0);
@@ -1265,7 +1380,9 @@ function ThaiTypingApp() {
       await fbCreate(code,{type:'1v1',lessonId:les.id,
         exerciseTitle:les.thaiName,targetText:text,
         hostName:snRef.current||'ผู้เล่น1'});
-      await fbJoin(code, snRef.current||'ผู้เล่น1');
+      const h1name = snRef.current || 'ผู้เล่น1';
+      myRoomName.current = h1name;
+      await fbJoin(code, h1name);
       setRoomCode(code); rcRef.current=code;
       setRoomType('1v1'); rtRef.current='1v1';
       setIsHost(true);
@@ -1276,7 +1393,7 @@ function ThaiTypingApp() {
   },[]);
 
   // Create a Battle Royale room (called from teacher panel link)
-  const handleCreateBR = useCallback(async (les) => {
+  const handleCreateBR = useCallback(async (les, lives=3) => {
     setMpBusy(true); setJoinError('');
     const code = makeCode();
     // Combine all words from lesson for BR — longer text, more competitive
@@ -1284,9 +1401,12 @@ function ThaiTypingApp() {
     const text = generateText(allWords, 500);
     try {
       await fbCreate(code,{type:'royale',lessonId:les.id,
-        exerciseTitle:les.thaiName,targetText:text,
+        exerciseTitle:les.thaiName,targetText:text,maxLives:lives,
         hostName:snRef.current||'ครู'});
-      await fbJoin(code, snRef.current||'ครู', 3);
+      const hBRname = snRef.current || 'ครู';
+      myRoomName.current = hBRname;
+      await fbJoin(code, hBRname, lives);
+      setMaxLives(lives); setPlayerLives(lives); plRef.current=lives;
       setRoomCode(code); rcRef.current=code;
       setRoomType('royale'); rtRef.current='royale';
       setIsHost(true);
@@ -1305,7 +1425,10 @@ function ThaiTypingApp() {
       if (!data) { setJoinError('ไม่พบห้อง '+code.toUpperCase()); setMpBusy(false); return; }
       if (data.info?.status!=='lobby') { setJoinError('ห้องนี้กำลังแข่งอยู่แล้ว'); setMpBusy(false); return; }
       const name = snRef.current || ('ผู้เล่น'+(Object.keys(data.players||{}).length+1));
-      await fbJoin(code.trim().toUpperCase(), name, 3);
+      myRoomName.current = name;
+      const rl = data.info?.maxLives || 3;
+      setMaxLives(rl); setPlayerLives(rl); plRef.current=rl;
+      await fbJoin(code.trim().toUpperCase(), name, rl);
       const les = LESSONS.find(l=>l.id===data.info.lessonId)||null;
       setRoomCode(code.trim().toUpperCase()); rcRef.current=code.trim().toUpperCase();
       setRoomType(data.info.type); rtRef.current=data.info.type;
@@ -1317,7 +1440,7 @@ function ThaiTypingApp() {
   },[]);
 
   // Host starts Battle Royale manually
-  const handleStartBR = useCallback(async () => {
+  const handleStartRace = useCallback(async () => {
     await fbSetStatus(rcRef.current,'countdown');
   },[]);
 
@@ -1326,7 +1449,7 @@ function ThaiTypingApp() {
     const code=rcRef.current, name=snRef.current||'ผู้เล่น1';
     if (code) {
       try {
-        await getDB()?.ref('rooms/'+code+'/players/'+name).remove();
+        await getDB()?.ref('rooms/'+code+'/players/'+(myRoomName.current||name)).remove();
         if (isHost) await fbRemove(code);
       } catch{}
     }
@@ -1334,6 +1457,9 @@ function ThaiTypingApp() {
     setRoomCode(''); rcRef.current='';
     setRoomType(''); rtRef.current='';
     setIsHost(false); setRoomPlayers({}); setRoomInfo(null);
+    setPressureSecs(0); setPenaltySecs(0);
+    frozenRef.current=false; raceEndedRef.current=false;
+    myRoomName.current='';
     setScreen('lessons');
   },[isHost]);
 
@@ -1351,6 +1477,7 @@ function ThaiTypingApp() {
       if (e.key==='Shift') { setShiftHeld(true); return; }
       if (e.ctrlKey||e.altKey||e.metaKey) return;
       e.preventDefault();
+      if (frozenRef.current) return;   // spam penalty active — ignore typing
       if (e.key==='Escape') { setScreen('lessons'); return; }
       const { pos,target,targetChars,startTime } = stateRef.current;
       if (e.code==='Backspace') {
@@ -1369,7 +1496,7 @@ function ThaiTypingApp() {
         const span=kBuf[kBuf.length-1]-kBuf[0];
         if (span>0 && ((kBuf.length-1)/span)*60000>SPEED_CPM) {
           keystrokeTimes.current=[]; errorTimes.current=[];
-          setSpamCountdown(SPAM_COUNTDOWN); setScreen('spam'); return;
+          frozenRef.current=true; setPenaltySecs(SPAM_PENALTY); return;
         }
       }
 
@@ -1391,7 +1518,7 @@ function ThaiTypingApp() {
             setEndTime(Date.now());
             // Mark race finish in Firebase
             if (rcRef.current) {
-              fbUpdatePlayer(rcRef.current, snRef.current||'ผู้เล่น1',
+              fbUpdatePlayer(rcRef.current, myRoomName.current||snRef.current||'ผู้เล่น1',
                 {pos:next,status:'done',finishedAt:Date.now()});
               fbSetStatus(rcRef.current,'done').catch(()=>{});
             }
@@ -1407,7 +1534,7 @@ function ThaiTypingApp() {
             const el=stateRef.current.startTime?(nowFB-stateRef.current.startTime)/60000:0;
             const np=stateRef.current.pos+1;
             const nc=el>0?Math.round(np/el):0;
-            fbUpdatePlayer(rcRef.current,snRef.current||'ผู้เล่น1',{pos:np,cpm:nc,status:'racing'});
+            fbUpdatePlayer(rcRef.current,myRoomName.current||snRef.current||'ผู้เล่น1',{pos:np,cpm:nc,status:'racing'});
           }
         }
       } else {
@@ -1419,10 +1546,10 @@ function ThaiTypingApp() {
           if (rcRef.current && rtRef.current==='royale') {
             const newLives=Math.max(0,plRef.current-1);
             setPlayerLives(newLives); plRef.current=newLives;
-            fbUpdatePlayer(rcRef.current,snRef.current||'ผู้เล่น1',{lives:newLives});
+            fbUpdatePlayer(rcRef.current,myRoomName.current||snRef.current||'ผู้เล่น1',{lives:newLives});
             if (newLives===0) {
-              fbUpdatePlayer(rcRef.current,snRef.current||'ผู้เล่น1',{status:'eliminated'});
-              setTimeout(()=>setScreen('results'),800);
+              // Eliminated — screen greys out but the student keeps typing for practice
+              fbUpdatePlayer(rcRef.current,myRoomName.current||snRef.current||'ผู้เล่น1',{status:'eliminated'});
             }
           }
           // SPAM CHECK 2: error burst
@@ -1432,7 +1559,7 @@ function ThaiTypingApp() {
           while (eBuf.length&&eBuf[0]<cutoff) eBuf.shift();
           if (eBuf.length>=ERROR_BURST) {
             keystrokeTimes.current=[]; errorTimes.current=[];
-            setSpamCountdown(SPAM_COUNTDOWN); setScreen('spam'); return;
+            frozenRef.current=true; setPenaltySecs(SPAM_PENALTY); return;
           }
         }
         if (result.hint) setHint(result.hint);
@@ -1449,7 +1576,7 @@ function ThaiTypingApp() {
       display:'flex',flexDirection:'column',alignItems:'center',padding:'24px 16px 40px'}}>
       <style>{`@import url('https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600;700;800&display=swap');`}</style>
 
-      {screen==='spam' && <SpamScreen countdown={spamCountdown}/>}
+      {penaltySecs>0 && <PenaltyScreen countdown={penaltySecs}/>}
 
       {/* Header */}
       <div style={{width:'100%',maxWidth:860,display:'flex',
@@ -1519,7 +1646,20 @@ function ThaiTypingApp() {
         )}
 
         {screen==='practice'&&lesson&&target&&(
-          <div>
+          <div style={isEliminated?{filter:'grayscale(1)',opacity:.65,transition:'filter .6s, opacity .6s'}:undefined}>
+            {/* Eliminated banner — student keeps typing for practice */}
+            {isEliminated&&(
+              <div style={{background:'#1F2937',borderRadius:12,padding:'12px 16px',
+                marginBottom:14,display:'flex',alignItems:'center',gap:10}}>
+                <span style={{fontSize:24}}>💀</span>
+                <div>
+                  <div style={{fontFamily:"'Sarabun','Noto Sans Thai',sans-serif",
+                    fontSize:15,fontWeight:800,color:'#fff'}}>ถูกคัดออกแล้ว</div>
+                  <div style={{fontFamily:"'Sarabun','Noto Sans Thai',sans-serif",
+                    fontSize:12,color:'#9CA3AF'}}>พิมพ์ต่อได้เพื่อฝึกซ้อม — รอดูผลตอนจบรอบ</div>
+                </div>
+              </div>
+            )}
             <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:18}}>
               <div style={{background:lesson.al,color:lesson.accent,borderRadius:7,
                 padding:'3px 9px',fontSize:10,fontWeight:700,letterSpacing:.5,
@@ -1611,6 +1751,24 @@ function ThaiTypingApp() {
               </div>
             )}
 
+            {/* 1v1 pressure timer — opponent already finished */}
+            {pressureSecs>0&&(
+              <div style={{background:'#FEF2F2',border:'2px solid #EF4444',borderRadius:12,
+                padding:'12px 16px',marginBottom:12,display:'flex',alignItems:'center',gap:14,
+                animation:'none'}}>
+                <span style={{fontSize:30,fontWeight:800,color:'#DC2626',minWidth:44,
+                  textAlign:'center'}}>{pressureSecs}</span>
+                <div style={{flex:1}}>
+                  <div style={{fontFamily:"'Sarabun','Noto Sans Thai',sans-serif",
+                    fontSize:14,fontWeight:800,color:'#DC2626'}}>
+                    คู่แข่งพิมพ์เสร็จแล้ว! รีบพิมพ์ให้จบ!</div>
+                  <div style={{background:'#FECACA',borderRadius:6,height:6,marginTop:6,overflow:'hidden'}}>
+                    <div style={{width:`${(pressureSecs/PRESSURE_SECS)*100}%`,height:'100%',
+                      background:'#DC2626',borderRadius:6,transition:'width 1s linear'}}/>
+                  </div>
+                </div>
+              </div>
+            )}
             {/* Zone warning — BR only */}
             {roomType==='royale'&&roomCode&&zonePos>0&&pos<(zonePos-ZONE_GAP+10)&&(
               <div style={{background:'#FEF2F2',border:'1.5px solid #FCA5A5',borderRadius:10,
@@ -1631,7 +1789,7 @@ function ThaiTypingApp() {
                   {roomType==='royale'?'🏆 Battle Royale':'⚡ 1v1'} — ห้อง {roomCode}
                 </div>
                 {Object.entries(roomPlayers).map(([name,p])=>{
-                  const isMe=name===(studentName||'ผู้เล่น1');
+                  const isMe=name===(myRoomName.current||studentName||'ผู้เล่น1');
                   const pct=totalChars>0?Math.round((p.pos/totalChars)*100):0;
                   const col=p.status==='eliminated'?'#94A3B8':isMe?'#059669':'#EF4444';
                   return(
@@ -1641,7 +1799,8 @@ function ThaiTypingApp() {
                           fontFamily:"'Sarabun','Noto Sans Thai',sans-serif"}}>
                           {p.status==='eliminated'?'💀':p.status==='done'?'🏁':isMe?'👤':'🏃'} {name}
                           {roomType==='royale'&&(p.lives||0)>0&&(
-                            <span style={{fontSize:10,marginLeft:4}}>{'❤️'.repeat(p.lives)}</span>
+                            <span style={{fontSize:10,marginLeft:4}}>
+                              {p.lives<=5?'❤️'.repeat(p.lives):'❤️×'+p.lives}</span>
                           )}
                         </span>
                         <span style={{fontSize:11,color:'#64748B'}}>{p.cpm||0} CPM · {pct}%</span>
@@ -1656,7 +1815,9 @@ function ThaiTypingApp() {
                 {roomType==='royale'&&(
                   <div style={{marginTop:8,fontSize:12,color:'#64748B',
                     fontFamily:"'Sarabun','Noto Sans Thai',sans-serif"}}>
-                    ชีวิตของคุณ: {playerLives>0?'❤️'.repeat(playerLives):'💀 ถูกคัดออก'}
+                    ชีวิตของคุณ: {playerLives>0
+                      ? (playerLives<=5?'❤️'.repeat(playerLives):'❤️ × '+playerLives)
+                      : '💀 ถูกคัดออก'}
                   </div>
                 )}
               </div>
@@ -1671,17 +1832,17 @@ function ThaiTypingApp() {
           <MPSetupScreen
             mode={mpSetupMode} busy={mpBusy}
             onBack={()=>setScreen('lessons')}
-            onSelect={(les)=>{
+            onSelect={(les,lives)=>{
               if(mpSetupMode==='1v1') handleCreate1v1(les);
-              else handleCreateBR(les);
+              else handleCreateBR(les,lives||3);
             }}/>
         )}
         {screen==='mp-lobby'&&(
           <LobbyScreen
             roomCode={roomCode} roomInfo={roomInfo}
             roomPlayers={roomPlayers} isHost={isHost}
-            roomType={roomType} myName={studentName||'ผู้เล่น1'}
-            onStart={handleStartBR} onLeave={handleLeaveRoom}/>
+            roomType={roomType} myName={myRoomName.current||studentName||'ผู้เล่น1'}
+            onStart={handleStartRace} onLeave={handleLeaveRoom}/>
         )}
         {screen==='countdown'&&(
           <CountdownScreen num={countNum} roomCode={roomCode} roomType={roomType}/>
@@ -1692,7 +1853,7 @@ function ThaiTypingApp() {
             saveStatus={saveStatus} studentName={studentName}
             ghostData={ghostData} newRecord={newRecord}
             roomCode={roomCode} roomType={roomType}
-            roomPlayers={roomPlayers} myName={studentName||'ผู้เล่น1'}
+            roomPlayers={roomPlayers} myName={myRoomName.current||studentName||'ผู้เล่น1'}
             onRestart={()=>{
               if(rcRef.current){handleLeaveRoom();}
               else if(lesson&&exercise) startExercise(lesson,exercise);

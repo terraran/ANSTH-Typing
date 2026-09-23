@@ -1499,17 +1499,7 @@ function ThaiTypingApp() {
       <style>{`@import url('https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600;700;800&display=swap');`}</style>
 
       {penaltySecs>0 && <PenaltyScreen countdown={penaltySecs}/>}
-      {showNameModal && (
-        <NameModal onConfirm={(name)=>{
-          setAdventureName(name);
-          try{localStorage.setItem('adventureName',name);}catch(e){}
-          setShowNameModal(false);
-          if(pendingStoryRef.current){
-            const p=pendingStoryRef.current; pendingStoryRef.current=null;
-            setTimeout(()=>startExercise(p.les,p.ex),80);
-          }
-        }}/>
-      )}
+
 
       {/* Header */}
       <div style={{width:'100%',maxWidth:860,display:'flex',
@@ -1798,15 +1788,7 @@ function ThaiTypingApp() {
         {screen==='countdown'&&(
           <CountdownScreen num={countNum} roomCode={roomCode} roomType={roomType}/>
         )}
-        {screen==='results'&&lesson?.story&&exercise?.isChoice?(
-          <StoryChoiceScreen exercise={exercise}
-            adventureName={adventureName||'นักผจญภัย'}
-            onChoose={(saves)=>{
-              if(saves.storyPath){setStoryPath(saves.storyPath);try{localStorage.setItem('storyPath',saves.storyPath);}catch(e){}}
-              if(saves.storyPower){setStoryPower(saves.storyPower);try{localStorage.setItem('storyPower',saves.storyPower);}catch(e){}}
-              setScreen('lessons');
-            }}/>
-        ):screen==='results'&&(
+        {screen==='results'&&(
           <ResultsScreen cpm={kpm} accuracy={accuracy} errors={errors}
             totalChars={totalChars} lesson={lesson}
             saveStatus={saveStatus} studentName={studentName}

@@ -119,6 +119,21 @@
     .no-sessions { color: #94A3B8; font-size: 13px; padding: 24px;
                     text-align: center; background: #fff; border-radius: 12px;
                     border: 1.5px solid #E2E8F0; }
+    /* ── ASSIGNMENTS ── */
+    .assign-modal-bg { position:fixed;inset:0;background:rgba(0,0,0,.6);
+      display:flex;align-items:center;justify-content:center;z-index:500;padding:20px; }
+    .assign-modal { background:#fff;border-radius:20px;padding:28px;
+      width:100%;max-width:560px;max-height:90vh;overflow-y:auto; }
+    .assign-row { background:#fff;border:1.5px solid #E2E8F0;border-radius:10px;
+      padding:12px 16px;margin-bottom:8px;display:flex;align-items:center;gap:12; }
+    .assign-progress { background:#F1F5F9;border-radius:6px;height:8px;flex:1;overflow:hidden; }
+    .assign-progress-fill { height:100%;border-radius:6px;background:#059669;transition:width .3s; }
+    .badge-done { background:#D1FAE5;color:#065F46;border-radius:6px;
+      padding:2px 8px;font-size:11px;font-weight:700; }
+    .badge-pending { background:#FEF3C7;color:#92400E;border-radius:6px;
+      padding:2px 8px;font-size:11px;font-weight:700; }
+    .badge-overdue { background:#FEE2E2;color:#991B1B;border-radius:6px;
+      padding:2px 8px;font-size:11px;font-weight:700; }
   </style>
 </head>
 <body>
@@ -133,6 +148,8 @@
     <a href="index.html" class="nav-btn" style="text-decoration:none;background:rgba(255,255,255,.1);
       border:1.5px solid rgba(255,255,255,.25);color:#fff;border-radius:7px;padding:5px 13px;
       font-size:12px;font-weight:600;font-family:inherit;cursor:pointer">⌨️ นักเรียน</a>
+    <button class="nav-btn" id="btn-assignments" onclick="showAssignments()"
+      style="display:none">📋 Assignments</button>
     <button class="nav-btn danger" onclick="logout()">ออกจากระบบ</button>
   </nav>
 
@@ -196,6 +213,69 @@
     <div class="sessions-title">ประวัติการฝึก / Session History</div>
     <div id="detail-sessions"></div>
   </div>
+
+<!-- SCREEN 4: ASSIGNMENTS -->
+<div class="screen" id="s-assign">
+  <div style="max-width:860px;margin:0 auto;padding:24px">
+    <div style="display:flex;align-items:center;gap:12;margin-bottom:20">
+      <div style="font-size:20px;font-weight:800">📋 Assignments</div>
+      <button onclick="openCreateModal()"
+        style="margin-left:auto;background:#0F172A;color:#fff;border:none;border-radius:8px;
+          padding:8px 16px;cursor:pointer;font-size:13px;font-weight:700;font-family:inherit">
+        + Assign งาน
+      </button>
+    </div>
+    <div id="assign-list"><div class="loading-msg">กำลังโหลด...</div></div>
+  </div>
+</div>
+
+<!-- CREATE ASSIGNMENT MODAL -->
+<div class="assign-modal-bg" id="create-modal" style="display:none">
+  <div class="assign-modal">
+    <div style="font-size:18px;font-weight:800;margin-bottom:20">+ Assign งานใหม่</div>
+
+    <label class="field-label">ห้องเรียน</label>
+    <div id="modal-class-display" style="font-size:18px;font-weight:800;
+      margin-bottom:16px;color:#2563EB"></div>
+
+    <label class="field-label">มอบหมายให้</label>
+    <select id="modal-student" style="width:100%;padding:10px 12px;border:2px solid #E2E8F0;
+      border-radius:8px;font-size:14px;font-family:inherit;margin-bottom:16px;outline:none">
+      <option value="ALL">ทั้งห้อง (ALL)</option>
+    </select>
+
+    <label class="field-label">Chapter & Exercise</label>
+    <select id="modal-chapter" onchange="updateExerciseList()"
+      style="width:100%;padding:10px 12px;border:2px solid #E2E8F0;
+        border-radius:8px;font-size:14px;font-family:inherit;margin-bottom:8px;outline:none">
+      <option value="">-- เลือก Chapter --</option>
+    </select>
+    <select id="modal-exercise" multiple
+      style="width:100%;padding:8px 12px;border:2px solid #E2E8F0;border-radius:8px;
+        font-size:13px;font-family:inherit;margin-bottom:16px;outline:none;min-height:120px">
+    </select>
+    <div style="font-size:11px;color:#94A3B8;margin-top:-12px;margin-bottom:16px">
+      กด Ctrl+Click เพื่อเลือกหลายแบบฝึก
+    </div>
+
+    <label class="field-label">Deadline (ไม่บังคับ)</label>
+    <input type="date" id="modal-deadline"
+      style="width:100%;padding:10px 12px;border:2px solid #E2E8F0;border-radius:8px;
+        font-size:14px;font-family:inherit;margin-bottom:20px;outline:none">
+
+    <div id="modal-err" class="error-msg" style="display:none"></div>
+    <div style="display:flex;gap:10">
+      <button onclick="closeCreateModal()"
+        style="flex:1;background:#F1F5F9;border:none;border-radius:8px;padding:12px;
+          cursor:pointer;font-size:14px;font-weight:600;font-family:inherit">ยกเลิก</button>
+      <button onclick="submitAssignments()" id="modal-submit-btn"
+        style="flex:2;background:#0F172A;color:#fff;border:none;border-radius:8px;padding:12px;
+          cursor:pointer;font-size:14px;font-weight:700;font-family:inherit">
+        Assign →
+      </button>
+    </div>
+  </div>
+</div>
 
 <script>
 const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwpp0IvmQjrv0O8MZ6XSX3SQDfJIIii4RsidX5IvaPDaKyJ5x0QLhbdKPle4TX4BKhsmQ/exec';
@@ -389,6 +469,7 @@ async function resetCurrentStudentPin() {
 
 function showDash() {
   document.getElementById('s-detail').classList.remove('active');
+  document.getElementById('s-assign').classList.remove('active');
   document.getElementById('s-dash').classList.add('active');
   document.getElementById('btn-back').style.display = 'none';
   currentStudentName = '';
@@ -434,6 +515,204 @@ function formatDuration(seconds) {
   const m = Math.floor(seconds / 60), s = seconds % 60;
   return m > 0 ? `${m}:${String(s).padStart(2,'0')}` : `${s}s`;
 }
+
+// ── LESSON INDEX (for assignment picker) ──
+const LESSON_INDEX = [
+  {ch:1,title:'Chapter 1 — แถวหลัก',lessons:[
+    {id:1,name:'1 แถวกลาง 1',exs:['1.1 แถวกลาง','1.2 คำสั้น','1.3 คำยาว','1.4 ผสม','1.5 ความเร็ว']},
+    {id:2,name:'2 แถวบน',exs:['2.1 แถวบน','2.2 คำสั้น','2.3 ผสม','2.4 ผสมยาว','2.5 ความเร็ว']},
+    {id:3,name:'3 แถวล่าง',exs:['3.1 แถวล่าง','3.2 คำสั้น','3.3 ผสม','3.4 ผสมยาว','3.5 ความเร็ว']},
+    {id:4,name:'4 ผสม 3 แถว',exs:['4.1 ผสม','4.2 คำสั้น','4.3 คำยาว','4.4 ผสมยาว','4.5 ความเร็ว']},
+  ]},
+  {ch:2,title:'Chapter 2 — Shift ง่าย',lessons:[
+    {id:5,name:'5 ไม้ไต่คู้ & ทัณฑฆาต',exs:['5.1 ็','5.2 ์','5.3 ผสม','5.4 ผสมยาว','5.5 ความเร็ว']},
+    {id:6,name:'6 โ และ ธ',exs:['6.1 โ','6.2 ธ','6.3 ผสม','6.4 ความเร็ว']},
+    {id:7,name:'7 สระ ู',exs:['7.1 ู','7.2 คำใช้บ่อย','7.3 ุ vs ู','7.4 ผสม','7.5 ความเร็ว']},
+    {id:8,name:'8 วรรณยุกต์พิเศษ',exs:['8.1 ๋','8.2 ๊','8.3 ผสม','8.4 ความเร็ว']},
+  ]},
+  {ch:3,title:'Chapter 3 — Shift ยาก',lessons:[
+    {id:9,name:'9 ศ ษ ซ',exs:['9.1 ศ','9.2 ษ','9.3 ซ','9.4 ผสม','9.5 ความเร็ว']},
+    {id:10,name:'10 ณ ญ ฉ ฮ ฆ ฌ',exs:['10.1 ณ ญ','10.2 ฉ ฮ','10.3 ฆ ฌ','10.4 ผสม','10.5 ความเร็ว']},
+    {id:11,name:'11 ฎ ฏ ฐ ฑ ฒ ฤ ฯ',exs:['11.1 ฎ ฏ ฐ','11.2 ฑ ฒ ฤ','11.3 ฯ','11.4 ผสม','11.5 ความเร็ว']},
+  ]},
+  {ch:4,title:'Chapter 4 — ตัวพิเศษ',lessons:[
+    {id:12,name:'12 เลขไทย',exs:['12.1 ๑ ถึง ๕','12.2 ๖ ถึง ๐','12.3 เลขในบริบท','12.4 ผสม','12.5 ความเร็ว']},
+    {id:13,name:'13 เครื่องหมาย',exs:['13.1 ฿ และ %','13.2 ( ) และ ?','13.3 . , และ "','13.4 ผสม','13.5 ความเร็ว']},
+  ]},
+];
+
+// ── ASSIGNMENTS SCREEN ──
+let allStudentsForModal = [];
+let assignmentsData = [];
+
+function showAssignments() {
+  document.getElementById('s-dash').classList.remove('active');
+  document.getElementById('s-detail').classList.remove('active');
+  document.getElementById('s-assign').classList.add('active');
+  document.getElementById('btn-back').style.display = 'inline-block';
+  currentStudentName = '';
+  loadAssignments();
+}
+
+async function loadAssignments() {
+  document.getElementById('assign-list').innerHTML = '<div class="loading-msg">กำลังโหลด...</div>';
+  try {
+    const url = SCRIPT_URL + '?action=getClassAssignments&classCode=' +
+      encodeURIComponent(currentClass) + '&tc=' + encodeURIComponent(teacherCode);
+    const data = await (await fetch(url, {redirect:'follow'})).json();
+    if (data.error) throw new Error(data.error);
+    assignmentsData = data.assignments || [];
+    allStudentsForModal = data.classStudents || [];
+    renderAssignments();
+  } catch(e) {
+    document.getElementById('assign-list').innerHTML =
+      '<div class="empty-msg">โหลดไม่ได้: ' + e.message + '</div>';
+  }
+}
+
+function renderAssignments() {
+  const list = document.getElementById('assign-list');
+  if (!assignmentsData.length) {
+    list.innerHTML = '<div class="empty-msg">ยังไม่มี Assignment — กด "+ Assign งาน" เพื่อเริ่ม</div>';
+    return;
+  }
+  list.innerHTML = '';
+  assignmentsData.forEach(a => {
+    const pct = a.totalTargets > 0 ? Math.round(a.completedCount/a.totalTargets*100) : 0;
+    const dl  = a.deadline ? new Date(a.deadline) : null;
+    const overdue = dl && dl < new Date();
+    const badge = pct === 100
+      ? '<span class="badge-done">✅ ครบแล้ว</span>'
+      : overdue ? '<span class="badge-overdue">⚠️ เลยกำหนด</span>'
+                : '<span class="badge-pending">⏳ รอทำ</span>';
+    const row = document.createElement('div');
+    row.className = 'assign-row';
+    row.innerHTML = `
+      <div style="flex:1;min-width:0">
+        <div style="font-size:14px;font-weight:800;margin-bottom:4px">${a.exerciseTitle}</div>
+        <div style="font-size:11px;color:#64748B;margin-bottom:8px">
+          ${a.forAll?'ทั้งห้อง':'👤 '+a.studentName} ·
+          ${dl?'กำหนด '+formatDate(a.deadline):'ไม่มีกำหนด'}
+        </div>
+        <div style="display:flex;align-items:center;gap:8">
+          <div class="assign-progress">
+            <div class="assign-progress-fill" style="width:${pct}%"></div>
+          </div>
+          <span style="font-size:11px;color:#64748B;white-space:nowrap">
+            ${a.completedCount}/${a.totalTargets} คน (${pct}%)
+          </span>
+        </div>
+      </div>
+      <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6;flex-shrink:0">
+        ${badge}
+        <button onclick="deleteAssign('${a.assignId}')"
+          style="background:transparent;border:1px solid #FCA5A5;color:#DC2626;
+            border-radius:6px;padding:3px 8px;cursor:pointer;font-size:11px;font-family:inherit">
+          ลบ
+        </button>
+      </div>`;
+    list.appendChild(row);
+  });
+}
+
+async function deleteAssign(assignId) {
+  if (!confirm('ลบ Assignment นี้?')) return;
+  const url = SCRIPT_URL + '?action=deleteAssignment&tc=' + encodeURIComponent(teacherCode)
+    + '&assignId=' + encodeURIComponent(assignId);
+  const data = await (await fetch(url, {redirect:'follow'})).json();
+  if (data.ok) loadAssignments();
+  else alert('ลบไม่ได้: ' + (data.error||'error'));
+}
+
+// ── CREATE MODAL ──
+function openCreateModal() {
+  document.getElementById('modal-class-display').textContent = currentClass;
+
+  // Populate students
+  const sel = document.getElementById('modal-student');
+  sel.innerHTML = '<option value="ALL">ทั้งห้อง (ALL)</option>';
+  allStudentsForModal.forEach(s => {
+    const opt = document.createElement('option');
+    opt.value = s; opt.textContent = s;
+    sel.appendChild(opt);
+  });
+
+  // Populate chapters
+  const chSel = document.getElementById('modal-chapter');
+  chSel.innerHTML = '<option value="">-- เลือก Chapter --</option>';
+  LESSON_INDEX.forEach(ch => {
+    const opt = document.createElement('option');
+    opt.value = ch.ch; opt.textContent = ch.title;
+    chSel.appendChild(opt);
+  });
+
+  document.getElementById('modal-exercise').innerHTML = '';
+  document.getElementById('modal-deadline').value = '';
+  document.getElementById('modal-err').style.display = 'none';
+  document.getElementById('create-modal').style.display = 'flex';
+}
+
+function updateExerciseList() {
+  const chVal = parseInt(document.getElementById('modal-chapter').value);
+  const exSel = document.getElementById('modal-exercise');
+  exSel.innerHTML = '';
+  if (!chVal) return;
+  const ch = LESSON_INDEX.find(c => c.ch === chVal);
+  if (!ch) return;
+  ch.lessons.forEach(les => {
+    const group = document.createElement('optgroup');
+    group.label = les.name;
+    les.exs.forEach(ex => {
+      const opt = document.createElement('option');
+      opt.value = JSON.stringify({lessonId:les.id, exerciseTitle:ex});
+      opt.textContent = ex;
+      group.appendChild(opt);
+    });
+    exSel.appendChild(group);
+  });
+}
+
+function closeCreateModal() {
+  document.getElementById('create-modal').style.display = 'none';
+}
+
+async function submitAssignments() {
+  const student  = document.getElementById('modal-student').value;
+  const selected = [...document.getElementById('modal-exercise').selectedOptions];
+  const deadline = document.getElementById('modal-deadline').value;
+  const btn      = document.getElementById('modal-submit-btn');
+  const err      = document.getElementById('modal-err');
+
+  if (!selected.length) {
+    err.textContent = 'เลือก Exercise อย่างน้อย 1 อัน'; err.style.display='block'; return;
+  }
+  err.style.display = 'none';
+  btn.disabled = true; btn.textContent = 'กำลัง Assign...';
+
+  let successCount = 0;
+  for (const opt of selected) {
+    const {lessonId, exerciseTitle} = JSON.parse(opt.value);
+    const p = new URLSearchParams({
+      action:'createAssignment', tc:teacherCode,
+      classCode:currentClass, studentName:student,
+      lessonId, exerciseTitle, deadline,
+    });
+    const data = await (await fetch(SCRIPT_URL+'?'+p.toString(), {redirect:'follow'})).json();
+    if (data.ok) successCount++;
+  }
+
+  btn.disabled = false; btn.textContent = 'Assign →';
+  closeCreateModal();
+  alert(`✅ Assign แล้ว ${successCount}/${selected.length} แบบฝึก`);
+  loadAssignments();
+}
+
+// ── SHOW ASSIGNMENTS BUTTON WHEN LOGGED IN ──
+const _origInitDash = initDashboard;
+initDashboard = async function() {
+  await _origInitDash.apply(this, arguments);
+  document.getElementById('btn-assignments').style.display = 'inline-block';
+};
 </script>
 </body>
 </html>

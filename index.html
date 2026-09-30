@@ -852,7 +852,7 @@ function MPSetupScreen({ mode, onSelect, onBack, busy }) {
 
 // LOBBY SCREEN  (Phase 4)
 
-function LobbyScreen({ roomCode, roomInfo, roomPlayers, isHost, roomType, myName, onStart, onLeave }) {
+function LobbyScreen({ roomCode, roomInfo, roomPlayers, isHost, roomType, myName, onStart, onLeave, onStartSpectator }) {
   const tf = "'Sarabun','Noto Sans Thai',sans-serif";
   const players = Object.entries(roomPlayers||{});
   const canStart = players.length >= 2;
@@ -901,15 +901,24 @@ function LobbyScreen({ roomCode, roomInfo, roomPlayers, isHost, roomType, myName
         </div>
       </div>
       {isHost&&(
-        <button onClick={onStart} disabled={!canStart} style={{
-          background:canStart?'#059669':'#94A3B8',color:'#fff',border:'none',
-          borderRadius:10,padding:'12px 28px',cursor:canStart?'pointer':'not-allowed',
-          fontSize:16,fontWeight:700,fontFamily:tf,marginBottom:12,display:'block',
-          width:'100%',transition:'background .15s'}}>
-          {canStart
-            ? (roomType==='royale'?'▶ เริ่ม Battle Royale!':'▶ เริ่มแข่ง 1v1!')
-            : 'รอผู้เล่นเพิ่ม... ('+players.length+(roomType==='1v1'?'/2':'/2+')+')'}
-        </button>
+        <div style={{marginBottom:12,display:'flex',gap:8}}>
+          <button onClick={onStart} disabled={!canStart} style={{
+            flex:2,background:canStart?'#059669':'#94A3B8',color:'#fff',border:'none',
+            borderRadius:10,padding:'12px',cursor:canStart?'pointer':'not-allowed',
+            fontSize:15,fontWeight:700,fontFamily:tf,transition:'background .15s'}}>
+            {canStart
+              ? (roomType==='royale'?'▶ เริ่ม Battle Royale!':'▶ เริ่มแข่ง 1v1!')
+              : 'รอ ('+players.length+(roomType==='1v1'?'/2':'/2+')+')'}
+          </button>
+          {roomType==='royale'&&canStart&&(
+            <button onClick={()=>onStartSpectator&&onStartSpectator()} style={{
+              flex:1,background:'#7C3AED',color:'#fff',border:'none',
+              borderRadius:10,padding:'12px 8px',cursor:'pointer',
+              fontSize:12,fontWeight:700,fontFamily:tf,lineHeight:1.3}}>
+              👀{'\n'}ดูอย่างเดียว
+            </button>
+          )}
+        </div>
       )}
       {!isHost&&(
         <div style={{color:'var(--c-t2)',fontSize:13,marginBottom:16,fontFamily:tf}}>
@@ -1471,6 +1480,30 @@ function ResultsScreen({ cpm, accuracy, errors, totalChars, lesson, saveStatus, 
 }
 
 // ── STORY UTILITIES ──────────────────────────────────────
+// Generate progressive BR text from multiple exercises
+function generateBRText(startLesson, startExercise, minLength) {
+  const allLessons = LESSONS;
+  let text = '';
+  let lessonIdx = allLessons.findIndex(l => l.id === startLesson.id);
+  let exIdx = startLesson.exercises ? startLesson.exercises.indexOf(startExercise) : 0;
+  if (exIdx < 0) exIdx = 0;
+
+  // Collect words from current + subsequent exercises
+  const wordPool = [];
+  for (let li = lessonIdx; li < allLessons.length && wordPool.length < 200; li++) {
+    const les = allLessons[li];
+    const exs = les.exercises || les.exercisesA || les.exercisesGold || [];
+    const startEx = li === lessonIdx ? exIdx : 0;
+    for (let ei = startEx; ei < exs.length && wordPool.length < 200; ei++) {
+      wordPool.push(...(exs[ei].words || []));
+    }
+  }
+
+  // Generate shuffled text of sufficient length
+  if (!wordPool.length) return generateText(startExercise.words, minLength);
+  return generateText(wordPool, Math.max(minLength, 500));
+}
+
 function generateStoryText(words, name) {
   const n = name||'นักผจญภัย';
   return words.map(w=>w.replace(/__NAME__/g,n)).join(' ');
@@ -2063,6 +2096,146 @@ function AssignmentCard({ assignments, onSelect, lesson, exercise }) {
   );
 }
 
+// HOST DASHBOARD — shown to host who chose "Watch" mode
+
+function HostDashboard({ roomCode, roomPlayers, roomType, zoneWpm, onSpectate, onBack }) {
+  const tf = "'Sarabun','Noto Sans Thai',sans-serif";
+  const players = Object.entries(roomPlayers || {});
+  const alive   = players.filter(([,p]) => (p.lives ?? 1) > 0 && p.active !== false);
+  const dead    = players.filter(([,p]) => (p.lives ?? 1) <= 0 || p.active === false);
+  const sorted  = [...alive].sort((a,b) => (b[1].wpm||0) - (a[1].wpm||0));
+
+  return (
+    <div style={{fontFamily:tf}}>
+      {/* Header */}
+      <div style={{background:'linear-gradient(135deg,#1C1917,#D97706)',borderRadius:16,
+        padding:'16px 20px',marginBottom:16,display:'flex',alignItems:'center',gap:12}}>
+        <div>
+          <div style={{fontSize:11,color:'rgba(255,255,255,.6)',fontWeight:700,letterSpacing:2}}>
+            🏆 BATTLE ROYALE · ห้อง {roomCode}</div>
+          <div style={{fontSize:20,fontWeight:800,color:'#fff',marginTop:2}}>
+            {alive.length} คนเหลือ · {dead.length} คนออก</div>
+        </div>
+        {zoneWpm > 0 && (
+          <div style={{marginLeft:'auto',textAlign:'right'}}>
+            <div style={{fontSize:10,color:'rgba(255,255,255,.6)',fontWeight:700}}>SAFE ZONE</div>
+            <div style={{fontSize:24,fontWeight:800,color:'#FCD34D'}}>{zoneWpm} WPM</div>
+          </div>
+        )}
+      </div>
+
+      {/* Player table */}
+      <div style={{display:'flex',flexDirection:'column',gap:6}}>
+        {sorted.map(([name, p], i) => {
+          const wpm    = p.wpm || 0;
+          const lives  = p.lives ?? 3;
+          const pct    = Math.min(100, zoneWpm > 0 ? Math.round(wpm/zoneWpm*100) : 100);
+          const danger = zoneWpm > 0 && wpm < zoneWpm;
+          return (
+            <div key={name} style={{background:'var(--c-card)',borderRadius:10,
+              padding:'10px 14px',border:`1.5px solid ${danger?'#FCA5A5':'var(--c-border)'}`,
+              display:'flex',alignItems:'center',gap:10}}>
+              <div style={{fontSize:16,fontWeight:800,color:'var(--c-t3)',width:24,
+                flexShrink:0,textAlign:'center'}}>{i+1}</div>
+              <div style={{flex:1,minWidth:0}}>
+                <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:4}}>
+                  <div style={{fontSize:14,fontWeight:800,color:'var(--c-t1)'}}>{name}</div>
+                  <div style={{fontSize:12,color:danger?'#DC2626':'#059669',fontWeight:700}}>
+                    {wpm} WPM {danger?'⚠️':'✓'}</div>
+                  <div style={{fontSize:12,marginLeft:'auto',flexShrink:0}}>
+                    {lives > 0 ? '❤️'.repeat(Math.min(lives,5)) : '💀'}</div>
+                </div>
+                <div style={{background:'var(--c-surf)',borderRadius:4,height:6,overflow:'hidden'}}>
+                  <div style={{height:'100%',borderRadius:4,transition:'width .5s',
+                    width:pct+'%',background:danger?'#EF4444':'#059669'}}/>
+                </div>
+              </div>
+              <button onClick={()=>onSpectate&&onSpectate(name)}
+                style={{background:'#EFF6FF',border:'1.5px solid #BFDBFE',color:'#2563EB',
+                  borderRadius:7,padding:'5px 10px',cursor:'pointer',fontSize:11,
+                  fontWeight:700,fontFamily:tf,flexShrink:0}}>
+                👁 ดู
+              </button>
+            </div>
+          );
+        })}
+        {dead.map(([name]) => (
+          <div key={name} style={{background:'var(--c-surf)',borderRadius:10,
+            padding:'10px 14px',border:'1.5px solid var(--c-border)',
+            display:'flex',alignItems:'center',gap:10,opacity:.5}}>
+            <div style={{fontSize:14,fontWeight:700,color:'var(--c-t3)'}}>💀 {name}</div>
+          </div>
+        ))}
+      </div>
+
+      <button onClick={onBack}
+        style={{marginTop:16,width:'100%',background:'transparent',
+          border:'1.5px solid var(--c-border)',color:'var(--c-t2)',
+          borderRadius:8,padding:'10px',cursor:'pointer',fontSize:13,fontFamily:tf}}>
+        ออกจากห้อง
+      </button>
+    </div>
+  );
+}
+
+// SPECTATOR VIEW — host watching a specific player's screen
+function SpectatorView({ playerName, displayChars, progress, onBack }) {
+  const tf = "'Sarabun','Noto Sans Thai',sans-serif";
+  return (
+    <div style={{fontFamily:tf}}>
+      <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:12}}>
+        <button onClick={onBack}
+          style={{background:'var(--c-surf)',border:'1.5px solid var(--c-border)',
+            color:'var(--c-t2)',borderRadius:7,padding:'5px 10px',cursor:'pointer',
+            fontSize:12,fontFamily:tf}}>← กลับ</button>
+        <div style={{fontSize:14,fontWeight:800,color:'var(--c-t1)'}}>
+          👁 กำลังดู: {playerName}</div>
+      </div>
+      <div style={{background:'var(--c-surf)',borderRadius:14,padding:'22px 18px',
+        border:'1.5px solid var(--c-border)',minHeight:96,
+        display:'flex',alignItems:'center',justifyContent:'center'}}>
+        <TextDisplay displayChars={displayChars} displayPos={progress||0}/>
+      </div>
+    </div>
+  );
+}
+
+// DEAD SCREEN — shown to eliminated BR players
+function DeadScreen({ standings, onLeave }) {
+  const tf = "'Sarabun','Noto Sans Thai',sans-serif";
+  const sorted = Object.entries(standings||{})
+    .sort((a,b)=>(b[1].wpm||0)-(a[1].wpm||0));
+  return (
+    <div style={{position:'absolute',inset:0,background:'rgba(15,23,42,.92)',
+      display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',
+      zIndex:100,borderRadius:16,padding:24,fontFamily:tf}}>
+      <div style={{fontSize:48,marginBottom:8}}>💀</div>
+      <div style={{fontSize:22,fontWeight:800,color:'#fff',marginBottom:4}}>
+        คุณถูกคัดออก</div>
+      <div style={{fontSize:13,color:'rgba(255,255,255,.6)',marginBottom:20}}>
+        คุณสามารถดูผลแบบ real-time ได้</div>
+      <div style={{width:'100%',maxWidth:340}}>
+        {sorted.slice(0,8).map(([name,p],i)=>(
+          <div key={name} style={{display:'flex',alignItems:'center',gap:10,
+            padding:'8px 12px',marginBottom:6,borderRadius:8,
+            background:(p.lives??0)>0?'rgba(5,150,105,.2)':'rgba(255,255,255,.06)'}}>
+            <div style={{fontSize:14,fontWeight:800,color:'rgba(255,255,255,.4)',width:20}}>{i+1}</div>
+            <div style={{fontSize:14,fontWeight:700,color:'#fff',flex:1}}>{name}</div>
+            <div style={{fontSize:13,color:(p.lives??0)>0?'#34D399':'rgba(255,255,255,.4)'}}>
+              {(p.lives??0)>0?`${p.wpm||0} WPM`:'💀'}</div>
+          </div>
+        ))}
+      </div>
+      <button onClick={onLeave}
+        style={{marginTop:16,background:'rgba(255,255,255,.1)',border:'1.5px solid rgba(255,255,255,.2)',
+          color:'#fff',borderRadius:8,padding:'10px 24px',cursor:'pointer',
+          fontSize:13,fontWeight:700,fontFamily:tf}}>
+        ออกจากห้อง
+      </button>
+    </div>
+  );
+}
+
 // MAIN APP// MAIN APP
 
 const CLASS_NAMES = {
@@ -2119,6 +2292,12 @@ function ThaiTypingApp() {
   // Google Sign-In
   const [googleUser, setGoogleUser]   = useState(null); // { name, email, picture, sub }
   const [assignments, setAssignments] = useState([]);  // student's pending assignments
+  // BR Zone & spectator
+  const [zoneWpm,       setZoneWpm]       = useState(0);
+  const [isHostSpectator, setIsHostSpectator] = useState(false);
+  const [spectatingPlayer, setSpectatingPlayer] = useState(null);
+  const zoneDrainRef  = useRef(null);   // interval for zone life drain
+  const lastZoneCalcRef = useRef(0);    // timestamp of last zone calc
   // Theme: 'light' | 'dark' | 'auto'
   const [themeMode, setThemeMode] = useState(()=>{ try{return localStorage.getItem('theme')||'light';}catch{return 'light';} });
   const isDark = themeMode==='dark';
@@ -2294,10 +2473,37 @@ function ThaiTypingApp() {
   // Zone damage check (every ZONE_TICK ms during BR)
   useEffect(() => {
     if (screen !== 'practice' || roomType !== 'royale' || !startTime) return;
+    // ── Host calculates median WPM zone every 20s ──
+    let lastMedianCalc = 0;
     const id = setInterval(() => {
-      const zp  = getZonePos(stateRef.current.startTime, totalChars);
-      const myPos = stateRef.current.pos;
-      if (zp > 0 && myPos < zp - ZONE_GAP) {
+      const now = Date.now();
+
+      // Host pushes median WPM to Firebase every 20s
+      if (isHost && !isHostSpectator && rcRef.current && now - lastMedianCalc > 20000) {
+        lastMedianCalc = now;
+        const ps = roomPlayers || {};
+        const wpms = Object.values(ps)
+          .filter(p => (p.lives??1) > 0 && p.status !== 'eliminated')
+          .map(p => p.wpm || 0)
+          .filter(w => w > 0)
+          .sort((a,b) => a-b);
+        if (wpms.length > 1) {
+          const mid = Math.floor(wpms.length/2);
+          const median = wpms.length%2===0
+            ? Math.round((wpms[mid-1]+wpms[mid])/2)
+            : wpms[mid];
+          const zone = Math.max(5, median);
+          rcRef.current.child('zone').set({wpm:zone, ts:now});
+          setZoneWpm(zone);
+        }
+      }
+
+      // All players: compare own WPM to zone
+      const st = stateRef.current.startTime;
+      const elapsed = st ? (Date.now()-st)/60000 : 0;
+      const myWpm = elapsed > 0.5 ? Math.round(stateRef.current.pos/elapsed/5) : 99;
+      const zone = zoneWpm;
+      if (zone > 0 && myWpm < zone && elapsed > 0.5) {
         const newLives = Math.max(0, plRef.current - 1);
         setPlayerLives(newLives); plRef.current = newLives;
         fbUpdatePlayer(rcRef.current, myRoomName.current||snRef.current||'Player', {lives:newLives});
@@ -2435,9 +2641,8 @@ function ThaiTypingApp() {
   const handleCreateBR = useCallback(async (les, lives=3) => {
     setMpBusy(true); setJoinError('');
     const code = makeCode();
-    // Combine all words from lesson for BR — longer text, more competitive
-    const allWords = [...new Set(les.exercises.flatMap(ex=>ex.words))];
-    const text = generateText(allWords, 500);
+    // Progressive BR text — combines multiple chapters for increasing difficulty
+    const text = generateBRText(les, les.exercises?.[0]||{words:[]}, 600);
     try {
       await fbCreate(code,{type:'royale',lessonId:les.id,
         exerciseTitle:les.thaiName,targetText:text,maxLives:lives,
@@ -2796,73 +3001,34 @@ function ThaiTypingApp() {
           <div style={isEliminated?{filter:'grayscale(1)',opacity:.65,transition:'filter .6s, opacity .6s'}:undefined}>
             {/* Eliminated banner — student keeps typing for practice */}
             {isEliminated&&(
-              <div style={{background:'#1F2937',borderRadius:12,padding:'12px 16px',
-                marginBottom:14,display:'flex',alignItems:'center',gap:10}}>
-                <span style={{fontSize:24}}>💀</span>
-                <div>
-                  <div style={{fontFamily:"'Sarabun','Noto Sans Thai',sans-serif",
-                    fontSize:15,fontWeight:800,color:'#fff'}}>ถูกคัดออกแล้ว</div>
-                  <div style={{fontFamily:"'Sarabun','Noto Sans Thai',sans-serif",
-                    fontSize:12,color:'#9CA3AF'}}>พิมพ์ต่อได้เพื่อฝึกซ้อม — รอดูผลตอนจบรอบ</div>
-                </div>
-              </div>
+              <DeadScreen
+                standings={roomPlayers||{}}
+                onLeave={()=>handleLeaveRoom&&handleLeaveRoom()}
+              />
             )}
-            <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:18,flexWrap:'wrap'}}>
-              <div style={{background:'#1D4ED8',color:'#fff',borderRadius:99,
-                padding:'4px 12px',fontSize:10,fontWeight:800,letterSpacing:.5,whiteSpace:'nowrap'}}>
-                {lesson.thaiName.toUpperCase()}</div>
-              <div style={{background:lesson.al,color:lesson.accent,borderRadius:99,
-                padding:'4px 12px',fontSize:10,fontWeight:800,whiteSpace:'nowrap',
-                fontFamily:"'Sarabun','Noto Sans Thai',sans-serif"}}>
-                {exercise?.title ?? (roomType==='royale'?'🏆 Battle Royale':'⚡ 1v1')}</div>
-              <div style={{fontSize:10,color:'var(--c-t3)'}}>🎲</div>
-              <div style={{marginLeft:'auto',fontSize:10,color:'var(--c-t3)'}}>Esc = ออก</div>
-            </div>
-
-            <div style={{display:'flex',gap:10,marginBottom:20,flexWrap:'wrap',alignItems:'center'}}>
-              <StatPill label="WPM"       value={wpm}               color="#2563EB"/>
-              <StatPill label="ความแม่น" value={`${accuracy}%`}   color={accuracy>=95?'#059669':'#D97706'}/>
-              <StatPill label="ผิด"       value={errors}           color={errors===0?'#0F172A':'#EF4444'}/>
-              <div style={{flex:1,minWidth:120}}>
-                <div style={{fontSize:10,color:'var(--c-t3)',marginBottom:5,fontWeight:600}}>
-                  {pos} / {totalChars} ตัวอักษร</div>
-                {/* Progress bar with optional zone marker */}
-                <div style={{position:'relative',height:10}}>
-                  <div style={{position:'absolute',inset:0,background:'#F1F5F9',borderRadius:8,overflow:'hidden'}}>
-                    <div style={{width:`${totalChars>0?(pos/totalChars)*100:0}%`,height:'100%',
-                      borderRadius:8,background:lesson?.accent??'#059669',transition:'width .15s'}}/>
-                  </div>
-                  {/* Zone marker — red line on the bar */}
-                  {roomType==='royale'&&zonePos>0&&(
-                    <div style={{position:'absolute',top:-2,bottom:-2,
-                      left:`${Math.min((zonePos/totalChars)*100,100)}%`,
-                      width:3,background:'#EF4444',borderRadius:2,
-                      boxShadow:'0 0 6px #EF4444',zIndex:2,transition:'left 1s linear'}}/>
-                  )}
-                </div>
-                {ghostData && (
-                  <div style={{marginTop:5}}>
-                    <div style={{display:'flex',justifyContent:'space-between',marginBottom:3}}>
-                      <span style={{fontSize:9,color:'#8B5CF6',fontWeight:700,
-                        fontFamily:"'Sarabun','Noto Sans Thai',sans-serif"}}>
-                        👻 Ghost {ghostData.cpm} CPM</span>
-                      <span style={{fontSize:9,color:'#8B5CF6'}}>
-                        {Math.round((ghostPos/totalChars)*100)}%</span>
-                    </div>
-                    <div style={{background:'#F1F5F9',borderRadius:6,height:5,overflow:'hidden'}}>
-                      <div style={{width:`${totalChars>0?(ghostPos/totalChars)*100:0}%`,
-                        height:'100%',borderRadius:6,background:'#8B5CF6',
-                        transition:'width .06s'}}/>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
 
             <div style={{background:'var(--c-surf)',borderRadius:14,padding:'22px 18px',
               marginBottom:14,border:'1.5px solid var(--c-border)',minHeight:96,
               display:'flex',alignItems:'center',justifyContent:'center'}}>
               <TextDisplay displayChars={displayChars} displayPos={displayPos}/>
+            </div>
+            <div style={{marginTop:8}}>
+              <OnScreenKeyboard nextCode={nextCode} needsShift={needsShift} flashCode={flashCode}
+                shiftHeld={shiftHeld} correctShiftCode={correctShiftCode}/>
+              {capsLockOn&&(
+                <div style={{marginTop:8,padding:'7px 14px',background:'#FEF9C3',
+                  border:'1.5px solid #FDE047',borderRadius:8,
+                  display:'flex',alignItems:'center',gap:8}}>
+                  <span style={{fontSize:15}}>⚠️</span>
+                  <span style={{fontFamily:"'Sarabun','Noto Sans Thai',sans-serif",
+                    fontSize:12,color:'#713F12',fontWeight:600}}>
+                    Caps Lock เปิดอยู่ — ภาษาไทยไม่ใช้ Caps Lock กรุณากด Caps Lock เพื่อปิด แล้วใช้ Shift แทน
+                  </span>
+                  <button onClick={()=>setCapsLockOn(false)}
+                    style={{marginLeft:'auto',background:'none',border:'none',cursor:'pointer',
+                      fontSize:14,color:'#92400E',fontWeight:800,padding:'0 4px'}}>✕</button>
+                </div>
+              )}
             </div>
 
             {nextChar&&(
@@ -2918,16 +3084,50 @@ function ThaiTypingApp() {
               </div>
             )}
             {/* Zone warning — BR only */}
-            {roomType==='royale'&&roomCode&&zonePos>0&&pos<(zonePos-ZONE_GAP+10)&&(
-              <div style={{background:'#FEF2F2',border:'1.5px solid #FCA5A5',borderRadius:10,
-                padding:'8px 14px',marginBottom:10,display:'flex',alignItems:'center',gap:8}}>
-                <span style={{fontSize:18}}>⚠️</span>
-                <span style={{fontFamily:"'Sarabun','Noto Sans Thai',sans-serif",
-                  fontSize:13,fontWeight:700,color:'#DC2626'}}>
-                  กำลังออกนอก Safe Zone! ต้องไวกว่านี้แล้วนะ !
-                </span>
-              </div>
-            )}
+            {roomType==='royale'&&roomCode&&(()=>{
+              const elapsed = startTime ? (Date.now()-startTime)/60000 : 0;
+              const myWpm = elapsed>0.3 ? Math.round(pos/elapsed/5) : null;
+              const zone = zoneWpm;
+              const belowZone = zone>0 && myWpm!==null && myWpm<zone;
+              return (
+                <div style={{marginBottom:10}}>
+                  {/* Zone bar */}
+                  <div style={{display:'flex',alignItems:'center',gap:10,
+                    background:belowZone?'#FEF2F2':'var(--c-surf)',
+                    border:`1.5px solid ${belowZone?'#FCA5A5':'var(--c-border)'}`,
+                    borderRadius:10,padding:'8px 14px',
+                    transition:'background .3s,border-color .3s'}}>
+                    <span style={{fontSize:16}}>{belowZone?'⚠️':'🛡️'}</span>
+                    <div style={{flex:1,fontFamily:"'Sarabun','Noto Sans Thai',sans-serif"}}>
+                      <div style={{fontSize:11,fontWeight:700,
+                        color:belowZone?'#DC2626':'var(--c-t2)'}}>
+                        {belowZone?'ช้ากว่า Safe Zone! เร็วขึ้นด่วน ❤️ กำลังหาย':'Safe Zone'}
+                      </div>
+                      {zone>0&&(
+                        <div style={{fontSize:11,color:'var(--c-t3)',marginTop:1}}>
+                          Zone: {zone} WPM
+                          {myWpm!==null&&` · คุณ: ${myWpm} WPM`}
+                        </div>
+                      )}
+                      {zone===0&&(
+                        <div style={{fontSize:11,color:'var(--c-t3)'}}>
+                          รอคำนวณ... (ต้องมีผู้เล่น 2+ คน)
+                        </div>
+                      )}
+                    </div>
+                    {zone>0&&myWpm!==null&&(
+                      <div style={{
+                        background:belowZone?'#DC2626':'#059669',
+                        color:'#fff',borderRadius:8,padding:'4px 10px',
+                        fontSize:13,fontWeight:800,flexShrink:0,
+                        fontFamily:"'Sarabun','Noto Sans Thai',sans-serif"}}>
+                        {myWpm} WPM
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })()}
             {/* Opponents panel */}
             {roomCode&&Object.keys(roomPlayers).length>0&&(
               <div style={{background:'var(--c-surf)',borderRadius:12,padding:'12px 14px',
@@ -2970,24 +3170,7 @@ function ThaiTypingApp() {
                 )}
               </div>
             )}
-            <div style={{marginTop:8}}>
-              <OnScreenKeyboard nextCode={nextCode} needsShift={needsShift} flashCode={flashCode}
-                shiftHeld={shiftHeld} correctShiftCode={correctShiftCode}/>
-              {capsLockOn&&(
-                <div style={{marginTop:8,padding:'7px 14px',background:'#FEF9C3',
-                  border:'1.5px solid #FDE047',borderRadius:8,
-                  display:'flex',alignItems:'center',gap:8}}>
-                  <span style={{fontSize:15}}>⚠️</span>
-                  <span style={{fontFamily:"'Sarabun','Noto Sans Thai',sans-serif",
-                    fontSize:12,color:'#713F12',fontWeight:600}}>
-                    Caps Lock เปิดอยู่ — ภาษาไทยไม่ใช้ Caps Lock กรุณากด Caps Lock เพื่อปิด แล้วใช้ Shift แทน
-                  </span>
-                  <button onClick={()=>setCapsLockOn(false)}
-                    style={{marginLeft:'auto',background:'none',border:'none',cursor:'pointer',
-                      fontSize:14,color:'#92400E',fontWeight:800,padding:'0 4px'}}>✕</button>
-                </div>
-              )}
-            </div>
+
           </div>
         )}
 
@@ -3005,7 +3188,31 @@ function ThaiTypingApp() {
             roomCode={roomCode} roomInfo={roomInfo}
             roomPlayers={roomPlayers} isHost={isHost}
             roomType={roomType} myName={myRoomName.current||studentName||'ผู้เล่น1'}
-            onStart={handleStartRace} onLeave={handleLeaveRoom}/>
+            onStart={handleStartRace} onLeave={handleLeaveRoom}
+            onStartSpectator={()=>{
+              setIsHostSpectator(true);
+              handleStartRace();
+              setScreen('host-dashboard');
+            }}/>
+        )}
+        {screen==='host-dashboard'&&(
+          spectatingPlayer ? (
+            <SpectatorView
+              playerName={spectatingPlayer}
+              displayChars={displayChars}
+              progress={roomPlayers?.[spectatingPlayer]?.progress||0}
+              onBack={()=>setSpectatingPlayer(null)}
+            />
+          ) : (
+            <HostDashboard
+              roomCode={roomCode}
+              roomPlayers={roomPlayers}
+              roomType={roomType}
+              zoneWpm={zoneWpm}
+              onSpectate={name=>{setSpectatingPlayer(name);}}
+              onBack={()=>{handleLeaveRoom();}}
+            />
+          )
         )}
         {screen==='countdown'&&(
           <CountdownScreen num={countNum} roomCode={roomCode} roomType={roomType}/>

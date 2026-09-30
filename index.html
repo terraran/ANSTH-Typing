@@ -1427,11 +1427,18 @@ function NameModal({ onConfirm }) {
 
 // SET PIN SCREEN
 
+const pinInputStyle = {
+  width:'100%',fontSize:32,fontWeight:800,textAlign:'center',letterSpacing:16,
+  padding:'12px 0',background:'transparent',border:'none',
+  borderBottom:'3px solid #E2E8F0',outline:'none',
+  fontFamily:'system-ui,monospace',boxSizing:'border-box',caretColor:'#2563EB'
+};
+
 function SetPinScreen({ studentName, classCode, onSuccess }) {
-  const [pin, setPin]       = useState('');
+  const [pin,     setPin]     = useState('');
   const [confirm, setConfirm] = useState('');
-  const [status, setStatus] = useState('idle'); // idle|saving|error
-  const [errMsg, setErrMsg] = useState('');
+  const [status,  setStatus]  = useState('idle');
+  const [errMsg,  setErrMsg]  = useState('');
   const tf = "'Sarabun','Noto Sans Thai',sans-serif";
 
   const submit = async () => {
@@ -1445,19 +1452,6 @@ function SetPinScreen({ studentName, classCode, onSuccess }) {
     } catch { setErrMsg('เชื่อมต่อไม่ได้'); setStatus('idle'); }
   };
 
-  const PinInput = ({ label, value, onChange }) => (
-    <div style={{marginBottom:16}}>
-      <div style={{fontSize:12,fontWeight:700,color:'#475569',fontFamily:tf,marginBottom:8}}>{label}</div>
-      <input value={value} onChange={e=>onChange(e.target.value.replace(/\D/g,'').slice(0,4))}
-        onKeyDown={e=>e.key==='Enter'&&submit()}
-        type="password" inputMode="numeric" maxLength={4} placeholder="• • • •"
-        style={{width:'100%',fontSize:32,fontWeight:800,textAlign:'center',letterSpacing:16,
-          padding:'12px 0',background:'transparent',border:'none',
-          borderBottom:'3px solid #E2E8F0',outline:'none',
-          fontFamily:'system-ui,monospace',boxSizing:'border-box',caretColor:'#2563EB'}}/>
-    </div>
-  );
-
   return (
     <div style={{maxWidth:360,margin:'0 auto',fontFamily:tf}}>
       <div style={{textAlign:'center',marginBottom:28}}>
@@ -1465,8 +1459,20 @@ function SetPinScreen({ studentName, classCode, onSuccess }) {
         <div style={{fontSize:22,fontWeight:800,color:'#0F172A'}}>ตั้ง PIN ของคุณ</div>
         <div style={{fontSize:13,color:'#64748B',marginTop:4}}>สวัสดี <strong>{studentName}</strong> — ตั้ง PIN 4 หลักครั้งแรก</div>
       </div>
-      <PinInput label="PIN ของคุณ" value={pin} onChange={setPin}/>
-      <PinInput label="ยืนยัน PIN อีกครั้ง" value={confirm} onChange={setConfirm}/>
+      <div style={{marginBottom:16}}>
+        <div style={{fontSize:12,fontWeight:700,color:'#475569',fontFamily:tf,marginBottom:8}}>PIN ของคุณ</div>
+        <input value={pin} onChange={e=>setPin(e.target.value.replace(/\D/g,'').slice(0,4))}
+          onKeyDown={e=>e.key==='Enter'&&submit()}
+          type="password" inputMode="numeric" maxLength={4} placeholder="• • • •"
+          style={pinInputStyle}/>
+      </div>
+      <div style={{marginBottom:16}}>
+        <div style={{fontSize:12,fontWeight:700,color:'#475569',fontFamily:tf,marginBottom:8}}>ยืนยัน PIN อีกครั้ง</div>
+        <input value={confirm} onChange={e=>setConfirm(e.target.value.replace(/\D/g,'').slice(0,4))}
+          onKeyDown={e=>e.key==='Enter'&&submit()}
+          type="password" inputMode="numeric" maxLength={4} placeholder="• • • •"
+          style={pinInputStyle}/>
+      </div>
       {errMsg&&<div style={{color:'#DC2626',fontSize:12,marginBottom:10,fontFamily:tf}}>{errMsg}</div>}
       <button onClick={submit} disabled={status==='saving'||pin.length<4||confirm.length<4}
         style={{width:'100%',background:'#0F172A',color:'#fff',border:'none',borderRadius:10,

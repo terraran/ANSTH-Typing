@@ -2639,12 +2639,7 @@ function ThaiTypingApp() {
             onBack={() => setScreen('google-login')}
           />
         )}
-        {screen==='join' && (
-          <JoinScreen
-            onJoin={(code, sts) => { setClassCode(code); setStudents(sts); setScreen('roster'); }}
-            onSolo={() => { setClassCode(''); setStudentName(''); setScreen('lessons'); }}
-          />
-        )}
+
         {screen==='roster' && (
           <RosterScreen
             classCode={classCode}
@@ -2694,7 +2689,7 @@ function ThaiTypingApp() {
             studentName={studentName} classCode={classCode}
             storyPath={storyPath} storyPower={storyPower}
             onViewStats={()=>setScreen('my-stats')}
-            onLogin={()=>setScreen('join')}/>
+            onLogin={()=>setScreen('google-login')}/>
         )}
 
         {screen==='practice'&&lesson&&target&&(

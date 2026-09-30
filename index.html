@@ -158,6 +158,13 @@ async function fetchRoster(classCode) {
   return res.json();
 }
 
+// Fetch student assignments
+async function apiGetAssignments(classCode, studentName) {
+  const p = new URLSearchParams({ action:'getAssignments', classCode, student:studentName });
+  const res = await fetch(SCRIPT_URL+'?'+p.toString(), {redirect:'follow'});
+  return res.json();
+}
+
 // Set student PIN (first time)
 async function apiSetPin(classCode, studentName, pin) {
   const p = new URLSearchParams({ action:'setPin', code:classCode, student:studentName, pin });
@@ -1078,7 +1085,7 @@ const CHAPTERS = [
 
 // LESSON SELECTOR
 
-function LessonScreen({ studentName, classCode, onSelect, onOpenSetup, onJoin, joinCode, setJoinCode, joinError, mpBusy, storyPath, storyPower, onViewStats, onLogin }) {
+function LessonScreen({ studentName, classCode, onSelect, onOpenSetup, onJoin, joinCode, setJoinCode, joinError, mpBusy, storyPath, storyPower, onViewStats, onLogin, assignments, onAssignmentSelect }) {
   const savedCh=(()=>{try{return Math.min(parseInt(localStorage.getItem('lastChapter')||'0')||0,CHAPTERS.length-1);}catch{return 0;}})();
   const getExercises=(lesson)=>{
     if(!lesson.story) return lesson.exercises||[];
@@ -1151,6 +1158,14 @@ function LessonScreen({ studentName, classCode, onSelect, onOpenSetup, onJoin, j
             📊 สถิติ
           </button>
         </div>
+      )}
+
+      {/* ── Assignments ── */}
+      {studentName && assignments && assignments.length > 0 && (
+        <AssignmentCard
+          assignments={assignments}
+          onSelect={onAssignmentSelect}
+        />
       )}
 
       {/* ── Chapter carousel ── */}
@@ -1988,6 +2003,66 @@ function GoogleSignInScreen({ onSignIn, onSolo }) {
   );
 }
 
+// ASSIGNMENT CARD
+
+function AssignmentCard({ assignments, onSelect, lesson, exercise }) {
+  const tf = "'Sarabun','Noto Sans Thai',sans-serif";
+  const pending = assignments.filter(a => !a.completed);
+  const done    = assignments.filter(a => a.completed);
+  if (!assignments.length) return null;
+
+  const daysLeft = (deadline) => {
+    if (!deadline) return null;
+    const diff = Math.ceil((new Date(deadline) - Date.now()) / 86400000);
+    return diff;
+  };
+
+  return (
+    <div style={{marginBottom:20}}>
+      <div style={{fontSize:11,fontWeight:800,color:'var(--c-t3)',letterSpacing:1,marginBottom:10}}>
+        📋 งานที่ได้รับ ({pending.length} รอทำ · {done.length} เสร็จแล้ว)
+      </div>
+      {pending.map(a => {
+        const dl = daysLeft(a.deadline);
+        const overdue = dl !== null && dl < 0;
+        const urgent  = dl !== null && dl <= 2 && dl >= 0;
+        return (
+          <div key={a.assignId}
+            onClick={() => onSelect && onSelect(a)}
+            style={{background:'var(--c-card)',border:`2px solid ${overdue?'#DC2626':urgent?'#F59E0B':'#2563EB'}`,
+              borderRadius:12,padding:'12px 16px',marginBottom:8,cursor:'pointer',
+              display:'flex',alignItems:'center',gap:12,transition:'all .15s'}}
+            onMouseEnter={e=>e.currentTarget.style.transform='translateY(-1px)'}
+            onMouseLeave={e=>e.currentTarget.style.transform='none'}>
+            <div style={{fontSize:24,flexShrink:0}}>{overdue?'⚠️':urgent?'⏰':'📝'}</div>
+            <div style={{flex:1}}>
+              <div style={{fontSize:14,fontWeight:800,color:'var(--c-t1)',fontFamily:tf}}>
+                {a.exerciseTitle}</div>
+              <div style={{fontSize:11,color:'var(--c-t3)',marginTop:2,fontFamily:tf}}>
+                {a.deadline
+                  ? overdue ? `เลยกำหนด ${Math.abs(dl)} วัน` : `เหลือ ${dl} วัน`
+                  : 'ไม่มีกำหนดส่ง'}
+              </div>
+            </div>
+            <div style={{background:overdue?'#FEE2E2':urgent?'#FEF3C7':'#EFF6FF',
+              color:overdue?'#DC2626':urgent?'#D97706':'#2563EB',
+              borderRadius:8,padding:'6px 12px',fontSize:12,fontWeight:800,
+              fontFamily:tf,flexShrink:0,whiteSpace:'nowrap'}}>
+              ทำเลย →
+            </div>
+          </div>
+        );
+      })}
+      {done.length > 0 && (
+        <div style={{fontSize:11,color:'var(--c-t3)',fontFamily:tf,
+          padding:'6px 0',borderTop:'1px solid var(--c-border)',marginTop:4}}>
+          ✅ ทำแล้ว: {done.map(a=>a.exerciseTitle).join(' · ')}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // MAIN APP// MAIN APP
 
 const CLASS_NAMES = {
@@ -2043,6 +2118,7 @@ function ThaiTypingApp() {
   const [pendingStudent, setPendingStudent] = useState(null); // student awaiting PIN
   // Google Sign-In
   const [googleUser, setGoogleUser]   = useState(null); // { name, email, picture, sub }
+  const [assignments, setAssignments] = useState([]);  // student's pending assignments
   // Theme: 'light' | 'dark' | 'auto'
   const [themeMode, setThemeMode] = useState(()=>{ try{return localStorage.getItem('theme')||'light';}catch{return 'light';} });
   const isDark = themeMode==='dark';
@@ -2427,6 +2503,17 @@ function ThaiTypingApp() {
   },[isHost]);
 
   // Log the student out → back to join screen
+  // Load assignments when student logs in
+  useEffect(() => {
+    if (classCode && studentName && SCRIPT_URL) {
+      apiGetAssignments(classCode, studentName)
+        .then(d => setAssignments(d.assignments || []))
+        .catch(() => {});
+    } else {
+      setAssignments([]);
+    }
+  }, [classCode, studentName]);
+
   const handleLogout = useCallback(() => {
     setClassCode(''); setStudentName(''); setDisplayName(''); setStudents([]);
     setLesson(null); setExercise(null); setTarget(''); setPos(0);
@@ -2689,7 +2776,20 @@ function ThaiTypingApp() {
             studentName={studentName} classCode={classCode}
             storyPath={storyPath} storyPower={storyPower}
             onViewStats={()=>setScreen('my-stats')}
-            onLogin={()=>setScreen('google-login')}/>
+            onLogin={()=>setScreen('google-login')}
+            assignments={assignments}
+            onAssignmentSelect={(a)=>{
+              // Find the matching lesson+exercise and start it
+              const LESSONS_FLAT = typeof LESSONS !== 'undefined' ? LESSONS : [];
+              const les = LESSONS_FLAT.find(l=>l.id===a.lessonId);
+              const getEx = (l) => {
+                if (!l) return null;
+                const exs = l.exercises || l.exercisesA || l.exercisesGold || [];
+                return exs.find(e=>e.title===a.exerciseTitle);
+              };
+              const ex = les ? getEx(les) : null;
+              if (les && ex) startExercise(les, ex);
+            }}/>
         )}
 
         {screen==='practice'&&lesson&&target&&(

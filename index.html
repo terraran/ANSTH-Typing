@@ -3,6 +3,7 @@
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
 <title>แบบฝึกพิมพ์ภาษาไทย — Kedmanee</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⌨️</text></svg>">
+<script src="https://accounts.google.com/gsi/client" async defer></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
 <script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
@@ -40,6 +41,16 @@ const { useState, useEffect, useCallback, useRef } = React;
 // TEACHER SETUP  ← Edit this one line before distributing.
 // Paste your deployed Apps Script URL. Leave '' for offline mode.
 // ═══════════════════════════════════════════════════════════════
+const GOOGLE_CLIENT_ID = '501163435800-agtmqo92jg3b61tj6dafk0u73qergc0h.apps.googleusercontent.com';
+
+// Decode Google JWT to get user profile
+function parseJwt(token) {
+  try {
+    const base64 = token.split('.')[1].replace(/-/g,'+').replace(/_/g,'/');
+    return JSON.parse(atob(base64));
+  } catch { return null; }
+}
+
 const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwpp0IvmQjrv0O8MZ6XSX3SQDfJIIii4RsidX5IvaPDaKyJ5x0QLhbdKPle4TX4BKhsmQ/exec'; // e.g. 'https://script.google.com/macros/s/AKfy.../exec'
 
 // ═══════════════════════════════════════════════════════════════
@@ -178,6 +189,7 @@ async function saveSession(data) {
     action: 'saveSession',
     code:     data.classCode,
     student:  data.studentName,
+    email:    data.email || '',
     lessonId: String(data.lessonId),
     exercise: data.exerciseTitle,
     cpm:      String(data.cpm),
@@ -1111,13 +1123,13 @@ function LessonScreen({ studentName, classCode, onSelect, onOpenSetup, onJoin, j
           <span style={{fontSize:24}}>👤</span>
           <div style={{flex:1,fontFamily:"'Sarabun','Noto Sans Thai',sans-serif"}}>
             <div style={{fontSize:14,fontWeight:800,color:'#fff'}}>ยังไม่ได้เข้าสู่ระบบ</div>
-            <div style={{fontSize:11,color:'#BFDBFE'}}>เข้าสู่ระบบเพื่อบันทึกผลและดูสถิติ</div>
+            <div style={{fontSize:11,color:'#BFDBFE'}}>เข้าสู่ระบบด้วย Google เพื่อบันทึกผลและดูสถิติ</div>
           </div>
           <button onClick={()=>onLogin&&onLogin()}
             style={{background:'#fff',color:'#1D4ED8',border:'none',borderRadius:8,
               padding:'9px 16px',cursor:'pointer',fontSize:13,fontWeight:800,
               fontFamily:"'Sarabun','Noto Sans Thai',sans-serif",whiteSpace:'nowrap'}}>
-            เข้าสู่ระบบ →
+            Sign in with Google
           </button>
         </div>
       )}
@@ -1795,6 +1807,130 @@ function MyStatsScreen({ studentName, classCode, onBack }) {
   );
 }
 
+// CLASS PICKER SCREEN — after Google login, student picks their class
+
+function ClassPickerScreen({ googleUser, onSelect, onBack }) {
+  const [code,   setCode]   = useState('');
+  const [status, setStatus] = useState('idle');
+  const [errMsg, setErrMsg] = useState('');
+  const tf = "'Sarabun','Noto Sans Thai',sans-serif";
+
+  const submit = async () => {
+    const c = code.trim().toUpperCase();
+    if (!c) return;
+    setStatus('loading'); setErrMsg('');
+    try {
+      const data = await fetchRoster(c);
+      if (!data.students?.length) {
+        setErrMsg('ไม่พบรหัสห้องนี้'); setStatus('idle'); return;
+      }
+      onSelect(c, data.students);
+    } catch {
+      setErrMsg('เชื่อมต่อไม่ได้'); setStatus('idle');
+    }
+  };
+
+  return (
+    <div style={{fontFamily:tf}}>
+      {/* Profile card */}
+      <div style={{display:'flex',alignItems:'center',gap:12,background:'var(--c-surf)',
+        borderRadius:14,padding:'14px 16px',marginBottom:20,
+        border:'1.5px solid var(--c-border)'}}>
+        <img src={googleUser.picture} alt="" referrerPolicy="no-referrer"
+          style={{width:44,height:44,borderRadius:'50%',flexShrink:0}}/>
+        <div>
+          <div style={{fontSize:15,fontWeight:800,color:'var(--c-t1)'}}>{googleUser.name}</div>
+          <div style={{fontSize:11,color:'var(--c-t3)'}}>{googleUser.email}</div>
+        </div>
+      </div>
+      {/* Class code */}
+      <div style={{marginBottom:8}}>
+        <div style={{fontSize:12,fontWeight:700,color:'var(--c-t2)',fontFamily:tf,marginBottom:8}}>
+          รหัสห้องเรียน / Class Code
+        </div>
+        <input value={code}
+          onChange={e=>setCode(e.target.value.toUpperCase())}
+          onKeyDown={e=>e.key==='Enter'&&submit()}
+          placeholder="เช่น P52A" maxLength={10}
+          style={{width:'100%',fontSize:28,fontWeight:800,textAlign:'center',
+            padding:'12px',border:'2px solid var(--c-border)',borderRadius:10,
+            letterSpacing:5,color:'var(--c-t1)',outline:'none',marginBottom:10,
+            fontFamily:'system-ui,monospace',boxSizing:'border-box',
+            background:'var(--c-input-bg)'}}/>
+        {errMsg&&<div style={{color:'#DC2626',fontSize:12,marginBottom:8,fontFamily:tf}}>{errMsg}</div>}
+        <button onClick={submit}
+          disabled={status==='loading'||!code.trim()}
+          style={{width:'100%',background:'#0F172A',color:'#fff',border:'none',
+            borderRadius:10,padding:'13px',cursor:'pointer',fontSize:15,fontWeight:700,
+            fontFamily:tf,opacity:(status==='loading'||!code.trim())?0.5:1,
+            transition:'opacity .15s'}}>
+          {status==='loading'?'กำลังโหลด...' :'เข้าห้องเรียน →'}
+        </button>
+      </div>
+      <button onClick={onBack}
+        style={{background:'transparent',border:'none',color:'var(--c-t3)',
+          cursor:'pointer',fontSize:12,fontFamily:tf,textDecoration:'underline',marginTop:8}}>
+        ← เปลี่ยน account
+      </button>
+    </div>
+  );
+}
+
+// GOOGLE SIGN-IN SCREEN
+
+function GoogleSignInScreen({ onSignIn, onSolo }) {
+  const tf = "'Sarabun','Noto Sans Thai',sans-serif";
+
+  useEffect(() => {
+    if (typeof google === 'undefined') return;
+    google.accounts.id.initialize({
+      client_id: GOOGLE_CLIENT_ID,
+      callback: (response) => {
+        const profile = parseJwt(response.credential);
+        if (profile) onSignIn(profile, response.credential);
+      },
+      auto_select: false,
+    });
+    google.accounts.id.renderButton(
+      document.getElementById('google-signin-btn'),
+      { theme: 'outline', size: 'large', width: 280,
+        text: 'signin_with', locale: 'th' }
+    );
+  }, []);
+
+  return (
+    <div style={{fontFamily:tf}}>
+      <div style={{background:'linear-gradient(150deg,#1E3A8A 0%,#2563EB 55%,#3B82F6 100%)',
+        borderRadius:20,padding:'36px 24px 28px',position:'relative',overflow:'hidden',
+        marginBottom:16}}>
+        <div style={{position:'absolute',top:-40,right:-40,width:130,height:130,
+          borderRadius:'50%',background:'rgba(255,255,255,.07)'}}/>
+        <div style={{textAlign:'center',position:'relative'}}>
+          <div style={{fontSize:56,marginBottom:8}}>⌨️</div>
+          <h1 style={{fontFamily:tf,fontSize:27,fontWeight:800,color:'#fff',margin:'0 0 4px'}}>
+            แบบฝึกพิมพ์ไทย</h1>
+          <p style={{fontSize:11,color:'#93C5FD',margin:'0 0 28px',fontWeight:700,letterSpacing:1}}>
+            KEDMANEE TYPING · TIS 820-2538</p>
+          <div style={{background:'rgba(255,255,255,.12)',borderRadius:14,padding:'20px',
+            display:'flex',flexDirection:'column',alignItems:'center',gap:14}}>
+            <div style={{fontSize:13,color:'rgba(255,255,255,.8)',fontFamily:tf,fontWeight:600}}>
+              เข้าสู่ระบบด้วย Google เพื่อบันทึกผลและดูสถิติ
+            </div>
+            <div id="google-signin-btn"></div>
+          </div>
+        </div>
+      </div>
+      <div style={{textAlign:'center'}}>
+        <button onClick={onSolo}
+          style={{background:'transparent',border:'none',color:'var(--c-t3)',
+            cursor:'pointer',fontSize:12,fontFamily:tf,textDecoration:'underline'}}>
+          ข้ามและฝึกคนเดียว (ไม่บันทึกผล)
+        </button>
+      </div>
+    </div>
+  );
+}
+
 // MAIN APP// MAIN APP
 
 const CLASS_NAMES = {
@@ -1803,7 +1939,7 @@ const CLASS_NAMES = {
 };
 
 function ThaiTypingApp() {
-  const [screen,        setScreen]        = useState(SCRIPT_URL ? 'join' : 'lessons');
+  const [screen,        setScreen]        = useState(SCRIPT_URL ? 'google-login' : 'lessons');
   const [classCode,     setClassCode]     = useState('');
   const [studentName,   setStudentName]   = useState('');
   const [displayName,   setDisplayName]   = useState('');
@@ -1848,6 +1984,8 @@ function ThaiTypingApp() {
   const [showNameModal, setShowNameModal] = useState(false);
   const pendingStoryRef = useRef(null);
   const [pendingStudent, setPendingStudent] = useState(null); // student awaiting PIN
+  // Google Sign-In
+  const [googleUser, setGoogleUser]   = useState(null); // { name, email, picture, sub }
   // Theme: 'light' | 'dark' | 'auto'
   const [themeMode, setThemeMode] = useState(()=>{ try{return localStorage.getItem('theme')||'light';}catch{return 'light';} });
   const isDark = themeMode==='dark';
@@ -2088,6 +2226,7 @@ function ThaiTypingApp() {
     const finalAcc = (pos + errors) > 0 ? Math.round((pos / (pos + errors)) * 100) : 100;
     saveSession({
       classCode, studentName,
+      email: googleUser?.email || '',
       lessonId: lesson?.id || 0,
       exerciseTitle: exercise?.title || '',
       cpm: finalKpm, wpm: Math.round(finalKpm / 5),
@@ -2236,7 +2375,11 @@ function ThaiTypingApp() {
     setLesson(null); setExercise(null); setTarget(''); setPos(0);
     setErrors(0); setStartTime(null); setEndTime(null); setSaveStatus('idle');
     setPendingStudent(null);
-    setScreen('join');
+    setGoogleUser(null);
+    if (typeof google !== 'undefined') {
+      try { google.accounts.id.disableAutoSelect(); } catch {}
+    }
+    setScreen(SCRIPT_URL ? 'google-login' : 'lessons');
   },[]);
 
   useEffect(() => {
@@ -2416,6 +2559,31 @@ function ThaiTypingApp() {
       <div style={{width:'100%',maxWidth:860,background:'var(--c-card)',borderRadius:20,
         boxShadow:'0 4px 24px rgba(0,0,0,.12)',padding:'30px 26px'}}>
 
+        {screen==='google-login' && (
+          <GoogleSignInScreen
+            onSignIn={(profile, credential) => {
+              setGoogleUser(profile);
+              setStudentName(profile.name);
+              setDisplayName(profile.name);
+              // Auto-load roster by email domain class mapping, or go to class-picker
+              setScreen('class-picker');
+            }}
+            onSolo={() => { setGoogleUser(null); setStudentName(''); setScreen('lessons'); }}
+          />
+        )}
+        {screen==='class-picker' && googleUser && (
+          <ClassPickerScreen
+            googleUser={googleUser}
+            onSelect={(code, sts) => {
+              setClassCode(code);
+              setStudents(sts);
+              setStudentName(googleUser.name);
+              setDisplayName(googleUser.name);
+              setScreen('lessons');
+            }}
+            onBack={() => setScreen('google-login')}
+          />
+        )}
         {screen==='join' && (
           <JoinScreen
             onJoin={(code, sts) => { setClassCode(code); setStudents(sts); setScreen('roster'); }}

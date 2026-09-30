@@ -1050,7 +1050,7 @@ const CHAPTERS = [
 
 // LESSON SELECTOR
 
-function LessonScreen({ studentName, classCode, onSelect, onOpenSetup, onJoin, joinCode, setJoinCode, joinError, mpBusy, storyPath, storyPower, onViewStats }) {
+function LessonScreen({ studentName, classCode, onSelect, onOpenSetup, onJoin, joinCode, setJoinCode, joinError, mpBusy, storyPath, storyPower, onViewStats, onLogin }) {
   const savedCh=(()=>{try{return Math.min(parseInt(localStorage.getItem('lastChapter')||'0')||0,CHAPTERS.length-1);}catch{return 0;}})();
   const getExercises=(lesson)=>{
     if(!lesson.story) return lesson.exercises||[];
@@ -1256,6 +1256,24 @@ function LessonScreen({ studentName, classCode, onSelect, onOpenSetup, onJoin, j
           </div>
         );
       })()}
+
+      {/* ── Login prompt for anonymous users ── */}
+      {!studentName&&SCRIPT_URL&&(
+        <div style={{background:'#EFF6FF',border:'1.5px solid #BFDBFE',borderRadius:12,
+          padding:'12px 16px',marginBottom:16,display:'flex',alignItems:'center',gap:12}}>
+          <span style={{fontSize:20}}>👤</span>
+          <div style={{flex:1,fontFamily:"'Sarabun','Noto Sans Thai',sans-serif"}}>
+            <div style={{fontSize:13,fontWeight:700,color:'#1D4ED8'}}>ยังไม่ได้เข้าสู่ระบบ</div>
+            <div style={{fontSize:11,color:'#3B82F6'}}>เข้าสู่ระบบเพื่อบันทึกผลและดูสถิติ</div>
+          </div>
+          <button onClick={()=>onLogin&&onLogin()}
+            style={{background:'#2563EB',color:'#fff',border:'none',borderRadius:8,
+              padding:'8px 14px',cursor:'pointer',fontSize:12,fontWeight:800,
+              fontFamily:"'Sarabun','Noto Sans Thai',sans-serif",whiteSpace:'nowrap'}}>
+            เข้าสู่ระบบ →
+          </button>
+        </div>
+      )}
 
       {/* ── Multiplayer ── */}
       <div style={{borderTop:'1.5px solid #E2E8F0',paddingTop:16}}>
@@ -1535,6 +1553,139 @@ function EnterPinScreen({ studentName, classCode, onSuccess, onBack }) {
   );
 }
 
+// PROGRESS CHART
+
+function ProgressChart({ sessions }) {
+  const [tab, setTab] = useState('wpm'); // 'wpm' | 'both'
+  const tf = "'Sarabun','Noto Sans Thai',sans-serif";
+
+  // Reverse to chronological order, take last 20
+  const data = [...sessions].reverse().slice(-20).map((s, i) => ({
+    n:    i + 1,
+    wpm:  Math.round(s.cpm / 5),
+    acc:  s.accuracy,
+    ex:   s.exercise,
+  }));
+
+  if (data.length < 2) return (
+    <div style={{textAlign:'center',padding:24,color:'#94A3B8',fontSize:13,fontFamily:tf,
+      background:'#F8FAFC',borderRadius:12,border:'1.5px solid #E2E8F0'}}>
+      ต้องมีอย่างน้อย 2 เซสชั่น จึงจะแสดงกราฟได้
+    </div>
+  );
+
+  const W = 520, H = 200, PL = 40, PR = 40, PT = 16, PB = 32;
+  const IW = W - PL - PR, IH = H - PT - PB;
+
+  const maxWpm = Math.max(...data.map(d => d.wpm), 10);
+  const yMaxWpm = Math.ceil(maxWpm / 10) * 10 + 10;
+
+  const xOf  = d => PL + ((d.n - 1) / (data.length - 1)) * IW;
+  const yWpm = d => PT + IH - (d.wpm / yMaxWpm) * IH;
+  const yAcc = d => PT + IH - ((d.acc - 50) / 50) * IH;  // acc range 50-100
+
+  const polyline = (pts, color) => {
+    const d = pts.map((p, i) => (i === 0 ? 'M' : 'L') + p.x.toFixed(1) + ' ' + p.y.toFixed(1)).join(' ');
+    return <path d={d} fill="none" stroke={color} strokeWidth="2.5" strokeLinejoin="round" strokeLinecap="round"/>;
+  };
+
+  const wpmPts = data.map(d => ({ x: xOf(d), y: yWpm(d) }));
+  const accPts = data.map(d => ({ x: xOf(d), y: yAcc(d) }));
+
+  const yGrids = [0, 25, 50, 75, 100];
+
+  return (
+    <div>
+      {/* Tab switcher */}
+      <div style={{display:'flex',gap:6,marginBottom:12}}>
+        {[['wpm','📈 WPM'],['both','📊 WPM + ความแม่น']].map(([key,lbl])=>(
+          <button key={key} onClick={()=>setTab(key)}
+            style={{padding:'5px 12px',borderRadius:8,border:'1.5px solid '+(tab===key?'#2563EB':'#E2E8F0'),
+              background:tab===key?'#2563EB':'#fff',color:tab===key?'#fff':'#64748B',
+              cursor:'pointer',fontSize:12,fontWeight:700,fontFamily:tf,transition:'all .15s'}}>
+            {lbl}
+          </button>
+        ))}
+      </div>
+
+      {/* Legend */}
+      <div style={{display:'flex',gap:16,marginBottom:10}}>
+        <div style={{display:'flex',alignItems:'center',gap:5}}>
+          <div style={{width:20,height:3,borderRadius:2,background:'#2563EB'}}/>
+          <span style={{fontSize:11,color:'#64748B',fontFamily:tf}}>WPM</span>
+        </div>
+        {tab==='both'&&(
+          <div style={{display:'flex',alignItems:'center',gap:5}}>
+            <div style={{width:20,height:3,borderRadius:2,background:'#059669'}}/>
+            <span style={{fontSize:11,color:'#64748B',fontFamily:tf}}>ความแม่น %</span>
+          </div>
+        )}
+      </div>
+
+      {/* Chart */}
+      <div style={{overflowX:'auto'}}>
+        <svg viewBox={`0 0 ${W} ${H}`} style={{width:'100%',minWidth:280,display:'block'}}>
+          {/* Grid lines */}
+          {yGrids.map(pct => {
+            const y = PT + IH - (pct / 100) * IH;
+            return (
+              <g key={pct}>
+                <line x1={PL} y1={y} x2={W-PR} y2={y}
+                  stroke="#F1F5F9" strokeWidth="1"/>
+                <text x={PL-6} y={y+4} textAnchor="end"
+                  fontSize="9" fill="#CBD5E1">{tab==='wpm' ? Math.round(pct/100*yMaxWpm) : pct+'%'}</text>
+              </g>
+            );
+          })}
+
+          {/* WPM y-labels when both shown */}
+          {tab==='both' && yGrids.map(pct => {
+            const y = PT + IH - (pct / 100) * IH;
+            return (
+              <text key={'r'+pct} x={W-PR+6} y={y+4} textAnchor="start"
+                fontSize="9" fill="#BFDBFE">{Math.round(pct/100*yMaxWpm)}</text>
+            );
+          })}
+
+          {/* X axis labels */}
+          {data.filter((_, i) => data.length <= 10 || i % Math.ceil(data.length/8) === 0 || i === data.length-1).map(d => (
+            <text key={d.n} x={xOf(d)} y={H-8} textAnchor="middle" fontSize="9" fill="#94A3B8">
+              {d.n}
+            </text>
+          ))}
+
+          {/* Lines */}
+          {tab==='both' && polyline(accPts, '#059669')}
+          {polyline(wpmPts, '#2563EB')}
+
+          {/* Dots — WPM */}
+          {data.map(d => (
+            <circle key={d.n} cx={xOf(d)} cy={yWpm(d)} r="3.5"
+              fill="#2563EB" stroke="#fff" strokeWidth="1.5">
+              <title>Session {d.n} · {d.wpm} WPM · {d.ex}</title>
+            </circle>
+          ))}
+
+          {/* Dots — accuracy */}
+          {tab==='both' && data.map(d => (
+            <circle key={'a'+d.n} cx={xOf(d)} cy={yAcc(d)} r="3.5"
+              fill="#059669" stroke="#fff" strokeWidth="1.5">
+              <title>Session {d.n} · {d.acc}% · {d.ex}</title>
+            </circle>
+          ))}
+
+          {/* Axes */}
+          <line x1={PL} y1={PT} x2={PL} y2={H-PB} stroke="#E2E8F0" strokeWidth="1"/>
+          <line x1={PL} y1={H-PB} x2={W-PR} y2={H-PB} stroke="#E2E8F0" strokeWidth="1"/>
+
+          {/* X-axis label */}
+          <text x={W/2} y={H} textAnchor="middle" fontSize="9" fill="#94A3B8">ลำดับ session</text>
+        </svg>
+      </div>
+    </div>
+  );
+}
+
 // MY STATS SCREEN
 
 function MyStatsScreen({ studentName, classCode, onBack }) {
@@ -1582,6 +1733,10 @@ function MyStatsScreen({ studentName, classCode, onBack }) {
                 <div style={{fontSize:10,color:'#94A3B8',fontWeight:600,letterSpacing:.5,marginTop:2}}>{lbl}</div>
               </div>
             ))}
+          </div>
+          <div style={{fontSize:14,fontWeight:800,color:'#0F172A',marginBottom:10,marginTop:8}}>พัฒนาการ</div>
+          <div style={{background:'#fff',border:'1.5px solid #E2E8F0',borderRadius:12,padding:'16px',marginBottom:20}}>
+            <ProgressChart sessions={data.sessions}/>
           </div>
           <div style={{fontSize:14,fontWeight:800,color:'#0F172A',marginBottom:10}}>ประวัติการฝึก</div>
           <div style={{overflowX:'auto'}}>
@@ -2057,7 +2212,8 @@ function ThaiTypingApp() {
     setClassCode(''); setStudentName(''); setDisplayName(''); setStudents([]);
     setLesson(null); setExercise(null); setTarget(''); setPos(0);
     setErrors(0); setStartTime(null); setEndTime(null); setSaveStatus('idle');
-    setScreen(SCRIPT_URL ? 'join' : 'lessons');
+    setPendingStudent(null);
+    setScreen('join');
   },[]);
 
   useEffect(() => {
@@ -2284,7 +2440,8 @@ function ThaiTypingApp() {
             joinError={joinError} mpBusy={mpBusy}
             studentName={studentName} classCode={classCode}
             storyPath={storyPath} storyPower={storyPower}
-            onViewStats={()=>setScreen('my-stats')}/>
+            onViewStats={()=>setScreen('my-stats')}
+            onLogin={()=>setScreen('join')}/>
         )}
 
         {screen==='practice'&&lesson&&target&&(

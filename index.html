@@ -1906,8 +1906,9 @@ function ClassPickerScreen({ googleUser, onSelect, onBack }) {
         if (data.classCode) {
           setResult(data);
           setStatus('found');
-          // Auto-proceed after 1.5s
-          setTimeout(() => onSelect(data.classCode, data.students, data.studentName), 1500);
+          // The signed-in Google email already identifies this roster record;
+          // continue immediately instead of adding an artificial login delay.
+          onSelect(data.classCode, data.students, data.studentName);
         } else {
           setStatus('notfound');
         }
@@ -2022,6 +2023,10 @@ function GoogleSignInScreen({ onSignIn, onSolo }) {
         },
         auto_select: false,
         ux_mode: 'popup',
+        // Prefer the browser-mediated Sign in with Google button flow. This
+        // avoids relying on cross-window postMessage from a popup where the
+        // hosting platform does not let us configure COOP response headers.
+        use_fedcm_for_button: true,
       });
       const btn = document.getElementById('google-signin-btn');
       if (btn) {
@@ -3464,18 +3469,4 @@ function ThaiTypingApp() {
             bestCombo={bestCombo}
             onRestart={()=>{
               if(rcRef.current){handleLeaveRoom();}
-              else if(lesson&&exercise) startExercise(lesson,exercise);
-              else setScreen('lessons');
-            }}
-            onBack={()=>{
-              if(rcRef.current){handleLeaveRoom();}
-              else setScreen('lessons');
-            }}/>
-        )}
-      </div>
-    </div>
-  );
-}
-
-ReactDOM.createRoot(document.getElementById('root')).render(<ThaiTypingApp/>);
-</script></body></html>
+              else if(lesson&&exercise) startE

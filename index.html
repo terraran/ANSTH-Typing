@@ -32,7 +32,10 @@
 *{box-sizing:border-box;margin:0;padding:0}body{background:var(--c-bg);font-family:system-ui,sans-serif;color:var(--c-t1);transition:background .3s,color .3s;}
 #loading{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;
 flex-direction:column;gap:12px;font-family:'Sarabun',sans-serif;font-size:18px;color:#64748B;background:#F1F5F9;z-index:9999}
-#loading span{font-size:40px}</style>
+#loading span{font-size:40px}  /* +points pop-up while typing */
+  @keyframes scorePop { 0%{opacity:0;transform:translateY(6px) scale(.8)} 25%{opacity:1;transform:translateY(0) scale(1.15)} 100%{opacity:0;transform:translateY(-14px) scale(1)} }
+  .score-pop { display:inline-block; animation:scorePop .9s ease-out forwards; }
+</style>
 </head><body>
 <div id="loading"><span>⌨️</span>กำลังโหลด...</div>
 <div id="root"></div>
@@ -246,6 +249,15 @@ async function apiGetAssignments(classCode, studentName) {
   return apiRequest('getAssignments',{classCode,student:studentName});
 }
 
+// Save one test (assignment) attempt — kept separate from practice sessions
+async function apiSubmitTest(data) {
+  return apiRequest('submitTest',{
+    code:data.classCode,student:data.studentName,assignId:data.assignId,
+    score:data.score,maxScore:data.maxScore,cpm:data.cpm,accuracy:data.accuracy,
+    errors:data.errors,chars:data.totalChars,duration:data.duration,
+  });
+}
+
 // Fetch student's own session history
 async function apiGetStudentStats(classCode, studentName) {
   return apiRequest('getStudentStats',{code:classCode,student:studentName});
@@ -258,6 +270,7 @@ async function saveSession(data) {
     code:data.classCode,student:data.studentName,lessonId:data.lessonId,
     exercise:data.exerciseTitle,cpm:data.cpm,wpm:data.wpm,
     accuracy:data.accuracy,errors:data.errors,chars:data.totalChars,duration:data.duration,
+    score:data.score||0,
   });
 }
 
@@ -348,10 +361,10 @@ function findKeyForChar(char) {
 
 // TEXT GENERATOR
 
-function generateText(words, minChars) {
+function generateText(words, minChars, rng = Math.random) {
   const arr = [...words];
   for (let i = arr.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
+    const j = Math.floor(rng() * (i + 1));
     [arr[i], arr[j]] = [arr[j], arr[i]];
   }
   const result = [];
@@ -365,6 +378,66 @@ function generateText(words, minChars) {
   }
   return result.join(' ');
 }
+
+// Deterministic RNG so every student gets the same test text for one assignment.
+function seededRng(seedText) {
+  let h = 2166136261;
+  for (const c of String(seedText)) { h ^= c.charCodeAt(0); h = Math.imul(h, 16777619); }
+  return () => {
+    h += 0x6D2B79F5;
+    let t = h;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+// ═══════════════════════════════════════════════════════════════
+// SCORING  (Kahoot-style) — points = letter × speed × combo
+// ═══════════════════════════════════════════════════════════════
+const SCORE_RARE = new Set([...'๐๑๒๓๔๕๖๗๘๙ฎฏฐฑฒฌฆฃฅฬฦฤฯฺํ฿".,()?+%']);
+const SCORE_HOME = new Set(['KeyA','KeyS','KeyD','KeyF','KeyG','KeyH','KeyJ','KeyK','KeyL','Semicolon','Quote','Space']);
+const SCORE_ROWS = new Set(['KeyQ','KeyW','KeyE','KeyR','KeyT','KeyY','KeyU','KeyI','KeyO','KeyP','BracketLeft','BracketRight',
+  'KeyZ','KeyX','KeyC','KeyV','KeyB','KeyN','KeyM','Comma','Period','Slash']);
+// Home 100 · top/bottom 200 · far reach (number row, \ `) 300 · Shift 400 · rare/numerals/marks 500
+function charBasePoints(ch) {
+  if (SCORE_RARE.has(ch)) return 500;
+  const k = findKeyForChar(ch);
+  if (!k) return 100;
+  if (k.needsShift) return 400;
+  if (SCORE_HOME.has(k.code)) return 100;
+  if (SCORE_ROWS.has(k.code)) return 200;
+  return 300;
+}
+// Target speed rises gently through the lessons (keystrokes per minute).
+function lessonTargetKpm(lessonId) { return Math.min(160, 60 + (Math.max(1, Number(lessonId)||1) - 1) * 8); }
+// ×1.0 at or above target speed, down to ×0.5 at half speed (average of last 5 keys).
+function speedMultiplier(intervals, lessonId) {
+  if (!intervals.length) return 1;
+  const avg = intervals.reduce((a,b)=>a+b,0) / intervals.length;
+  const targetMs = 60000 / lessonTargetKpm(lessonId);
+  return Math.max(0.5, Math.min(1, targetMs / Math.max(1, avg)));
+}
+// +10% per 10 correct keys in a row, max ×1.5. `streak` = correct keys before this one.
+function comboMultiplier(streak) { return 1 + Math.min(5, Math.floor(streak / 10)) * 0.1; }
+// Perfect run: full speed, no mistakes.
+function maxScoreFor(chars) {
+  return chars.reduce((sum, ch, i) => sum + Math.round(charBasePoints(ch) * comboMultiplier(i)), 0);
+}
+function starsFor(score, maxScore) {
+  const pct = maxScore > 0 ? score / maxScore * 100 : 0;
+  return pct >= 85 ? 3 : pct >= 65 ? 2 : pct >= 45 ? 1 : 0;
+}
+// Practice high scores are keyed like the backend: "lessonId|1.1" (number prefix
+// survives exercise renames). Signed-in: from Sheets. Guest: this device only.
+function hsKey(lessonId, title) {
+  const t=String(title||'').trim();
+  const m=t.match(/^(\d+\.\d+)/);
+  return (Number(lessonId)||0)+'|'+(m?m[1]:t);
+}
+function readGuestHighScores() { try { return JSON.parse(localStorage.getItem('highScores_guest')||'{}')||{}; } catch { return {}; } }
+function writeGuestHighScores(map) { try { localStorage.setItem('highScores_guest', JSON.stringify(map)); } catch {} }
+const fmtScore = n => Number(n||0).toLocaleString('en-US');
 
 // SPAM THRESHOLDS
 const SPEED_CPM       = 750;
@@ -1014,7 +1087,7 @@ const CHAPTERS = [
 
 // LESSON SELECTOR
 
-function LessonScreen({ studentName, classCode, onSelect, onOpenSetup, onJoin, joinCode, setJoinCode, joinError, mpBusy, storyPath, storyPower, onViewStats, onLogin, assignments, onAssignmentSelect }) {
+function LessonScreen({ studentName, classCode, onSelect, onOpenSetup, onJoin, joinCode, setJoinCode, joinError, mpBusy, storyPath, storyPower, onViewStats, onLogin, assignments, onOpenTests, highScores }) {
   const savedCh=(()=>{try{return Math.min(parseInt(localStorage.getItem('lastChapter')||'0')||0,CHAPTERS.length-1);}catch{return 0;}})();
   const getExercises=(lesson)=>{
     if(!lesson.story) return lesson.exercises||[];
@@ -1089,13 +1162,26 @@ function LessonScreen({ studentName, classCode, onSelect, onOpenSetup, onJoin, j
         </div>
       )}
 
-      {/* ── Assignments ── */}
-      {studentName && assignments && assignments.length > 0 && (
-        <AssignmentCard
-          assignments={assignments}
-          onSelect={onAssignmentSelect}
-        />
-      )}
+      {/* ── Tests (assignments) ── */}
+      {studentName && assignments && assignments.length > 0 && (()=>{
+        const pending = assignments.filter(a=>!a.completed).length;
+        return (
+          <button onClick={()=>onOpenTests&&onOpenTests()}
+            style={{width:'100%',display:'flex',alignItems:'center',gap:12,marginBottom:20,
+              background:pending?'linear-gradient(135deg,#1D4ED8,#7C3AED)':'var(--c-surf)',
+              color:pending?'#fff':'var(--c-t1)',border:pending?'none':'1.5px solid var(--c-border)',
+              borderRadius:14,padding:'14px 18px',cursor:'pointer',textAlign:'left',
+              fontFamily:"'Sarabun','Noto Sans Thai',sans-serif"}}>
+            <span style={{fontSize:26}}>📝</span>
+            <span style={{flex:1}}>
+              <span style={{display:'block',fontSize:16,fontWeight:800}}>แบบทดสอบ</span>
+              <span style={{display:'block',fontSize:12,opacity:.85}}>
+                {pending?`มี ${pending} งานที่ยังไม่ทำ`:'ทำครบทุกงานแล้ว 🎉'}</span>
+            </span>
+            <span style={{fontSize:14,fontWeight:800}}>เปิด →</span>
+          </button>
+        );
+      })()}
 
       {/* ── Chapter carousel ── */}
       <div style={{marginBottom:20}}>
@@ -1228,6 +1314,10 @@ function LessonScreen({ studentName, classCode, onSelect, onOpenSetup, onJoin, j
                                 color:hasEx?'#fff':lesson.accent}}>{ex.title}</span>
                               <span style={{display:'flex',alignItems:'center',gap:5,flexShrink:0}}>
                                 {hasEx&&<span style={{fontSize:10}}>👻</span>}
+                                {(highScores||{})[hsKey(lesson.id,ex.title)]>0&&(
+                                  <span style={{fontSize:10,fontWeight:800,
+                                    color:hasEx?'#fff':'#D97706'}}>🏆 {fmtScore(highScores[hsKey(lesson.id,ex.title)])}</span>
+                                )}
                                 <span style={{fontSize:10,
                                   color:hasEx?'rgba(255,255,255,.7)':'var(--c-t3)'}}>~{ex.minChars}ตัว</span>
                                 <span style={{color:hasEx?'rgba(255,255,255,.8)':lesson.accent,fontSize:12}}>→</span>
@@ -1293,7 +1383,7 @@ function LessonScreen({ studentName, classCode, onSelect, onOpenSetup, onJoin, j
 
 // RESULTS SCREEN
 
-function ResultsScreen({ cpm, accuracy, errors, totalChars, lesson, saveStatus, studentName, ghostData, newRecord, roomCode, roomType, roomPlayers, myName, bestCombo, onRestart, onBack }) {
+function ResultsScreen({ cpm, accuracy, errors, totalChars, lesson, saveStatus, studentName, ghostData, newRecord, roomCode, roomType, roomPlayers, myName, bestCombo, score, maxScore, isTest, prevBest, onRestart, onBack }) {
   const grade =
     accuracy>=98&&cpm>=40 ? {label:'ยอดเยี่ยม 🏆',color:'#D97706'} :
     accuracy>=95&&cpm>=25 ? {label:'ดีมาก ⭐',     color:'#2563EB'} :
@@ -1303,9 +1393,34 @@ function ResultsScreen({ cpm, accuracy, errors, totalChars, lesson, saveStatus, 
     <div style={{textAlign:'center',fontFamily:"'Sarabun','Noto Sans Thai',sans-serif"}}>
       <div style={{fontSize:52,marginBottom:8}}>{accuracy>=95?'🎉':accuracy>=85?'👏':'💪'}</div>
       <h2 style={{fontSize:26,fontWeight:800,color:'var(--c-t1)',marginBottom:4}}>เสร็จแล้ว!</h2>
-      <div style={{color:grade.color,fontWeight:800,fontSize:18,marginBottom:ghostData||newRecord?12:22}}>
+      <div style={{color:grade.color,fontWeight:800,fontSize:18,marginBottom:12}}>
         {grade.label}
       </div>
+      {/* Score */}
+      {!roomCode && (
+        <div style={{marginBottom:18,padding:'16px 20px',borderRadius:14,
+          background:isTest?'#EDE9FE':'#FFFBEB',border:`1.5px solid ${isTest?'#8B5CF6':'#F59E0B'}`}}>
+          <div style={{fontSize:12,fontWeight:800,color:isTest?'#6D28D9':'#B45309',letterSpacing:1}}>
+            {isTest?'📝 คะแนนแบบทดสอบ':'⭐ คะแนนรอบนี้'}</div>
+          <div style={{fontSize:38,fontWeight:800,color:'var(--c-t1)',lineHeight:1.2}}>{fmtScore(score)}</div>
+          {isTest ? (
+            <div style={{marginTop:4}}>
+              <Stars n={starsFor(score,maxScore)} size={26}/>
+              <div style={{fontSize:12,color:'var(--c-t3)',marginTop:4}}>
+                {Math.round(maxScore>0?score/maxScore*100:0)}% ของคะแนนเต็ม {fmtScore(maxScore)}
+                {saveStatus==='saved'?' · ✅ ส่งคะแนนแล้ว':saveStatus==='saving'?' · กำลังส่ง...':saveStatus==='error'?' · ⚠️ ส่งไม่สำเร็จ':''}
+              </div>
+            </div>
+          ) : (
+            <div style={{fontSize:14,fontWeight:700,marginTop:6,
+              color:score>prevBest?'#059669':'var(--c-t2)'}}>
+              {score>prevBest
+                ? (prevBest>0 ? `🎉 สถิติใหม่! (เดิม ${fmtScore(prevBest)})` : '🏆 High Score แรกของแบบฝึกนี้!')
+                : `🏆 High Score: ${fmtScore(prevBest)} — ขาดอีก ${fmtScore(prevBest-score+1)} คะแนน`}
+            </div>
+          )}
+        </div>
+      )}
       {/* Ghost comparison */}
       {(ghostData || newRecord) && (
         <div style={{marginBottom:22,padding:'12px 20px',borderRadius:12,
@@ -1626,7 +1741,7 @@ function MyStatsScreen({ studentName, classCode, onBack }) {
               borderRadius:12,overflow:'hidden',border:'1.5px solid var(--c-border)',fontSize:12}}>
               <thead>
                 <tr style={{background:'var(--c-surf)'}}>
-                  {['วันที่','แบบฝึก','WPM','ความแม่น','ผิด'].map(h=>(
+                  {['วันที่','แบบฝึก','คะแนน','WPM','ความแม่น','ผิด'].map(h=>(
                     <th key={h} style={{padding:'8px 12px',textAlign:'left',fontWeight:700,
                       color:'var(--c-t2)',fontSize:10,letterSpacing:.5,borderBottom:'1.5px solid #E2E8F0'}}>{h}</th>
                   ))}
@@ -1637,6 +1752,7 @@ function MyStatsScreen({ studentName, classCode, onBack }) {
                   <tr key={i} style={{borderBottom:'1px solid var(--c-border)'}}>
                     <td style={{padding:'8px 12px',color:'var(--c-t2)'}}>{formatDate(s.date)}</td>
                     <td style={{padding:'8px 12px'}}>{s.exercise}</td>
+                    <td style={{padding:'8px 12px',fontWeight:700,color:'#D97706'}}>{s.score?fmtScore(s.score):'–'}</td>
                     <td style={{padding:'8px 12px',fontWeight:700}}>{Math.round(s.cpm/5)}</td>
                     <td style={{padding:'8px 12px',fontWeight:700,
                       color:s.accuracy>=95?'#059669':s.accuracy>=85?'#D97706':'#DC2626'}}>
@@ -1828,62 +1944,79 @@ function GoogleSignInScreen({ onSignIn, onSolo }) {
   );
 }
 
-// ASSIGNMENT CARD
+// TEST LIST — assignments as tests, separate from practice
 
-function AssignmentCard({ assignments, onSelect, lesson, exercise }) {
+function daysUntil(deadline) {
+  if (!deadline) return null;
+  const m = String(deadline).match(/^(\d{4})-(\d{2})-(\d{2})/);
+  const due = m ? new Date(+m[1], +m[2]-1, +m[3]) : new Date(deadline);
+  if (isNaN(due)) return null;
+  const today = new Date(); today.setHours(0,0,0,0); due.setHours(0,0,0,0);
+  return Math.round((due - today) / 86400000);
+}
+
+function Stars({ n, size=16 }) {
+  return <span style={{fontSize:size,letterSpacing:1}}>{[0,1,2].map(i=>i<n?'⭐':'☆').join('')}</span>;
+}
+
+function TestListScreen({ assignments, onStart, onBack }) {
   const tf = "'Sarabun','Noto Sans Thai',sans-serif";
-  const pending = assignments.filter(a => !a.completed);
-  const done    = assignments.filter(a => a.completed);
-  if (!assignments.length) return null;
+  const byDeadline = (a,b) => (daysUntil(a.deadline)??99999) - (daysUntil(b.deadline)??99999);
+  const pending = assignments.filter(a=>!a.completed).sort(byDeadline);
+  const done    = assignments.filter(a=>a.completed).sort(byDeadline);
 
-  const daysLeft = (deadline) => {
-    if (!deadline) return null;
-    const diff = Math.ceil((new Date(deadline) - Date.now()) / 86400000);
-    return diff;
+  const row = (a, isDone) => {
+    const dl = daysUntil(a.deadline);
+    const overdue = !isDone && dl !== null && dl < 0;
+    const urgent  = !isDone && dl !== null && dl >= 0 && dl <= 2;
+    const border  = isDone ? 'var(--c-border)' : overdue ? '#DC2626' : urgent ? '#F59E0B' : '#2563EB';
+    return (
+      <div key={a.assignId} onClick={()=>onStart(a)}
+        style={{background:'var(--c-card)',border:`2px solid ${border}`,borderRadius:12,
+          padding:'12px 16px',marginBottom:8,cursor:'pointer',display:'flex',alignItems:'center',gap:12}}>
+        <div style={{fontSize:24,flexShrink:0}}>{isDone?'✅':overdue?'⚠️':urgent?'⏰':'📝'}</div>
+        <div style={{flex:1,minWidth:0}}>
+          <div style={{fontSize:14,fontWeight:800,color:'var(--c-t1)'}}>{a.exerciseTitle}</div>
+          <div style={{fontSize:11,color:'var(--c-t3)',marginTop:2}}>
+            {isDone
+              ? <>คะแนนดีสุด <b>{fmtScore(a.bestScore)}</b> · <Stars n={starsFor(a.bestScore,a.maxScore)} size={12}/> · ทำแล้ว {a.attempts} ครั้ง</>
+              : a.deadline
+                ? overdue ? `เลยกำหนด ${Math.abs(dl)} วัน` : dl===0 ? 'ส่งภายในวันนี้' : `เหลือ ${dl} วัน`
+                : 'ไม่มีกำหนดส่ง'}
+            {a.showHints===false && ' · 🙈 ไม่มีไฮไลต์ปุ่ม'}
+          </div>
+        </div>
+        <div style={{background:isDone?'var(--c-surf)':overdue?'#FEE2E2':urgent?'#FEF3C7':'#EFF6FF',
+          color:isDone?'var(--c-t2)':overdue?'#DC2626':urgent?'#D97706':'#2563EB',
+          borderRadius:8,padding:'6px 12px',fontSize:12,fontWeight:800,flexShrink:0,whiteSpace:'nowrap'}}>
+          {isDone?'ทำอีกครั้ง ↻':'เริ่มทำ →'}
+        </div>
+      </div>
+    );
   };
 
   return (
-    <div style={{marginBottom:20}}>
-      <div style={{fontSize:11,fontWeight:800,color:'var(--c-t3)',letterSpacing:1,marginBottom:10}}>
-        📋 งานที่ได้รับ ({pending.length} รอทำ · {done.length} เสร็จแล้ว)
+    <div style={{fontFamily:tf}}>
+      <h2 style={{fontSize:22,fontWeight:800,color:'var(--c-t1)',margin:'0 0 4px'}}>📝 แบบทดสอบ</h2>
+      <div style={{fontSize:12,color:'var(--c-t3)',marginBottom:18}}>
+        ทำได้หลายครั้ง ระบบเก็บคะแนนครั้งที่ดีที่สุด · ยิ่งพิมพ์เร็วและแม่นยิ่งได้คะแนนเยอะ
       </div>
-      {pending.map(a => {
-        const dl = daysLeft(a.deadline);
-        const overdue = dl !== null && dl < 0;
-        const urgent  = dl !== null && dl <= 2 && dl >= 0;
-        return (
-          <div key={a.assignId}
-            onClick={() => onSelect && onSelect(a)}
-            style={{background:'var(--c-card)',border:`2px solid ${overdue?'#DC2626':urgent?'#F59E0B':'#2563EB'}`,
-              borderRadius:12,padding:'12px 16px',marginBottom:8,cursor:'pointer',
-              display:'flex',alignItems:'center',gap:12,transition:'all .15s'}}
-            onMouseEnter={e=>e.currentTarget.style.transform='translateY(-1px)'}
-            onMouseLeave={e=>e.currentTarget.style.transform='none'}>
-            <div style={{fontSize:24,flexShrink:0}}>{overdue?'⚠️':urgent?'⏰':'📝'}</div>
-            <div style={{flex:1}}>
-              <div style={{fontSize:14,fontWeight:800,color:'var(--c-t1)',fontFamily:tf}}>
-                {a.exerciseTitle}</div>
-              <div style={{fontSize:11,color:'var(--c-t3)',marginTop:2,fontFamily:tf}}>
-                {a.deadline
-                  ? overdue ? `เลยกำหนด ${Math.abs(dl)} วัน` : `เหลือ ${dl} วัน`
-                  : 'ไม่มีกำหนดส่ง'}
-              </div>
-            </div>
-            <div style={{background:overdue?'#FEE2E2':urgent?'#FEF3C7':'#EFF6FF',
-              color:overdue?'#DC2626':urgent?'#D97706':'#2563EB',
-              borderRadius:8,padding:'6px 12px',fontSize:12,fontWeight:800,
-              fontFamily:tf,flexShrink:0,whiteSpace:'nowrap'}}>
-              ทำเลย →
-            </div>
-          </div>
-        );
-      })}
-      {done.length > 0 && (
-        <div style={{fontSize:11,color:'var(--c-t3)',fontFamily:tf,
-          padding:'6px 0',borderTop:'1px solid var(--c-border)',marginTop:4}}>
-          ✅ ทำแล้ว: {done.map(a=>a.exerciseTitle).join(' · ')}
-        </div>
+      <div style={{fontSize:11,fontWeight:800,color:'var(--c-t3)',letterSpacing:1,marginBottom:10}}>
+        ยังไม่ได้ทำ ({pending.length})</div>
+      {pending.length ? pending.map(a=>row(a,false))
+        : <div style={{fontSize:13,color:'var(--c-t3)',marginBottom:12}}>ไม่มีงานค้าง 🎉</div>}
+      {done.length>0 && (
+        <>
+          <div style={{fontSize:11,fontWeight:800,color:'var(--c-t3)',letterSpacing:1,margin:'18px 0 10px'}}>
+            ทำแล้ว ({done.length})</div>
+          {done.map(a=>row(a,true))}
+        </>
       )}
+      <button onClick={onBack}
+        style={{marginTop:16,width:'100%',background:'#F1F5F9',color:'var(--c-t1)',border:'none',
+          borderRadius:10,padding:'12px',cursor:'pointer',fontSize:14,fontWeight:600,fontFamily:tf}}>
+        ← กลับหน้าบทเรียน
+      </button>
     </div>
   );
 }
@@ -2230,6 +2363,7 @@ function ThaiTypingApp() {
   // Google Sign-In
   const [googleUser, setGoogleUser]   = useState(null); // { name, email, picture, sub }
   const [assignments, setAssignments] = useState([]);  // student's pending assignments
+  const [assignVersion, setAssignVersion] = useState(0); // bump to re-fetch after saving
   // BR Zone & spectator
   const [zoneWpm,       setZoneWpm]       = useState(0);
   const [zoneTs,        setZoneTs]        = useState(0);   // timestamp of last zone update
@@ -2259,6 +2393,24 @@ function ThaiTypingApp() {
   const raceEndedRef   = useRef(false);    // guards against double race-end triggers
   const pressCountRef  = useRef(0);        // total keypresses for KPM calculation
   const comboRef       = useRef(0);
+  // Scoring (all solo modes); separate from the 1v1 boost combo above
+  const [score,       setScore]       = useState(0);
+  const [scoreStreak, setScoreStreak] = useState(0);
+  const [lastGain,    setLastGain]    = useState(null);   // {v,id} for the +points pop-up
+  const scoreRef      = useRef(0);
+  const streakRef     = useRef(0);
+  const scoredIdx     = useRef(new Set());  // positions already scored (no backspace farming)
+  const missedIdx     = useRef(new Set());  // positions typed wrong at least once → 0 points
+  const speedBuf      = useRef([]);         // last 5 correct-key intervals
+  const lastScoreTime = useRef(null);
+  const lessonIdRef   = useRef(1);
+  // Test mode
+  const [activeTest,  setActiveTest]  = useState(null); // assignment being taken as a test
+  const [maxScore,    setMaxScore]    = useState(0);
+  const [highScores,  setHighScores]  = useState({});   // practice best per exercise
+  const [prevBest,    setPrevBest]    = useState(0);    // high score before this run
+  const testRef       = useRef(null);
+  const hsDone        = useRef(false);
 
   // ── Derived values — declared early so all effects can reference them ──
   const targetChars = target ? [...target] : [];
@@ -2284,6 +2436,7 @@ function ThaiTypingApp() {
   const nextCode    = nextKey?.code ?? null;
   const needsShift  = nextKey?.needsShift ?? false;
   // Correct shift hand: left-hand target → Right Shift; right-hand target → Left Shift
+  const showHints   = !activeTest || activeTest.showHints !== false;
   const correctShiftCode = (needsShift && nextCode)
     ? (['LP','LR','LM','LI'].includes(KEY_META[nextCode]?.f) ? 'ShiftRight' : 'ShiftLeft')
     : null;
@@ -2500,6 +2653,7 @@ function ThaiTypingApp() {
   // Save ghost to localStorage when results screen appears
   useEffect(() => {
     if (screen !== 'results') return;
+    if (!ghostKey) return;                            // tests don't record ghosts
     if (currentTimings.current.length < 5) return;   // too short to be meaningful
     const elapsed = startTime && endTime ? (endTime - startTime) / 60000 : 0;
     const finalKpm = elapsed > 0 ? Math.round(pressCountRef.current / elapsed) : 0;
@@ -2522,6 +2676,18 @@ function ThaiTypingApp() {
   // Save session to Google Sheets when results screen appears (class mode only)
   useEffect(() => {
     if (screen !== 'results') return;
+    // Practice high score (solo practice only — not tests or multiplayer rooms)
+    if (!hsDone.current && !testRef.current && !rcRef.current && lesson && exercise) {
+      hsDone.current = true;
+      const k = hsKey(lesson.id, exercise.title);
+      const sc = scoreRef.current;
+      setPrevBest(highScores[k] || 0);
+      if (sc > (highScores[k] || 0)) {
+        const next = {...highScores, [k]: sc};
+        setHighScores(next);
+        if (!studentName || !SCRIPT_URL) writeGuestHighScores(next);
+      }
+    }
     if (!studentName || !SCRIPT_URL) return;
     if (hasSaved.current) return;         // guard — only save once per results view
     hasSaved.current = true;
@@ -2529,6 +2695,17 @@ function ThaiTypingApp() {
     const elapsed = startTime && endTime ? (endTime - startTime) / 60000 : 0;
     const finalKpm = elapsed > 0 ? Math.round(pressCountRef.current / elapsed) : 0;
     const finalAcc = (pos + errors) > 0 ? Math.round((pos / (pos + errors)) * 100) : 100;
+    const duration = endTime && startTime ? Math.round((endTime - startTime) / 1000) : 0;
+    if (testRef.current) {
+      apiSubmitTest({
+        classCode, studentName, assignId:testRef.current.assignId,
+        score:scoreRef.current, maxScore, cpm:finalKpm, accuracy:finalAcc,
+        errors, totalChars:pos, duration,
+      })
+        .then(d => { setSaveStatus(d.ok?'saved':'error'); if (d.ok) setAssignVersion(v=>v+1); })
+        .catch(() => setSaveStatus('error'));
+      return;
+    }
     saveSession({
       classCode, studentName,
       email: googleUser?.email || '',
@@ -2538,17 +2715,45 @@ function ThaiTypingApp() {
       accuracy: finalAcc, errors,
       totalChars: pos,
       duration: endTime && startTime ? Math.round((endTime - startTime) / 1000) : 0,
+      score: rcRef.current ? 0 : scoreRef.current,
     })
-      .then(d => setSaveStatus(d.ok ? 'saved' : 'error'))
+      .then(d => {
+        setSaveStatus(d.ok ? 'saved' : 'error');
+        if (d.ok) setAssignVersion(v => v + 1); // update ✅ on the assignment card
+      })
       .catch(()  => setSaveStatus('error'));
   }, [screen]);
+
+  useEffect(() => { setMaxScore(target ? maxScoreFor([...target]) : 0); }, [target]);
+  // Load practice high scores: from Sheets when signed in, else this device.
+  useEffect(() => {
+    if (studentName && SCRIPT_URL) {
+      apiGetStudentStats(classCode, studentName)
+        .then(d => setHighScores(d.highScores || {}))
+        .catch(() => {});
+    } else {
+      setHighScores(readGuestHighScores());
+    }
+  }, [classCode, studentName]);
+
+  // Find the lesson + exercise for an assignment and start it as a test.
+  const startTest = useCallback((a) => {
+    const les = LESSONS.find(l=>l.id===Number(a.lessonId));
+    const exs = les ? (les.exercises || les.exercisesA || les.exercisesGold || []) : [];
+    const num = t => (String(t||'').match(/^(\d+\.\d+)/)||[])[1];
+    const ex = exs.find(e=>e.title===a.exerciseTitle)
+      || exs.find(e=>num(e.title) && num(e.title)===num(a.exerciseTitle));
+    if (!les || !ex) { alert('ไม่พบแบบฝึก "'+a.exerciseTitle+'" ในแอป — แจ้งครูให้ assign ใหม่'); return; }
+    const text = generateText(ex.words, ex.minChars, seededRng(a.assignId));
+    startExercise(les, ex, {test:a, text});
+  },[startExercise]);
 
   const stateRef = useRef({});
   stateRef.current = { pos, target, targetChars, startTime };
   rcRef.current = roomCode; rtRef.current = roomType;
   plRef.current = playerLives; snRef.current = studentName;
 
-  const startExercise = useCallback((les,ex) => {
+  const startExercise = useCallback((les,ex,opts={}) => {
     if (les.story && les.id===14) {
       const nm=(()=>{try{return localStorage.getItem('adventureName')||'';}catch(e){return '';}})();
       if (!nm) { pendingStoryRef.current={les,ex}; setShowNameModal(true); return; }
@@ -2558,8 +2763,14 @@ function ThaiTypingApp() {
       const nm=(()=>{try{return localStorage.getItem('adventureName')||'นักผจญภัย';}catch(e){return 'นักผจญภัย';}})();
       setTarget(generateStoryText(ex.words, nm));
     } else {
-      setTarget(generateText(ex.words,ex.minChars));
+      setTarget(opts.text || generateText(ex.words,ex.minChars));
     }
+    const test = opts.test || null;
+    setActiveTest(test); testRef.current = test;
+    setScore(0); scoreRef.current=0; setScoreStreak(0); streakRef.current=0; setLastGain(null);
+    scoredIdx.current=new Set(); missedIdx.current=new Set();
+    speedBuf.current=[]; lastScoreTime.current=null; lessonIdRef.current=les.id;
+    hsDone.current=false; setPrevBest(0);
     setPos(0); setErrors(0); setStartTime(null); setEndTime(null);
     setHint(null); setFlashCode(null); setShiftHeld(false); setNow(Date.now());
     keystrokeTimes.current=[]; errorTimes.current=[];
@@ -2572,12 +2783,15 @@ function ThaiTypingApp() {
     setSaveStatus('idle');
     setNewRecord(false);
     setGhostPos(0);
-    const gk = (les.story?'story_':'ghostv2_') + les.id + '_' + encodeURIComponent(ex.title);
-    setGhostKey(gk);
-    try {
-      const saved = localStorage.getItem(gk);
-      setGhostData(saved ? JSON.parse(saved) : null);
-    } catch { setGhostData(null); }
+    if (test) { setGhostKey(''); setGhostData(null); }   // no ghost during tests
+    else {
+      const gk = (les.story?'story_':'ghostv2_') + les.id + '_' + encodeURIComponent(ex.title);
+      setGhostKey(gk);
+      try {
+        const saved = localStorage.getItem(gk);
+        setGhostData(saved ? JSON.parse(saved) : null);
+      } catch { setGhostData(null); }
+    }
     setScreen('practice');
   },[]);
 
@@ -2699,7 +2913,7 @@ function ThaiTypingApp() {
     } else {
       setAssignments([]);
     }
-  }, [classCode, studentName]);
+  }, [classCode, studentName, assignVersion]);
 
   const handleLogout = useCallback(() => {
     setClassCode(''); setStudentName(''); setDisplayName('');
@@ -2722,7 +2936,7 @@ function ThaiTypingApp() {
       if (e.ctrlKey||e.altKey||e.metaKey) return;
       e.preventDefault();
       if (frozenRef.current) return;   // spam penalty active — ignore typing
-      if (e.key==='Escape') { setScreen('lessons'); return; }
+      if (e.key==='Escape') { setScreen(testRef.current?'tests':'lessons'); return; }
       const { pos,target,targetChars,startTime } = stateRef.current;
       if (e.code==='Backspace') {
         if (pos>0) {
@@ -2758,6 +2972,25 @@ function ThaiTypingApp() {
 
       if (result.ok) {
         setHint(null); setFlashCode(null);
+        // ── Score this key (once per position) ──
+        if (!scoredIdx.current.has(pos)) {
+          scoredIdx.current.add(pos);
+          const t = Date.now();
+          if (lastScoreTime.current !== null) {
+            speedBuf.current.push(Math.min(5000, t - lastScoreTime.current));
+            if (speedBuf.current.length > 5) speedBuf.current.shift();
+          }
+          lastScoreTime.current = t;
+          const gain = missedIdx.current.has(pos) ? 0 : Math.round(
+            charBasePoints(targetChars[pos]) *
+            speedMultiplier(speedBuf.current, lessonIdRef.current) *
+            comboMultiplier(streakRef.current));
+          streakRef.current += 1; setScoreStreak(streakRef.current);
+          if (gain > 0) {
+            scoreRef.current += gain; setScore(scoreRef.current);
+            setLastGain({v:gain,id:t});
+          }
+        }
         if (rtRef.current==='1v1') {
           const nextCombo=comboRef.current+1;
           comboRef.current=nextCombo;
@@ -2799,6 +3032,9 @@ function ThaiTypingApp() {
         }
       } else {
         if (rtRef.current==='1v1') { comboRef.current=0; setCombo(0); }
+        // Any wrong key breaks the scoring streak; this position now earns 0
+        streakRef.current=0; setScoreStreak(0);
+        if (pos<targetChars.length) missedIdx.current.add(pos);
         if (result.costsLife) {
           setErrors(er=>er+1);
           setFlashCode(e.code);
@@ -2945,18 +3181,14 @@ function ThaiTypingApp() {
             onViewStats={()=>setScreen('my-stats')}
             onLogin={()=>setScreen('google-login')}
             assignments={assignments}
-            onAssignmentSelect={(a)=>{
-              // Find the matching lesson+exercise and start it
-              const LESSONS_FLAT = typeof LESSONS !== 'undefined' ? LESSONS : [];
-              const les = LESSONS_FLAT.find(l=>l.id===a.lessonId);
-              const getEx = (l) => {
-                if (!l) return null;
-                const exs = l.exercises || l.exercisesA || l.exercisesGold || [];
-                return exs.find(e=>e.title===a.exerciseTitle);
-              };
-              const ex = les ? getEx(les) : null;
-              if (les && ex) startExercise(les, ex);
-            }}/>
+            highScores={highScores}
+            onOpenTests={()=>setScreen('tests')}
+          />
+        )}
+
+        {screen==='tests'&&(
+          <TestListScreen assignments={assignments} onStart={startTest}
+            onBack={()=>setScreen('lessons')}/>
         )}
 
         {screen==='practice'&&lesson&&target&&(
@@ -2995,14 +3227,34 @@ function ThaiTypingApp() {
               />
             )}
 
+            {!roomCode&&(
+              <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:10,
+                fontFamily:"'Sarabun','Noto Sans Thai',sans-serif"}}>
+                {activeTest&&(
+                  <span style={{background:'#EDE9FE',color:'#6D28D9',borderRadius:8,padding:'4px 10px',
+                    fontSize:12,fontWeight:800}}>📝 แบบทดสอบ</span>
+                )}
+                <span style={{fontSize:22,fontWeight:800,color:'var(--c-t1)'}}>⭐ {fmtScore(score)}</span>
+                {lastGain&&(
+                  <span key={lastGain.id} className="score-pop"
+                    style={{fontSize:15,fontWeight:800,color:lastGain.v>=400?'#D97706':'#059669'}}>
+                    +{lastGain.v}</span>
+                )}
+                {comboMultiplier(scoreStreak)>1&&(
+                  <span style={{marginLeft:'auto',background:'#FFF7ED',color:'#EA580C',borderRadius:8,
+                    padding:'4px 10px',fontSize:13,fontWeight:800}}>
+                    🔥 x{comboMultiplier(scoreStreak).toFixed(1)}</span>
+                )}
+              </div>
+            )}
             <div style={{background:'var(--c-surf)',borderRadius:14,padding:'22px 18px',
               marginBottom:14,border:'1.5px solid var(--c-border)',minHeight:96,
               display:'flex',alignItems:'center',justifyContent:'center'}}>
               <TextDisplay displayChars={displayChars} displayPos={displayPos}/>
             </div>
             <div style={{marginTop:8}}>
-              <OnScreenKeyboard nextCode={nextCode} needsShift={needsShift} flashCode={flashCode}
-                shiftHeld={shiftHeld} correctShiftCode={correctShiftCode}/>
+              <OnScreenKeyboard nextCode={showHints?nextCode:null} needsShift={showHints&&needsShift}
+                flashCode={flashCode} shiftHeld={shiftHeld} correctShiftCode={showHints?correctShiftCode:null}/>
               {capsLockOn&&(
                 <div style={{marginTop:8,padding:'7px 14px',background:'#FEF9C3',
                   border:'1.5px solid #FDE047',borderRadius:8,
@@ -3031,7 +3283,7 @@ function ThaiTypingApp() {
                 <span style={{fontSize:10,color:'var(--c-t2)',
                   fontFamily:"'Sarabun','Noto Sans Thai',sans-serif"}}>
                   {CLASS_NAMES[CHAR_CLASS[nextChar]]??''}</span>
-                {nextKey&&(
+                {nextKey&&showHints&&(
                   <span style={{marginLeft:'auto',fontSize:10,color:'var(--c-t2)',fontWeight:700}}>
                     {needsShift?'⇧ + ':''}
                     {nextKey.code.replace('Key','').replace('Digit','')
@@ -3187,14 +3439,17 @@ function ThaiTypingApp() {
             roomCode={roomCode} roomType={roomType}
             roomPlayers={roomPlayers} myName={myRoomName.current||studentName||'ผู้เล่น1'}
             bestCombo={bestCombo}
+            score={score} maxScore={maxScore} isTest={!!activeTest}
+            prevBest={prevBest}
             onRestart={()=>{
               if(rcRef.current){handleLeaveRoom();}
+              else if(testRef.current) startTest(testRef.current);
               else if(lesson&&exercise) startExercise(lesson,exercise);
               else setScreen('lessons');
             }}
             onBack={()=>{
               if(rcRef.current){handleLeaveRoom();}
-              else setScreen('lessons');
+              else setScreen(testRef.current?'tests':'lessons');
             }}/>
         )}
       </div>

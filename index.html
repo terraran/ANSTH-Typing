@@ -95,9 +95,14 @@ async function ensureFirebaseUser() {
   return result.user;
 }
 
+// Room codes: 5 characters from 32 unambiguous symbols (no 0/O, 1/I) ≈ 33 million
+// combinations. Rooms cannot be listed, so a code must be known to join.
+const ROOM_CODE_CHARS='ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+const ROOM_CODE_LEN=5;
+const ROOM_CODE_RE=new RegExp('^['+ROOM_CODE_CHARS+']{'+ROOM_CODE_LEN+'}$');
 function makeCode() {
-  const c='ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-  const bytes=new Uint32Array(9);
+  const c=ROOM_CODE_CHARS;
+  const bytes=new Uint32Array(ROOM_CODE_LEN);
   crypto.getRandomValues(bytes);
   return Array.from(bytes,n=>c[n%c.length]).join('');
 }
@@ -163,6 +168,14 @@ function getZonePos(startTime, totalChars) {
   return Math.min(Math.floor(chars), totalChars);
 }
 
+// Shorter codes make collisions possible (though rare): retry until a free one.
+async function makeFreeCode() {
+  for (let i=0;i<5;i++) {
+    const code=makeCode();
+    if (!(await fbGet(code))) return code;
+  }
+  throw new Error('สุ่มรหัสห้องไม่สำเร็จ ลองอีกครั้ง');
+}
 async function fbCreate(code,info) {
   const db=getDB(); if(!db) throw new Error('Firebase is unavailable');
   const user=await ensureFirebaseUser();
@@ -228,24 +241,9 @@ function describeApiError(err) {
   return 'เกิดข้อผิดพลาด: '+m;
 }
 
-// Fetch student roster for a given class code
-async function fetchRoster(classCode) {
-  return apiRequest('roster',{code:classCode});
-}
-
 // Fetch student assignments
 async function apiGetAssignments(classCode, studentName) {
   return apiRequest('getAssignments',{classCode,student:studentName});
-}
-
-// Set student PIN (first time)
-async function apiSetPin(classCode, studentName, pin) {
-  return apiRequest('setPin',{code:classCode,student:studentName,pin});
-}
-
-// Verify student PIN at login
-async function apiVerifyPin(classCode, studentName, pin) {
-  return apiRequest('verifyPin',{code:classCode,student:studentName,pin});
 }
 
 // Fetch student's own session history
@@ -1005,138 +1003,6 @@ function CountdownScreen({ num, roomCode, roomType }) {
   );
 }
 
-// JOIN SCREEN  (Phase 2)
-
-function JoinScreen({ onJoin, onSolo }) {
-  const [code,   setCode]   = useState('');
-  const [status, setStatus] = useState('idle');
-  const [errMsg, setErrMsg] = useState('');
-  const tf = "'Sarabun','Noto Sans Thai',sans-serif";
-
-  const submit = async () => {
-    const c = code.trim().toUpperCase();
-    if (c.length < 4) return;
-    setStatus('loading'); setErrMsg('');
-    try {
-      const data = await fetchRoster(c);
-      if (!data.students?.length) {
-        setErrMsg('ไม่พบรหัสห้องนี้ — กรุณาตรวจสอบอีกครั้ง'); setStatus('error'); return;
-      }
-      onJoin(c, data.students);
-    } catch {
-      setErrMsg('เชื่อมต่อไม่ได้ — ตรวจสอบสัญญาณและลองใหม่'); setStatus('error');
-    }
-  };
-
-  return (
-    <div style={{fontFamily:tf}}>
-      <div style={{background:'linear-gradient(150deg,#1E3A8A 0%,#2563EB 55%,#3B82F6 100%)',
-        borderRadius:20,padding:'36px 24px 24px',position:'relative',overflow:'hidden'}}>
-        <div style={{position:'absolute',top:-40,right:-40,width:130,height:130,
-          borderRadius:'50%',background:'rgba(255,255,255,.07)'}}/>
-        <div style={{position:'absolute',bottom:-30,left:-30,width:100,height:100,
-          borderRadius:'50%',background:'rgba(255,255,255,.07)'}}/>
-        <div style={{textAlign:'center',marginBottom:28,position:'relative'}}>
-          <div style={{fontSize:56,marginBottom:8}}>⌨️</div>
-          <h1 style={{fontFamily:tf,fontSize:27,fontWeight:800,color:'#fff',margin:'0 0 4px'}}>
-            แบบฝึกพิมพ์ไทย</h1>
-          <p style={{fontSize:11,color:'#93C5FD',margin:0,fontWeight:700,letterSpacing:1}}>
-            KEDMANEE TYPING · TIS 820-2538</p>
-        </div>
-        <div style={{background:'rgba(255,255,255,.12)',borderRadius:14,padding:20,marginBottom:0}}>
-          <div style={{fontSize:10,color:'#93C5FD',fontWeight:700,letterSpacing:1.5,
-            marginBottom:14,textAlign:'center'}}>
-            รหัสห้องเรียน / CLASS CODE
-          </div>
-          <input value={code}
-            onChange={e=>setCode(e.target.value.toUpperCase())}
-            onKeyDown={e=>e.key==='Enter'&&submit()}
-            placeholder="_ _ _ _"
-            maxLength={4}
-            style={{width:'100%',fontSize:40,fontWeight:800,textAlign:'center',letterSpacing:20,
-              padding:'10px 0',background:'transparent',border:'none',
-              borderBottom:'3px solid rgba(255,255,255,.5)',color:'#fff',
-              outline:'none',fontFamily:'system-ui,monospace',
-              boxSizing:'border-box',caretColor:'#fff',marginBottom:14}}/>
-          {errMsg&&<div style={{color:'#FCA5A5',fontSize:12,marginBottom:10,
-            fontFamily:tf,textAlign:'center'}}>{errMsg}</div>}
-          <button onClick={submit}
-            disabled={code.trim().length<4||status==='loading'}
-            style={{width:'100%',background:'#22C55E',color:'#fff',border:'none',
-              borderRadius:10,padding:'14px',fontSize:15,fontWeight:800,fontFamily:tf,
-              cursor:code.trim().length<4?'not-allowed':'pointer',
-              opacity:code.trim().length<4?0.5:1,transition:'opacity .15s',letterSpacing:.5}}>
-            {status==='loading'?'กำลังโหลด...' :'เข้าร่วม → JOIN'}
-          </button>
-        </div>
-      </div>
-      <div style={{textAlign:'center',marginTop:14}}>
-        <button onClick={onSolo}
-          style={{background:'transparent',border:'none',color:'var(--c-t3)',
-            cursor:'pointer',fontSize:12,fontFamily:tf,textDecoration:'underline'}}>
-          Anonymous mode — ฝึกคนเดียว (ไม่บันทึกผล)
-        </button>
-      </div>
-    </div>
-  );
-}
-
-// ROSTER SCREEN  (Phase 2)
-
-function RosterScreen({ classCode, students, onSelect, onBack }) {
-  const [filter, setFilter] = useState('');
-  const thaiFont = "'Sarabun','Noto Sans Thai',sans-serif";
-  const filtered = students.filter(s =>
-    s.name.includes(filter) || (s.displayName||'').includes(filter)
-  );
-  return (
-    <div>
-      <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:22}}>
-        <button onClick={onBack}
-          style={{background:'transparent',border:'1.5px solid #CBD5E1',borderRadius:7,
-            padding:'5px 11px',cursor:'pointer',fontSize:12,color:'var(--c-t2)'}}>←</button>
-        <div>
-          <div style={{fontSize:10,color:'var(--c-t3)',fontWeight:600,letterSpacing:1}}>รหัสห้อง</div>
-          <div style={{fontSize:22,fontWeight:800,color:'var(--c-t1)',
-            letterSpacing:3,fontFamily:'system-ui,monospace'}}>{classCode}</div>
-        </div>
-      </div>
-      <h2 style={{fontFamily:thaiFont,fontSize:22,fontWeight:800,
-        color:'var(--c-t1)',marginBottom:4}}>คุณคือใคร?</h2>
-      <p style={{color:'var(--c-t2)',fontSize:12,marginBottom:16,fontFamily:thaiFont}}>
-        Select your name from the list</p>
-      {students.length > 8 && (
-        <input value={filter} onChange={e => setFilter(e.target.value)}
-          placeholder="ค้นหาชื่อ / Search..."
-          style={{width:'100%',padding:'8px 12px',border:'1.5px solid var(--c-border)',
-            borderRadius:8,fontSize:14,marginBottom:14,outline:'none',
-            fontFamily:thaiFont,boxSizing:'border-box'}}/>
-      )}
-      <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:8}}>
-        {filtered.map(s => (
-          <button key={s.name} onClick={() => onSelect(s)}
-            style={{background:'var(--c-surf)',border:'1.5px solid var(--c-border)',
-              borderRadius:10,padding:'12px 8px',cursor:'pointer',textAlign:'center',
-              transition:'all .15s'}}
-            onMouseEnter={e=>{e.currentTarget.style.background='#EFF6FF';e.currentTarget.style.borderColor='#BFDBFE'}}
-            onMouseLeave={e=>{e.currentTarget.style.background='#F8FAFC';e.currentTarget.style.borderColor='#E2E8F0'}}>
-            <div style={{fontFamily:thaiFont,fontSize:16,fontWeight:700,
-              color:'var(--c-t1)'}}>{s.name}</div>
-            {s.displayName && s.displayName !== s.name && (
-              <div style={{fontSize:10,color:'var(--c-t3)',marginTop:2,
-                fontFamily:thaiFont}}>{s.displayName}</div>
-            )}
-          </button>
-        ))}
-      </div>
-      {filtered.length === 0 && (
-        <div style={{textAlign:'center',color:'var(--c-t3)',padding:24,
-          fontFamily:thaiFont}}>ไม่พบชื่อที่ค้นหา</div>
-      )}
-    </div>
-  );
-}
-
 
 // Chapter groupings for lesson selector
 const CHAPTERS = [
@@ -1408,14 +1274,14 @@ function LessonScreen({ studentName, classCode, onSelect, onOpenSetup, onJoin, j
         <div style={{display:'flex',gap:8}}>
           <input value={joinCode||''} onChange={e=>setJoinCode&&setJoinCode(e.target.value.toUpperCase())}
             onKeyDown={e=>e.key==='Enter'&&onJoin&&onJoin(joinCode)}
-            placeholder="มีรหัสห้องอยู่แล้ว? — A7K2M9Q3X" maxLength={9}
+            placeholder="มีรหัสห้องอยู่แล้ว? — A7K2M" maxLength={ROOM_CODE_LEN}
             style={{flex:1,padding:'10px 14px',border:'1.5px solid var(--c-border)',borderRadius:10,
               fontSize:13,fontFamily:tf,outline:'none',boxSizing:'border-box'}}/>
           <button onClick={()=>onJoin&&onJoin(joinCode)}
-            disabled={!joinCode||joinCode.length<9||mpBusy}
+            disabled={!joinCode||joinCode.length<ROOM_CODE_LEN||mpBusy}
             style={{background:'#0F172A',color:'#fff',border:'none',borderRadius:10,
               padding:'10px 16px',cursor:'pointer',fontSize:13,fontWeight:700,
-              opacity:(!joinCode||joinCode.length<9||mpBusy)?0.4:1,whiteSpace:'nowrap'}}>
+              opacity:(!joinCode||joinCode.length<ROOM_CODE_LEN||mpBusy)?0.4:1,whiteSpace:'nowrap'}}>
             {mpBusy?'...':'เข้าร่วม →'}
           </button>
         </div>
@@ -1567,116 +1433,6 @@ function StoryChoiceScreen({ exercise, adventureName, onChoose }) {
 
 function NameModal({ onConfirm }) {
   return <div><button onClick={()=>onConfirm('test')}>OK</button></div>;
-}
-
-// SET PIN SCREEN
-
-const pinInputStyle = {
-  width:'100%',fontSize:32,fontWeight:800,textAlign:'center',letterSpacing:16,
-  padding:'12px 0',background:'transparent',border:'none',
-  borderBottom:'3px solid var(--c-border)',outline:'none',
-  fontFamily:'system-ui,monospace',boxSizing:'border-box',caretColor:'#2563EB'
-};
-
-function SetPinScreen({ studentName, classCode, onSuccess }) {
-  const [pin,     setPin]     = useState('');
-  const [confirm, setConfirm] = useState('');
-  const [status,  setStatus]  = useState('idle');
-  const [errMsg,  setErrMsg]  = useState('');
-  const tf = "'Sarabun','Noto Sans Thai',sans-serif";
-
-  const submit = async () => {
-    if (pin.length !== 4 || !/^\d{4}$/.test(pin)) { setErrMsg('PIN ต้องเป็นตัวเลข 4 หลัก'); return; }
-    if (pin !== confirm) { setErrMsg('PIN ไม่ตรงกัน — ลองอีกครั้ง'); return; }
-    setStatus('saving'); setErrMsg('');
-    try {
-      const res = await apiSetPin(classCode, studentName, pin);
-      if (res.ok) onSuccess();
-      else { setErrMsg(res.error || 'เกิดข้อผิดพลาด'); setStatus('idle'); }
-    } catch { setErrMsg('เชื่อมต่อไม่ได้'); setStatus('idle'); }
-  };
-
-  return (
-    <div style={{maxWidth:360,margin:'0 auto',fontFamily:tf}}>
-      <div style={{textAlign:'center',marginBottom:28}}>
-        <div style={{fontSize:44,marginBottom:8}}>🔐</div>
-        <div style={{fontSize:22,fontWeight:800,color:'var(--c-t1)'}}>ตั้ง PIN ของคุณ</div>
-        <div style={{fontSize:13,color:'var(--c-t2)',marginTop:4}}>สวัสดี <strong>{studentName}</strong> — ตั้ง PIN 4 หลักครั้งแรก</div>
-      </div>
-      <div style={{marginBottom:16}}>
-        <div style={{fontSize:12,fontWeight:700,color:'var(--c-t4)',fontFamily:tf,marginBottom:8}}>PIN ของคุณ</div>
-        <input value={pin} onChange={e=>setPin(e.target.value.replace(/\D/g,'').slice(0,4))}
-          onKeyDown={e=>e.key==='Enter'&&submit()}
-          type="password" inputMode="numeric" maxLength={4} placeholder="• • • •"
-          style={pinInputStyle}/>
-      </div>
-      <div style={{marginBottom:16}}>
-        <div style={{fontSize:12,fontWeight:700,color:'var(--c-t4)',fontFamily:tf,marginBottom:8}}>ยืนยัน PIN อีกครั้ง</div>
-        <input value={confirm} onChange={e=>setConfirm(e.target.value.replace(/\D/g,'').slice(0,4))}
-          onKeyDown={e=>e.key==='Enter'&&submit()}
-          type="password" inputMode="numeric" maxLength={4} placeholder="• • • •"
-          style={pinInputStyle}/>
-      </div>
-      {errMsg&&<div style={{color:'#DC2626',fontSize:12,marginBottom:10,fontFamily:tf}}>{errMsg}</div>}
-      <button onClick={submit} disabled={status==='saving'||pin.length<4||confirm.length<4}
-        style={{width:'100%',background:'#0F172A',color:'#fff',border:'none',borderRadius:10,
-          padding:'14px',fontSize:15,fontWeight:800,cursor:'pointer',fontFamily:tf,
-          opacity:(status==='saving'||pin.length<4||confirm.length<4)?0.5:1,transition:'opacity .15s'}}>
-        {status==='saving'?'กำลังบันทึก...' :'บันทึก PIN →'}
-      </button>
-    </div>
-  );
-}
-
-// ENTER PIN SCREEN
-
-function EnterPinScreen({ studentName, classCode, onSuccess, onBack }) {
-  const [pin, setPin]   = useState('');
-  const [status, setStatus] = useState('idle');
-  const [errMsg, setErrMsg] = useState('');
-  const tf = "'Sarabun','Noto Sans Thai',sans-serif";
-
-  const submit = async () => {
-    if (pin.length !== 4) return;
-    setStatus('checking'); setErrMsg('');
-    try {
-      const res = await apiVerifyPin(classCode, studentName, pin);
-      if (res.ok) { onSuccess(); }
-      else {
-        setErrMsg(res.reason==='wrong' ? 'PIN ไม่ถูกต้อง — ลองอีกครั้ง' : 'เกิดข้อผิดพลาด');
-        setPin(''); setStatus('idle');
-      }
-    } catch { setErrMsg('เชื่อมต่อไม่ได้'); setStatus('idle'); }
-  };
-
-  return (
-    <div style={{maxWidth:360,margin:'0 auto',fontFamily:tf}}>
-      <div style={{textAlign:'center',marginBottom:28}}>
-        <div style={{fontSize:44,marginBottom:8}}>🔑</div>
-        <div style={{fontSize:22,fontWeight:800,color:'var(--c-t1)'}}>ใส่ PIN ของคุณ</div>
-        <div style={{fontSize:13,color:'var(--c-t2)',marginTop:4}}>ยินดีต้อนรับ <strong>{studentName}</strong></div>
-      </div>
-      <input value={pin} onChange={e=>setPin(e.target.value.replace(/\D/g,'').slice(0,4))}
-        onKeyDown={e=>e.key==='Enter'&&submit()}
-        type="password" inputMode="numeric" maxLength={4} placeholder="• • • •"
-        style={{width:'100%',fontSize:40,fontWeight:800,textAlign:'center',letterSpacing:20,
-          padding:'12px 0',background:'transparent',border:'none',
-          borderBottom:'3px solid var(--c-border)',outline:'none',marginBottom:16,
-          fontFamily:'system-ui,monospace',boxSizing:'border-box',caretColor:'#2563EB'}}/>
-      {errMsg&&<div style={{color:'#DC2626',fontSize:12,marginBottom:10,fontFamily:tf}}>{errMsg}</div>}
-      <button onClick={submit} disabled={pin.length<4||status==='checking'}
-        style={{width:'100%',background:'#0F172A',color:'#fff',border:'none',borderRadius:10,
-          padding:'14px',fontSize:15,fontWeight:800,cursor:'pointer',fontFamily:tf,
-          opacity:(pin.length<4||status==='checking')?0.5:1,transition:'opacity .15s'}}>
-        {status==='checking'?'กำลังตรวจสอบ...' :'เข้าเกม →'}
-      </button>
-      <button onClick={onBack}
-        style={{width:'100%',background:'transparent',border:'none',color:'var(--c-t3)',
-          cursor:'pointer',fontSize:12,fontFamily:tf,marginTop:12,textDecoration:'underline'}}>
-        ← เลือกชื่ออื่น
-      </button>
-    </div>
-  );
 }
 
 // PROGRESS CHART
@@ -1912,47 +1668,33 @@ function MyStatsScreen({ studentName, classCode, onBack }) {
 function ClassPickerScreen({ googleUser, onSelect, onBack }) {
   const [status, setStatus] = useState('looking'); // looking|found|notfound|error
   const [result, setResult] = useState(null); // {classCode, studentName}
-  const [code,   setCode]   = useState('');
   const [errMsg, setErrMsg] = useState('');
+  const [attempt, setAttempt] = useState(0);
   const tf = "'Sarabun','Noto Sans Thai',sans-serif";
 
-  // Auto-lookup on mount
+  // Look up the signed-in Google account in Roster (re-runs on "ลองอีกครั้ง").
   useEffect(() => {
+    let cancelled=false;
+    setStatus('looking'); setErrMsg('');
     (async () => {
       try {
-        const data = await apiRequest('lookupByEmail',{email:googleUser.email});
-        if (data.classCode) {
-          setResult(data);
-          setStatus('found');
-          // The signed-in Google email already identifies this roster record;
-          // continue immediately instead of adding an artificial login delay.
-          onSelect(data.classCode, data.students, data.studentName);
-        } else {
-          setStatus('notfound');
-        }
+        const data = await apiRequest('lookupByEmail');
+        if (cancelled) return;
+        setResult(data);
+        setStatus('found');
+        onSelect(data.classCode, data.studentName);
       } catch (err) {
-        // The backend uses this response when Google auth succeeded but the
-        // account email is not present in Roster; distinguish it from network
-        // or deployment failures so the student gets the right next step.
+        if (cancelled) return;
         console.warn('lookupByEmail failed:',err?.message);
         setErrMsg(describeApiError(err));
         setStatus(err?.message==='Email not found in roster'?'notfound':'error');
       }
     })();
-  }, []);
+    return () => { cancelled=true; };
+  }, [attempt]);
 
-  const submitManual = async () => {
-    const c = code.trim().toUpperCase();
-    if (!c) return;
-    setStatus('looking'); setErrMsg('');
-    try {
-      const data = await fetchRoster(c);
-      if (!data.students?.length) { setErrMsg('ไม่พบรหัสห้องนี้'); setStatus('notfound'); return; }
-      onSelect(c, data.students, data.studentName||null);
-    } catch (err) { setErrMsg(describeApiError(err)); setStatus('notfound'); }
-  };
-
-  const tf2 = {fontFamily:tf};
+  const btn = {width:'100%',border:'none',borderRadius:10,padding:'13px',cursor:'pointer',
+    fontSize:15,fontWeight:700,fontFamily:tf};
 
   return (
     <div style={{fontFamily:tf}}>
@@ -1967,9 +1709,8 @@ function ClassPickerScreen({ googleUser, onSelect, onBack }) {
         </div>
       </div>
 
-      {/* Auto-lookup result */}
       {status==='looking' && (
-        <div style={{textAlign:'center',padding:'32px 0',color:'var(--c-t2)',...tf2}}>
+        <div style={{textAlign:'center',padding:'32px 0',color:'var(--c-t2)'}}>
           🔍 กำลังค้นหาห้องเรียน...
         </div>
       )}
@@ -1978,45 +1719,35 @@ function ClassPickerScreen({ googleUser, onSelect, onBack }) {
         <div style={{background:'#D1FAE5',border:'2px solid #059669',borderRadius:14,
           padding:'20px',textAlign:'center'}}>
           <div style={{fontSize:32,marginBottom:8}}>✅</div>
-          <div style={{fontSize:18,fontWeight:800,color:'#065F46',...tf2}}>
-            พบห้องเรียนแล้ว!</div>
-          <div style={{fontSize:14,color:'#047857',marginTop:6,...tf2}}>
+          <div style={{fontSize:18,fontWeight:800,color:'#065F46'}}>พบห้องเรียนแล้ว!</div>
+          <div style={{fontSize:14,color:'#047857',marginTop:6}}>
             ห้อง <strong>{result.classCode}</strong> · {result.studentName}
           </div>
-          <div style={{fontSize:12,color:'#6EE7B7',marginTop:8,...tf2}}>
-            กำลังเข้าเรียน...</div>
+          <div style={{fontSize:12,color:'#6EE7B7',marginTop:8}}>กำลังเข้าเรียน...</div>
         </div>
       )}
 
       {(status==='notfound'||status==='error') && (
         <div>
           <div style={{background:'#FEF3C7',border:'1.5px solid #FCD34D',borderRadius:12,
-            padding:'14px 16px',marginBottom:16,fontSize:13,color:'#92400E',...tf2}}>
-            {'⚠️ '+(errMsg||(status==='notfound'?'ไม่พบ email นี้ในระบบ':'เชื่อมต่อไม่ได้'))+' — ใส่รหัสห้องด้วยตนเอง'}
+            padding:'14px 16px',marginBottom:16,fontSize:13,color:'#92400E',lineHeight:1.6}}>
+            ⚠️ {errMsg}
+            {status==='notfound' && (
+              <div style={{marginTop:6,fontSize:12}}>
+                ตรวจว่าเข้าสู่ระบบด้วยบัญชีโรงเรียน หรือแจ้งครูให้เพิ่ม email นี้ใน Roster
+              </div>
+            )}
           </div>
-          <input value={code}
-            onChange={e=>setCode(e.target.value.toUpperCase())}
-            onKeyDown={e=>e.key==='Enter'&&submitManual()}
-            placeholder="รหัสห้อง เช่น P52A" maxLength={10}
-            style={{width:'100%',fontSize:26,fontWeight:800,textAlign:'center',
-              padding:'12px',border:'2px solid var(--c-border)',borderRadius:10,
-              letterSpacing:5,color:'var(--c-t1)',outline:'none',marginBottom:10,
-              fontFamily:'system-ui,monospace',boxSizing:'border-box',
-              background:'var(--c-input-bg)'}}/>
-          {errMsg&&status!=='notfound'&&status!=='error'&&<div style={{color:'#DC2626',fontSize:12,marginBottom:8,...tf2}}>{errMsg}</div>}
-          <button onClick={submitManual}
-            disabled={!code.trim()}
-            style={{width:'100%',background:'#0F172A',color:'#fff',border:'none',
-              borderRadius:10,padding:'13px',cursor:'pointer',fontSize:15,fontWeight:700,
-              ...tf2,opacity:!code.trim()?0.5:1,transition:'opacity .15s'}}>
-            เข้าห้องเรียน →
+          <button onClick={()=>setAttempt(n=>n+1)}
+            style={{...btn,background:'#0F172A',color:'#fff'}}>
+            ↻ ลองอีกครั้ง
           </button>
         </div>
       )}
 
       <button onClick={onBack}
         style={{background:'transparent',border:'none',color:'var(--c-t3)',
-          cursor:'pointer',fontSize:12,...tf2,textDecoration:'underline',marginTop:14,
+          cursor:'pointer',fontSize:12,fontFamily:tf,textDecoration:'underline',marginTop:14,
           display:'block'}}>
         ← เปลี่ยน account
       </button>
@@ -2452,7 +2183,6 @@ function ThaiTypingApp() {
   const [classCode,     setClassCode]     = useState('');
   const [studentName,   setStudentName]   = useState('');
   const [displayName,   setDisplayName]   = useState('');
-  const [students,      setStudents]      = useState([]);
   const [saveStatus,    setSaveStatus]    = useState('idle'); // idle|saving|saved|error
   const [lesson,        setLesson]        = useState(null);
   const [exercise,      setExercise]      = useState(null);
@@ -2497,7 +2227,6 @@ function ThaiTypingApp() {
   const [storyPower,    setStoryPower]    = useState(()=>{ try{return localStorage.getItem('storyPower')||'';}catch(e){return '';} });
   const [showNameModal, setShowNameModal] = useState(false);
   const pendingStoryRef = useRef(null);
-  const [pendingStudent, setPendingStudent] = useState(null); // student awaiting PIN
   // Google Sign-In
   const [googleUser, setGoogleUser]   = useState(null); // { name, email, picture, sub }
   const [assignments, setAssignments] = useState([]);  // student's pending assignments
@@ -2855,11 +2584,12 @@ function ThaiTypingApp() {
   // Create a 1v1 room for a specific exercise
   const handleCreate1v1 = useCallback(async (les) => {
     setMpBusy(true); setJoinError('');
-    const code = makeCode();
     // Combine all words from the lesson's word bank for the race
     const allWords = [...new Set(les.exercises.flatMap(ex=>ex.words))];
     const text = generateText(allWords, 200);
     try {
+      await ensureFirebaseUser();
+      const code = await makeFreeCode();
       await fbCreate(code,{type:'1v1',lessonId:les.id,
         exerciseTitle:les.thaiName,targetText:text,
         hostName:snRef.current||'ผู้เล่น1'});
@@ -2878,10 +2608,11 @@ function ThaiTypingApp() {
   // Create a Battle Royale room (called from teacher panel link)
   const handleCreateBR = useCallback(async (les, lives=3) => {
     setMpBusy(true); setJoinError('');
-    const code = makeCode();
     // Progressive BR text — combines multiple chapters for increasing difficulty
     const text = generateBRText(les, les.exercises?.[0]||{words:[]}, 600);
     try {
+      await ensureFirebaseUser();
+      const code = await makeFreeCode();
       await fbCreate(code,{type:'royale',lessonId:les.id,
         exerciseTitle:les.thaiName,targetText:text,maxLives:lives,
         hostName:snRef.current||'ครู'});
@@ -2901,7 +2632,7 @@ function ThaiTypingApp() {
   // Join an existing room by code
   const handleJoin = useCallback(async (code) => {
     const roomId=String(code||'').trim().toUpperCase();
-    if (!/^[ABCDEFGHJKLMNPQRSTUVWXYZ23456789]{9}$/.test(roomId)) { setJoinError('รหัสห้องต้องมี 9 ตัวอักษร'); return; }
+    if (!ROOM_CODE_RE.test(roomId)) { setJoinError('รหัสห้องต้องมี '+ROOM_CODE_LEN+' ตัวอักษร'); return; }
     setMpBusy(true); setJoinError('');
     try {
       await ensureFirebaseUser();
@@ -2971,10 +2702,9 @@ function ThaiTypingApp() {
   }, [classCode, studentName]);
 
   const handleLogout = useCallback(() => {
-    setClassCode(''); setStudentName(''); setDisplayName(''); setStudents([]);
+    setClassCode(''); setStudentName(''); setDisplayName('');
     setLesson(null); setExercise(null); setTarget(''); setPos(0);
     setErrors(0); setStartTime(null); setEndTime(null); setSaveStatus('idle');
-    setPendingStudent(null);
     setGoogleUser(null);
     _googleIdToken=''; _googleSubject=''; _firebaseAuthSubject='';
     if (typeof firebase!=='undefined'&&firebase.apps.length) firebase.auth().signOut().catch(()=>{});
@@ -3141,7 +2871,7 @@ function ThaiTypingApp() {
             </div>
           )}
           {/* Back to lessons */}
-          {screen!=='lessons'&&screen!=='join'&&screen!=='roster'&&screen!=='spam'&&(
+          {screen!=='lessons'&&screen!=='spam'&&(
             <button onClick={()=>setScreen('lessons')} style={{background:'transparent',
               border:'1.5px solid #CBD5E1',borderRadius:8,padding:'6px 12px',cursor:'pointer',
               fontSize:11,color:'var(--c-t2)',fontWeight:600,
@@ -3186,9 +2916,8 @@ function ThaiTypingApp() {
         {screen==='class-picker' && googleUser && (
           <ClassPickerScreen
             googleUser={googleUser}
-            onSelect={(code, sts, foundName) => {
+            onSelect={(code, foundName) => {
               setClassCode(code);
-              setStudents(sts);
               const name = foundName || (googleUser ? googleUser.name : '');
               setStudentName(name);
               setDisplayName(name);
@@ -3198,39 +2927,6 @@ function ThaiTypingApp() {
           />
         )}
 
-        {screen==='roster' && (
-          <RosterScreen
-            classCode={classCode}
-            students={students}
-            onSelect={s => {
-              setDisplayName(s.displayName||s.name);
-              setPendingStudent(s);
-              setScreen(s.hasPin ? 'enter-pin' : 'set-pin');
-            }}
-            onBack={() => setScreen('join')}
-          />
-        )}
-        {screen==='set-pin' && pendingStudent && (
-          <SetPinScreen
-            studentName={pendingStudent.name}
-            classCode={classCode}
-            onSuccess={() => {
-              setStudentName(pendingStudent.name);
-              setScreen('lessons');
-            }}
-          />
-        )}
-        {screen==='enter-pin' && pendingStudent && (
-          <EnterPinScreen
-            studentName={pendingStudent.name}
-            classCode={classCode}
-            onSuccess={() => {
-              setStudentName(pendingStudent.name);
-              setScreen('lessons');
-            }}
-            onBack={() => setScreen('roster')}
-          />
-        )}
         {screen==='my-stats' && studentName && (
           <MyStatsScreen
             studentName={studentName}

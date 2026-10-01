@@ -2495,14 +2495,15 @@ function ThaiTypingApp() {
             .filter(w => w > 0)
             .sort((a,b) => a-b);
           if (wpms.length > 1) {
-          const mid = Math.floor(wpms.length/2);
-          const median = wpms.length%2===0
-            ? Math.round((wpms[mid-1]+wpms[mid])/2)
-            : wpms[mid];
-          const zone = Math.max(5, median);
-          getDB()?.ref('rooms/'+rcRef.current+'/zone').set({wpm:zone,ts:now});
-          setZoneWpm(zone);
-        }
+            const mid = Math.floor(wpms.length/2);
+            const median = wpms.length%2===0
+              ? Math.round((wpms[mid-1]+wpms[mid])/2)
+              : wpms[mid];
+            const zone = Math.max(5, median);
+            getDB()?.ref('rooms/'+rcRef.current+'/zone').set({wpm:zone,ts:now});
+            setZoneWpm(zone);
+          }
+        });
       }
 
       // All players: compare own WPM to zone

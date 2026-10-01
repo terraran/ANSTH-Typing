@@ -3469,4 +3469,18 @@ function ThaiTypingApp() {
             bestCombo={bestCombo}
             onRestart={()=>{
               if(rcRef.current){handleLeaveRoom();}
-              else if(lesson&&exercise) startE
+              else if(lesson&&exercise) startExercise(lesson,exercise);
+              else setScreen('lessons');
+            }}
+            onBack={()=>{
+              if(rcRef.current){handleLeaveRoom();}
+              else setScreen('lessons');
+            }}/>
+        )}
+      </div>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<ThaiTypingApp/>);
+</script></body></html>

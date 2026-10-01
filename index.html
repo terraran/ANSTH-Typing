@@ -357,7 +357,7 @@ function difficultyOf(lives){ return BR_DIFFICULTIES.find(d=>d.lives===lives) ||
 
 const LESSONS = [
   {
-    id:1, thaiName:'แถวกลาง 1', engName:'Home Row — กดสหว',
+    id:1, thaiName:'แถวกลาง', engName:'Home Row — กดสหว',
     desc:'ฝึกนิ้วบน Home Row ไม่ใช้แถวอื่นเลย', accent:'#059669', al:'#D1FAE5',
     exercises:[
       { title:'1.1 ตัวอักษรเดี่ยว', minChars:80,
@@ -365,11 +365,11 @@ const LESSONS = [
       { title:'1.2 คำสั้น', minChars:100,
         words:['กาง','หาง','สาง','กวาง','เกา','เดา','เหา','เสา','เก่า','กว่า','กว้าง','กวาด','สวาง','เด่า','หวาง'] },
       { title:'1.3 เก้า & วรรณยุกต์', minChars:100,
-        words:['เก้า','ก่า','ด่า','ห่า','ส่า','ก้า','ด้า','ห้า','ส้า','กว้าง','เก่า','เด้า','กว่า','กาด','สวาก'] },
+        words:['เก้า','ก่า','ส่า','ก้า','ด้า','ห้า','ส้า','กว้าง','เก่า','กว่า','กาด','สวาก'] },
       { title:'1.4 ผสม', minChars:160,
         words:['กา','ดา','หา','สา','วา','งา','กาว','ดาว','หาว','สาว','กาง','หาง','สาง','เกา','เดา','เหา','เสา','เก้า','เก่า','กว่า','กว้าง','กวาด','กวาง','ก่า','ห้า'] },
       { title:'1.5 ความเร็ว', minChars:260,
-        words:['กา','ดา','หา','สา','วา','งา','กาว','ดาว','หาว','สาว','กาง','หาง','สาง','เกา','เดา','เหา','เสา','เก้า','เก่า','กว่า','กว้าง','กวาด','กวาง','ก่า','ด่า','ห่า','ก้า','ห้า','ส้า','กาด','หาด','ดาด','สวาง','เด้า'] },
+        words:['กา','ดา','หา','สา','วา','งา','กาว','ดาว','หาว','สาว','กาง','หาง','สาง','เกา','เดา','เหา','เสา','เก้า','เก่า','กว่า','กว้าง','กวาด','กวาง','ก่า','ก้า','ห้า','ส้า','กาด','หาด','ดาด','สวาง'] },
     ],
   },
   {
@@ -505,7 +505,7 @@ const LESSONS = [
       { title:'10.2 ฉ ฮ',           minChars:80,
         words:['ฉัน','ฉาก','ฉาบ','เฉย','ฉลาด','ฉลอง','ฉบับ','ฮา','ฮิ','เฮ','เฮ้','ฮึด','ฮวง'] },
       { title:'10.3 ฆ ฌ',           minChars:60,
-        words:['ฆ่า','ฆาตกรรม','ระฆัง','ฆ้อง','เฆี่ยน','เฌอ','ฌาน'] },
+        words:['ระฆัง','ฆ้อง','เฌอ','ฌาน'] },
       { title:'10.4 ผสม',            minChars:150,
         words:['กาญจนบุรี','อาจารย์','ญาติ','ฉัน','ฉลาด','ฮา','เฮ','ฆ่า','ระฆัง','เฌอ','สถานี','ฉบับ','ฉลอง','ฮึด','ฉาก','พยาบาล','บัญชี','ฆ้อง'] },
       { title:'10.5 ความเร็ว',       minChars:220,
@@ -1501,28 +1501,22 @@ function ResultsScreen({ cpm, accuracy, errors, totalChars, lesson, saveStatus, 
 }
 
 // ── STORY UTILITIES ──────────────────────────────────────
-// Generate progressive BR text from multiple exercises
+// Keep a clean, deduplicated wordbank for each lesson. Battle Royale uses only
+// the selected lesson's bank, so later keyboard rows cannot leak into its text.
+const UNSUITABLE_WORDS = ['เด้า','ฆ่า','ฆาตกรรม','เฆี่ยน','ห่า','ด่า'];
+function cleanTypingWords(words) {
+  return [...new Set((words||[]).filter(word=>word && !UNSUITABLE_WORDS.includes(word)))];
+}
+function buildLessonWordList(lesson) {
+  const exercises=lesson?.exercises||lesson?.exercisesA||lesson?.exercisesGold||[];
+  return cleanTypingWords(exercises.flatMap(ex=>ex.words||[]));
+}
+const LESSON_WORDLISTS=Object.fromEntries(LESSONS.map(lesson=>[lesson.id,buildLessonWordList(lesson)]));
+
 function generateBRText(startLesson, startExercise, minLength) {
-  const allLessons = LESSONS;
-  let text = '';
-  let lessonIdx = allLessons.findIndex(l => l.id === startLesson.id);
-  let exIdx = startLesson.exercises ? startLesson.exercises.indexOf(startExercise) : 0;
-  if (exIdx < 0) exIdx = 0;
-
-  // Collect words from current + subsequent exercises
-  const wordPool = [];
-  for (let li = lessonIdx; li < allLessons.length && wordPool.length < 200; li++) {
-    const les = allLessons[li];
-    const exs = les.exercises || les.exercisesA || les.exercisesGold || [];
-    const startEx = li === lessonIdx ? exIdx : 0;
-    for (let ei = startEx; ei < exs.length && wordPool.length < 200; ei++) {
-      wordPool.push(...(exs[ei].words || []));
-    }
-  }
-
-  // Generate shuffled text of sufficient length
-  if (!wordPool.length) return generateText(startExercise.words, minLength);
-  return generateText(wordPool, Math.max(minLength, 500));
+  const wordPool=LESSON_WORDLISTS[startLesson.id]||buildLessonWordList(startLesson);
+  if (!wordPool.length) return generateText(cleanTypingWords(startExercise?.words),minLength);
+  return generateText(wordPool,Math.max(minLength,500));
 }
 
 function generateStoryText(words, name) {
@@ -2272,74 +2266,42 @@ function BattleRoyaleResults({ roomCode, roomPlayers, onBack }) {
 }
 
 function BattleRoyaleHud({ roomCode, roomPlayers, myName, pos, totalChars, zonePos, playerLives, startTime }) {
-  const tf = "'Sarabun','Noto Sans Thai',sans-serif";
-  const elapsed = startTime ? Math.max(0,(Date.now()-startTime)/1000) : 0;
-  const untilZone = Math.max(0,ZONE_GRACE-Math.floor(elapsed));
-  const outsideBy = Math.max(0,zonePos-pos-ZONE_GAP);
-  const outside = zonePos>0 && outsideBy>0;
-  const percent = totalChars ? Math.max(0,Math.min(100,Math.round(pos/totalChars*100))) : 0;
-  const zonePercent = totalChars ? Math.max(0,Math.min(100,Math.round(zonePos/totalChars*100))) : 0;
-  const phase = elapsed<ZONE_GRACE ? 0 : Math.min(4,1+Math.floor((elapsed-ZONE_GRACE)/60));
-  const drainIn = ZONE_TICK_SECS-Math.floor(elapsed%ZONE_TICK_SECS);
-  const players = Object.entries(roomPlayers||{})
-    .filter(([,p])=>!p.isSpectator)
-    .sort((a,b)=>{
-      const rank=p=>p.status==='done'?0:(p.lives||0)>0?1:2;
-      return rank(a[1])-rank(b[1]) || (b[1].pos||0)-(a[1].pos||0);
-    });
-  const alive = players.filter(([,p])=>p.status!=='eliminated' && (p.lives||0)>0).length;
-  const card={background:'#fff',border:'1px solid #DFEAF5',borderRadius:18,boxShadow:'0 8px 24px rgba(28,67,108,.08)'};
+  const elapsed=startTime?Math.max(0,(Date.now()-startTime)/1000):0;
+  const untilZone=Math.max(0,ZONE_GRACE-Math.floor(elapsed));
+  const outsideBy=Math.max(0,zonePos-pos-ZONE_GAP);
+  const outside=zonePos>0&&outsideBy>0;
+  const progress=totalChars?Math.max(0,Math.min(100,Math.round(pos/totalChars*100))):0;
+  const edge=totalChars?Math.max(0,Math.min(100,Math.round(zonePos/totalChars*100))):0;
+  const drainIn=ZONE_TICK_SECS-Math.floor(elapsed%ZONE_TICK_SECS);
+  const players=Object.entries(roomPlayers||{}).filter(([,p])=>!p.isSpectator);
+  const alive=players.filter(([,p])=>p.status!=='eliminated'&&p.status!=='done'&&(p.lives||0)>0).length;
+  const hearts=playerLives>6?`❤️×${playerLives}`:Array.from({length:Math.max(0,playerLives)},()=>"❤️").join(' ');
   return (
-    <>
-    <style>{`@media(max-width:700px){.br-hud-grid{grid-template-columns:minmax(0,1fr)!important}}`}</style>
-    <div className="br-hud-grid" style={{fontFamily:tf,display:'grid',gridTemplateColumns:'minmax(0,1.35fr) minmax(230px,.65fr)',gap:12,marginBottom:12}}>
-      <section style={{...card,overflow:'hidden'}}>
-        <div style={{background:'linear-gradient(120deg,#173F83,#276FD0 60%,#4EA6DC)',padding:'16px 18px',color:'#fff',position:'relative'}}>
-          <div style={{display:'flex',alignItems:'center',gap:7,fontSize:10,fontWeight:800,letterSpacing:1.4,opacity:.85}}><span>🏆</span><span>BATTLE ROYALE</span><span style={{opacity:.55}}>·</span><span>ห้อง {roomCode}</span></div>
-          <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:12,marginTop:8}}>
-            <div><div style={{fontSize:20,fontWeight:800,lineHeight:1.2}}>หนีพายุให้ทัน!</div><div style={{fontSize:11,opacity:.8,marginTop:3}}>พิมพ์ต่อเนื่อง แล้วตามตำแหน่งวงปลอดภัยให้ทัน</div></div>
-            <div style={{background:'rgba(255,255,255,.16)',border:'1px solid rgba(255,255,255,.22)',borderRadius:13,padding:'7px 11px',textAlign:'center',minWidth:72}}><div style={{fontSize:9,fontWeight:800,opacity:.8}}>เหลือรอด</div><div style={{fontSize:20,fontWeight:800,lineHeight:1.2}}>👤 {alive}</div></div>
-          </div>
+    <div style={{fontFamily:"'Sarabun','Noto Sans Thai',sans-serif",border:'1px solid #DCE8F3',borderRadius:13,overflow:'hidden',marginBottom:10,boxShadow:'0 3px 12px rgba(30,70,110,.06)'}}>
+      <div style={{height:34,padding:'0 10px',display:'flex',alignItems:'center',gap:9,background:'linear-gradient(100deg,#1C477F,#2A73C7)',color:'#fff'}}>
+        <span style={{fontSize:9,fontWeight:800,letterSpacing:.5,whiteSpace:'nowrap'}}>🏆 BR · {roomCode}</span>
+        <span style={{height:19,width:1,background:'#ffffff50'}}/>
+        <span style={{fontSize:12,fontWeight:800,whiteSpace:'nowrap'}}>❤️ {hearts||'0 ชีวิต'}</span>
+        <span style={{marginLeft:'auto',fontSize:9,fontWeight:700,whiteSpace:'nowrap'}}>👤 {alive} รอด</span>
+      </div>
+      <div style={{minHeight:28,padding:'4px 10px',display:'flex',alignItems:'center',gap:7,background:outside?'#FFF4E7':zonePos===0?'#EFF7FF':'#EFF9F2',borderBottom:'1px solid #E6EDF3'}}>
+        <span style={{fontSize:13}}>{outside?'🌪️':zonePos===0?'⏳':'🛡️'}</span>
+        <span style={{fontSize:10,fontWeight:800,color:outside?'#A85411':zonePos===0?'#2B659A':'#277449',flex:1}}>{outside?`ตามหลังขอบวง ${outsideBy} ตัว · เร่งพิมพ์กลับเข้าวง`:zonePos===0?`วงเริ่มเคลื่อนใน ${untilZone} วินาที`:'อยู่ใน Safezone'}</span>
+        {outside&&<span style={{fontSize:9,fontWeight:800,color:'#A85411',whiteSpace:'nowrap'}}>❤️ ลดใน {drainIn}s</span>}
+      </div>
+      <div style={{padding:'7px 10px 6px',background:'#fff'}}>
+        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',fontSize:9,fontWeight:700,color:'#657E96',marginBottom:5}}>
+          <span>เส้นทาง</span><span>คุณ {progress}% · ขอบวง {edge}%</span>
         </div>
-        <div style={{padding:14}}>
-          <div style={{display:'flex',alignItems:'center',gap:10,padding:'10px 12px',borderRadius:13,background:outside?'#FFF4E5':zonePos===0?'#EFF7FF':'#EAF8EF',border:`1px solid ${outside?'#FFD496':zonePos===0?'#D5E8FA':'#CBEBD4'}`}}>
-            <div style={{fontSize:23}}>{outside?'🌪️':zonePos===0?'⏳':'🛡️'}</div>
-            <div style={{flex:1,minWidth:0}}><div style={{fontSize:13,fontWeight:800,color:outside?'#A85008':zonePos===0?'#245D9D':'#247247'}}>{outside?`ตามหลังวง ${outsideBy} ตัวอักษร — เร่งพิมพ์!`:zonePos===0?`เตรียมตัว วงจะเริ่มเคลื่อนใน ${untilZone} วินาที`:'อยู่ในวงปลอดภัย เก่งมาก!'}</div><div style={{fontSize:10,color:'#6A8094',marginTop:2}}>{outside?`หัวใจถัดไปจะหายเมื่อครบ ${drainIn} วินาที`:'ทุกคนใช้เวลาเริ่มแข่งและขอบวงเดียวกัน'}</div></div>
-            <div style={{background:outside?'#E88123':zonePos===0?'#4787C5':'#30A66C',color:'#fff',fontSize:10,fontWeight:800,padding:'5px 8px',borderRadius:9,whiteSpace:'nowrap'}}>{outside?`❤️ ${drainIn}s`:zonePos===0?'กำลังรอ':'ปลอดภัย'}</div>
-          </div>
-          <div style={{marginTop:13,padding:'11px 12px 9px',background:'#F4FAFF',border:'1px solid #E1EFF9',borderRadius:14}}>
-            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',fontSize:10,fontWeight:800,color:'#4F6E8A',marginBottom:8}}><span>🗺️ เส้นทางของคุณ</span><span>เฟส {phase||'เตรียมตัว'}{phase>0?` · ${getZoneSpeed(elapsed)} ตัว/นาที`:''}</span></div>
-            <div style={{height:53,position:'relative',borderRadius:12,background:'#E6EEF5',overflow:'hidden'}}>
-              <div style={{position:'absolute',inset:'0 auto 0 0',width:`${zonePercent}%`,background:'linear-gradient(90deg,#B8F0D2,#D9F7E7)',borderRight:'3px solid #28A56C',transition:'width .4s'}}/>
-              <div style={{position:'absolute',top:0,bottom:0,left:`${percent}%`,width:3,background:outside?'#E67E22':'#276FD0',transition:'left .4s'}}/>
-              <div style={{position:'absolute',top:7,left:`${percent}%`,transform:'translateX(-50%)',fontSize:23,filter:'drop-shadow(0 2px 2px #17324a25)',transition:'left .4s',zIndex:2}}>{playerLives>0?'🧑‍🚀':'💀'}</div>
-              <div style={{position:'absolute',right:7,bottom:5,fontSize:17}}>🏁</div>
-              {zonePos>0&&<div style={{position:'absolute',left:`${zonePercent}%`,bottom:3,transform:'translateX(-50%)',fontSize:8,fontWeight:800,color:'#218457',whiteSpace:'nowrap'}}>ขอบวง</div>}
-            </div>
-            <div style={{display:'flex',justifyContent:'space-between',fontSize:9,color:'#7D93A7',marginTop:4}}><span>เริ่มต้น</span><span>{pos} / {totalChars} ตัวอักษร</span><span>เส้นชัย</span></div>
-          </div>
-          <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:8,marginTop:10,padding:'8px 10px',background:'#FBFCFE',border:'1px solid #EDF1F5',borderRadius:12}}><span style={{fontSize:10,fontWeight:800,color:'#526B83'}}>พลังนักสำรวจ</span><span style={{fontSize:17,letterSpacing:2}}>{Array.from({length:Math.min(8,Math.max(1,playerLives))},(_,i)=>i<playerLives?'❤️':'🩶').join(' ')}</span><span style={{fontSize:10,fontWeight:700,color:'#7C91A5'}}>{playerLives} ชีวิต</span></div>
+        <div style={{height:12,position:'relative',borderRadius:20,background:'#E8EEF4',margin:'0 6px'}}>
+          <div style={{position:'absolute',left:0,top:0,bottom:0,width:`${edge}%`,background:'linear-gradient(90deg,#9DDFB8,#D2F2DC)',borderRadius:'20px 0 0 20px',transition:'width .3s'}}/>
+          <div style={{position:'absolute',left:`${edge}%`,top:-2,bottom:-2,width:3,background:'#239B60',borderRadius:3,transition:'left .3s'}}/>
+          <div style={{position:'absolute',left:`${progress}%`,top:-7,transform:'translateX(-50%)',fontSize:17,lineHeight:'20px',zIndex:1,transition:'left .3s'}}>{playerLives>0?'🧑‍🚀':'💀'}</div>
+          <span style={{position:'absolute',right:-7,top:-5,fontSize:14}}>🏁</span>
         </div>
-      </section>
-      <section style={{...card,padding:'13px 13px 10px'}}>
-        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:9}}><div style={{fontSize:13,fontWeight:800,color:'#203B56'}}>🏃 นักสำรวจ</div><div style={{fontSize:10,color:'#8297AA'}}>เรียงตามอันดับ</div></div>
-        <div style={{display:'flex',flexDirection:'column',gap:7}}>
-          {players.slice(0,6).map(([name,p],i)=>{
-            const mine=name===myName;
-            const pct=totalChars?Math.max(0,Math.min(100,Math.round((p.pos||0)/totalChars*100))):0;
-            const dead=p.status==='eliminated'||(p.lives||0)<=0;
-            return <div key={name} style={{padding:'8px 9px',borderRadius:11,background:mine?'#EFF6FF':dead?'#F5F6F8':'#FAFCFE',border:`1px solid ${mine?'#C9DDF8':'#EAF0F5'}`,opacity:dead ? 0.62 : 1}}>
-              <div style={{display:'flex',alignItems:'center',gap:6}}><span style={{fontSize:11,width:16,fontWeight:800,color:i===0?'#D28A17':'#8195A8'}}>{p.status==='done'?'🏁':i+1}</span><span style={{fontSize:11,fontWeight:800,color:'#344E67',flex:1,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{name}{mine?' (คุณ)':''}</span><span style={{fontSize:10}}>{dead?'💀':(p.lives||0)<=5?'❤️'.repeat(Math.max(0,p.lives||0)):`❤️×${p.lives}`}</span></div>
-              <div style={{height:5,background:'#E7EDF3',borderRadius:5,marginTop:6,overflow:'hidden'}}><div style={{height:'100%',width:`${pct}%`,borderRadius:5,background:dead?'#A8B2BD':p.status==='done'?'#E7A832':mine?'#3982D2':'#31AA78',transition:'width .35s'}}/></div>
-              <div style={{display:'flex',justifyContent:'space-between',fontSize:9,color:'#8296A9',marginTop:3}}><span>{p.status==='done'?'เข้าเส้นชัยแล้ว':dead?'ออกจากเกม':'กำลังแข่ง'}</span><span>{pct}%</span></div>
-            </div>;
-          })}
-          {players.length===0&&<div style={{fontSize:11,color:'#8296A9',padding:14,textAlign:'center'}}>กำลังรอข้อมูลผู้เล่น…</div>}
-        </div>
-        {players.length>6&&<div style={{fontSize:10,color:'#8296A9',textAlign:'center',marginTop:8}}>และอีก {players.length-6} คน</div>}
-      </section>
+        <div style={{display:'flex',justifyContent:'space-between',fontSize:8,color:'#8296A9',margin:'4px 5px 0'}}><span>เริ่ม</span><span style={{color:'#25875A',fontWeight:800}}>ขอบ Safezone</span><span>{pos} / {totalChars} ตัว</span><span>เส้นชัย</span></div>
+      </div>
     </div>
-    </>
   );
 }
 

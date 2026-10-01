@@ -2297,6 +2297,7 @@ function ThaiTypingApp() {
   const [assignments, setAssignments] = useState([]);  // student's pending assignments
   // BR Zone & spectator
   const [zoneWpm,       setZoneWpm]       = useState(0);
+  const [zoneTs,        setZoneTs]        = useState(0);   // timestamp of last zone update
   const [isHostSpectator, setIsHostSpectator] = useState(false);
   const [spectatingPlayer, setSpectatingPlayer] = useState(null);
   const zoneDrainRef  = useRef(null);   // interval for zone life drain
@@ -2396,6 +2397,13 @@ function ThaiTypingApp() {
     return ()=>clearTimeout(t);
   },[pressureSecs,screen]);
 
+  // Zone countdown tick — re-render every second during BR to animate countdown
+  useEffect(() => {
+    if (roomType !== 'royale') return;
+    const id = setInterval(() => setZoneTs(t => t > 0 ? t : 0), 1000);
+    return () => clearInterval(id);
+  }, [roomType]);
+
   // Firebase room listener — active during lobby / countdown / practice
   useEffect(() => {
     if (!roomCode) return;
@@ -2405,7 +2413,7 @@ function ThaiTypingApp() {
       setRoomInfo(data.info);
       const pl = data.players || {};
       setRoomPlayers(pl);
-      if (data.zone?.wpm) setZoneWpm(data.zone.wpm);
+      if (data.zone?.wpm) { setZoneWpm(data.zone.wpm); setZoneTs(data.zone.ts||Date.now()); }
       if (data.info?.maxLives) setMaxLives(data.info.maxLives);
 
       // ── Lobby/countdown: host manually triggers countdown ──
@@ -2501,7 +2509,7 @@ function ThaiTypingApp() {
               : wpms[mid];
             const zone = Math.max(5, median);
             getDB()?.ref('rooms/'+rcRef.current+'/zone').set({wpm:zone,ts:now});
-            setZoneWpm(zone);
+            setZoneWpm(zone); setZoneTs(now);
           }
         });
       }
@@ -3115,6 +3123,16 @@ function ThaiTypingApp() {
                         <div style={{fontSize:11,color:'var(--c-t3)',marginTop:1}}>
                           Zone: {zone} WPM
                           {myWpm!==null&&` · คุณ: ${myWpm} WPM`}
+                          {(()=>{
+                            const secs = Math.max(0, 20-Math.floor((Date.now()-(zoneTs||0))/1000));
+                            return secs <= 5
+                              ? <span style={{color:'#DC2626',fontWeight:800,marginLeft:6}}>
+                                  ⏱ {secs}s
+                                </span>
+                              : <span style={{color:'var(--c-t3)',marginLeft:6}}>
+                                  · อัปเดตใน {secs}s
+                                </span>;
+                          })()}
                         </div>
                       )}
                       {zone===0&&(
@@ -3211,7 +3229,7 @@ function ThaiTypingApp() {
             <SpectatorView
               playerName={spectatingPlayer}
               displayChars={displayChars}
-              progress={roomPlayers?.[spectatingPlayer]?.progress||0}
+              progress={roomPlayers?.[spectatingPlayer]?.pos||0}
               onBack={()=>setSpectatingPlayer(null)}
             />
           ) : (

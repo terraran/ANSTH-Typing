@@ -211,6 +211,23 @@ async function apiRequest(action, values={}) {
   return data;
 }
 
+// Turns backend error codes into a message the student/teacher can act on.
+function describeApiError(err) {
+  const m=String(err?.message||'');
+  const map={
+    'Email not found in roster':'ไม่พบ email นี้ใน Roster — ให้ครูตรวจว่าใส่ email ถูกบัญชีหรือไม่',
+    'Unauthorized':'บัญชีนี้ไม่มีสิทธิ์เข้าห้องนี้',
+    'TOKEN_EXPIRED':'การเข้าสู่ระบบหมดอายุ — กด "เปลี่ยน account" แล้วเข้าสู่ระบบใหม่',
+    'CONFIG_CLIENT_ID':'ตั้งค่าระบบไม่ครบ (GOOGLE_CLIENT_ID ไม่ตรงกัน) — แจ้งครู',
+    'CONFIG_SPREADSHEET':'ตั้งค่าระบบไม่ครบ (เปิด Google Sheet ไม่ได้) — แจ้งครู',
+    'ROSTER_SHEET_NOT_FOUND':'ไม่พบแท็บ Roster ใน Google Sheet — แจ้งครู',
+    'CONFIG_SCRIPT_PERMISSION':'Apps Script ยังไม่ได้รับสิทธิ์ใหม่ — ครูต้อง Authorize และ Deploy ใหม่',
+  };
+  if (map[m]) return map[m];
+  if (/^HTTP /.test(m)||/Failed to fetch|NetworkError|JSON/i.test(m)) return 'เชื่อมต่อเซิร์ฟเวอร์ไม่ได้ ('+m+')';
+  return 'เกิดข้อผิดพลาด: '+m;
+}
+
 // Fetch student roster for a given class code
 async function fetchRoster(classCode) {
   return apiRequest('roster',{code:classCode});
@@ -1917,6 +1934,8 @@ function ClassPickerScreen({ googleUser, onSelect, onBack }) {
         // The backend uses this response when Google auth succeeded but the
         // account email is not present in Roster; distinguish it from network
         // or deployment failures so the student gets the right next step.
+        console.warn('lookupByEmail failed:',err?.message);
+        setErrMsg(describeApiError(err));
         setStatus(err?.message==='Email not found in roster'?'notfound':'error');
       }
     })();
@@ -1929,8 +1948,8 @@ function ClassPickerScreen({ googleUser, onSelect, onBack }) {
     try {
       const data = await fetchRoster(c);
       if (!data.students?.length) { setErrMsg('ไม่พบรหัสห้องนี้'); setStatus('notfound'); return; }
-      onSelect(c, data.students, null);
-    } catch { setErrMsg('เชื่อมต่อไม่ได้'); setStatus('notfound'); }
+      onSelect(c, data.students, data.studentName||null);
+    } catch (err) { setErrMsg(describeApiError(err)); setStatus('notfound'); }
   };
 
   const tf2 = {fontFamily:tf};
@@ -1973,9 +1992,7 @@ function ClassPickerScreen({ googleUser, onSelect, onBack }) {
         <div>
           <div style={{background:'#FEF3C7',border:'1.5px solid #FCD34D',borderRadius:12,
             padding:'14px 16px',marginBottom:16,fontSize:13,color:'#92400E',...tf2}}>
-            {status==='notfound'
-              ? '⚠️ ไม่พบ email นี้ในระบบ — ใส่รหัสห้องด้วยตนเอง'
-              : '⚠️ เชื่อมต่อไม่ได้ — ใส่รหัสห้องด้วยตนเอง'}
+            {'⚠️ '+(errMsg||(status==='notfound'?'ไม่พบ email นี้ในระบบ':'เชื่อมต่อไม่ได้'))+' — ใส่รหัสห้องด้วยตนเอง'}
           </div>
           <input value={code}
             onChange={e=>setCode(e.target.value.toUpperCase())}
@@ -1986,7 +2003,7 @@ function ClassPickerScreen({ googleUser, onSelect, onBack }) {
               letterSpacing:5,color:'var(--c-t1)',outline:'none',marginBottom:10,
               fontFamily:'system-ui,monospace',boxSizing:'border-box',
               background:'var(--c-input-bg)'}}/>
-          {errMsg&&<div style={{color:'#DC2626',fontSize:12,marginBottom:8,...tf2}}>{errMsg}</div>}
+          {errMsg&&status!=='notfound'&&status!=='error'&&<div style={{color:'#DC2626',fontSize:12,marginBottom:8,...tf2}}>{errMsg}</div>}
           <button onClick={submitManual}
             disabled={!code.trim()}
             style={{width:'100%',background:'#0F172A',color:'#fff',border:'none',

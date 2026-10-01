@@ -306,7 +306,9 @@ async function onTeacherGoogleCredential(response) {
     await initDashboard();
   } catch(e) {
     teacherIdToken='';
-    err.textContent='บัญชีนี้ไม่มีสิทธิ์เข้าหน้าครู หรือเชื่อมต่อไม่ได้';
+    const code=String(e?.message||'');
+    const msgs={Unauthorized:'บัญชีนี้ไม่ได้อยู่ใน TEACHER_EMAILS',CONFIG_CLIENT_ID:'GOOGLE_CLIENT_ID ใน Script Properties ไม่ตรงกับหน้าเว็บ',CONFIG_SPREADSHEET:'เปิด Google Sheet ไม่ได้ — ตรวจ SPREADSHEET_ID',CONFIG_SCRIPT_PERMISSION:'Apps Script ยังไม่ได้ Authorize สิทธิ์ใหม่',TOKEN_EXPIRED:'การเข้าสู่ระบบหมดอายุ ลองใหม่'};
+    err.textContent=msgs[code]||('เชื่อมต่อไม่ได้ ('+code+')');
     err.style.display='block';
   }
 }

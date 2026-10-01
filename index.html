@@ -2100,7 +2100,7 @@ function AssignmentCard({ assignments, onSelect, lesson, exercise }) {
 
 function HostDashboard({ roomCode, roomPlayers, roomType, zoneWpm, onSpectate, onBack }) {
   const tf = "'Sarabun','Noto Sans Thai',sans-serif";
-  const players = Object.entries(roomPlayers || {});
+  const players = Object.entries(roomPlayers || {}).filter(([,p])=>!p.isSpectator);
   const alive   = players.filter(([,p]) => (p.lives ?? 1) > 0 && p.active !== false);
   const dead    = players.filter(([,p]) => (p.lives ?? 1) <= 0 || p.active === false);
   const sorted  = [...alive].sort((a,b) => (b[1].wpm||0) - (a[1].wpm||0));
@@ -2203,7 +2203,10 @@ function SpectatorView({ playerName, displayChars, progress, onBack }) {
 // DEAD SCREEN — shown to eliminated BR players
 function DeadScreen({ standings, onLeave }) {
   const tf = "'Sarabun','Noto Sans Thai',sans-serif";
-  const sorted = Object.entries(standings||{})
+  const [live, setLive] = useState(standings||{});
+  useEffect(()=>{ setLive(standings||{}); }, [standings]);
+  const sorted = Object.entries(live)
+    .filter(([,p])=>!p.isSpectator)
     .sort((a,b)=>(b[1].wpm||0)-(a[1].wpm||0));
   return (
     <div style={{position:'absolute',inset:0,background:'rgba(15,23,42,.92)',
@@ -2396,12 +2399,13 @@ function ThaiTypingApp() {
   // Firebase room listener — active during lobby / countdown / practice
   useEffect(() => {
     if (!roomCode) return;
-    if (screen!=='mp-lobby' && screen!=='countdown' && screen!=='practice') return;
+    if (screen!=='mp-lobby' && screen!=='countdown' && screen!=='practice' && screen!=='host-dashboard') return;
     const unsub = fbListen(roomCode, (data) => {
       if (!data) return;
       setRoomInfo(data.info);
       const pl = data.players || {};
       setRoomPlayers(pl);
+      if (data.zone?.wpm) setZoneWpm(data.zone.wpm);
       if (data.info?.maxLives) setMaxLives(data.info.maxLives);
 
       // ── Lobby/countdown: host manually triggers countdown ──
@@ -2465,7 +2469,8 @@ function ThaiTypingApp() {
 
   // Live zone position ticker (updates every second for smooth UI)
   useEffect(() => {
-    if (screen !== 'practice' || roomType !== 'royale' || !startTime) return;
+    if ((screen !== 'practice' && screen !== 'host-dashboard') || roomType !== 'royale') return;
+    if (screen === 'practice' && !startTime) return;
     const id = setInterval(() => setZonePos(getZonePos(startTime, totalChars)), 1000);
     return () => clearInterval(id);
   }, [screen, roomType, startTime, totalChars]);
@@ -2473,27 +2478,29 @@ function ThaiTypingApp() {
   // Zone damage check (every ZONE_TICK ms during BR)
   useEffect(() => {
     if (screen !== 'practice' || roomType !== 'royale' || !startTime) return;
-    // ── Host calculates median WPM zone every 20s ──
+    // ── Any active player calculates median WPM zone every 20s ──
     let lastMedianCalc = 0;
     const id = setInterval(() => {
       const now = Date.now();
 
-      // Host pushes median WPM to Firebase every 20s
-      if (isHost && !isHostSpectator && rcRef.current && now - lastMedianCalc > 20000) {
+      // Host (incl. spectator) OR any player calculates zone — last-write-wins
+      if (rcRef.current && now - lastMedianCalc > 20000) {
         lastMedianCalc = now;
-        const ps = roomPlayers || {};
-        const wpms = Object.values(ps)
-          .filter(p => (p.lives??1) > 0 && p.status !== 'eliminated')
-          .map(p => p.wpm || 0)
-          .filter(w => w > 0)
-          .sort((a,b) => a-b);
-        if (wpms.length > 1) {
+        // Read fresh from Firebase to avoid stale closure
+        getDB()?.ref('rooms/'+rcRef.current+'/players').once('value').then(snap=>{
+          const ps = snap.val() || {};
+          const wpms = Object.values(ps)
+            .filter(p => (p.lives??1) > 0 && p.status !== 'eliminated')
+            .map(p => p.wpm || 0)
+            .filter(w => w > 0)
+            .sort((a,b) => a-b);
+          if (wpms.length > 1) {
           const mid = Math.floor(wpms.length/2);
           const median = wpms.length%2===0
             ? Math.round((wpms[mid-1]+wpms[mid])/2)
             : wpms[mid];
           const zone = Math.max(5, median);
-          rcRef.current.child('zone').set({wpm:zone, ts:now});
+          getDB()?.ref('rooms/'+rcRef.current+'/zone').set({wpm:zone,ts:now});
           setZoneWpm(zone);
         }
       }
@@ -3192,6 +3199,9 @@ function ThaiTypingApp() {
             onStartSpectator={()=>{
               setIsHostSpectator(true);
               handleStartRace();
+              // Remove host from players list so they don't show as competitor
+              const hname = myRoomName.current || snRef.current || 'ครู';
+              getDB()?.ref('rooms/'+rcRef.current+'/players/'+hname).remove();
               setScreen('host-dashboard');
             }}/>
         )}

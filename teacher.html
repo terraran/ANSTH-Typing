@@ -4,6 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Teacher Panel — Thai Typing</title>
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600;700;800&display=swap" rel="stylesheet">
   <style>
@@ -159,12 +160,9 @@
       <div class="login-emoji">🎓</div>
       <div class="login-title">Teacher Panel</div>
       <div class="login-sub">แผงครู — Thai Typing App</div>
-      <label class="field-label">รหัสผ่านครู / Teacher Password</label>
-      <input id="tc-input" class="field-input" type="password"
-        placeholder="••••••••" autocomplete="off"
-        onkeydown="if(event.key==='Enter') tryLogin()">
       <div class="error-msg" id="login-err" style="display:none"></div>
-      <button class="primary-btn" id="login-btn" onclick="tryLogin()">เข้าสู่ระบบ →</button>
+      <div id="gsi-button" style="display:flex;justify-content:center;min-height:42px"></div>
+      <div style="font-size:11px;color:#94A3B8;margin-top:10px">ใช้บัญชี Google ที่ครูได้รับอนุญาต</div>
       <a href="index.html" style="display:block;margin-top:12px;padding:11px;
         background:#F1F5F9;border:1.5px solid #E2E8F0;border-radius:10px;
         text-align:center;text-decoration:none;color:#475569;font-size:14px;
@@ -279,45 +277,61 @@
 
 <script>
 const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwpp0IvmQjrv0O8MZ6XSX3SQDfJIIii4RsidX5IvaPDaKyJ5x0QLhbdKPle4TX4BKhsmQ/exec';
-
-let teacherCode  = sessionStorage.getItem('teacherCode') || '';
+const GOOGLE_CLIENT_ID = '501163435800-agtmqo92jg3b61tj6dafk0u73qergc0h.apps.googleusercontent.com';
+let teacherIdToken = '';
 let classes      = [];
 let currentClass = '';
 let allStudents  = [];
 let filterMode   = 'all';
 let currentStudentName = '';  // track for reset PIN
 
-if (teacherCode) initDashboard();
+async function teacherApi(action, values={}) {
+  if (!teacherIdToken) throw new Error('กรุณาเข้าสู่ระบบ Google ใหม่');
+  const body=new URLSearchParams({action,idToken:teacherIdToken});
+  Object.entries(values).forEach(([key,value])=>body.set(key,String(value??'')));
+  const res=await fetch(SCRIPT_URL,{method:'POST',body,redirect:'follow'});
+  if (!res.ok) throw new Error('HTTP '+res.status);
+  const data=await res.json();
+  if (data?.error) throw new Error(data.error);
+  return data;
+}
 
-async function tryLogin() {
-  const btn   = document.getElementById('login-btn');
-  const input = document.getElementById('tc-input');
-  const err   = document.getElementById('login-err');
-  const code  = input.value.trim();
-  if (!code) return;
-  btn.disabled = true; btn.textContent = 'กำลังตรวจสอบ...';
-  err.style.display = 'none';
+async function onTeacherGoogleCredential(response) {
+  const err=document.getElementById('login-err');
+  err.style.display='none';
   try {
-    const res  = await fetch(SCRIPT_URL + '?action=getClasses&tc=' + encodeURIComponent(code), { redirect:'follow' });
-    const data = await res.json();
-    if (data.error) throw new Error(data.error);
-    teacherCode = code;
-    sessionStorage.setItem('teacherCode', code);
-    classes = data.classes || [];
-    initDashboard();
-  } catch {
-    err.textContent  = 'รหัสผ่านไม่ถูกต้อง หรือเชื่อมต่อไม่ได้';
-    err.style.display = 'block';
-    btn.disabled = false; btn.textContent = 'เข้าสู่ระบบ →';
+    const data=await teacherApiWithToken('getClasses',{},response.credential);
+    teacherIdToken=response.credential;
+    classes=data.classes||[];
+    await initDashboard();
+  } catch(e) {
+    teacherIdToken='';
+    err.textContent='บัญชีนี้ไม่มีสิทธิ์เข้าหน้าครู หรือเชื่อมต่อไม่ได้';
+    err.style.display='block';
   }
 }
+
+async function teacherApiWithToken(action, values, token) {
+  const body=new URLSearchParams({action,idToken:token});
+  Object.entries(values).forEach(([key,value])=>body.set(key,String(value??'')));
+  const res=await fetch(SCRIPT_URL,{method:'POST',body,redirect:'follow'});
+  if (!res.ok) throw new Error('HTTP '+res.status);
+  const data=await res.json();
+  if (data?.error) throw new Error(data.error);
+  return data;
+}
+
+function initTeacherGoogleSignIn() {
+  if (!window.google?.accounts?.id) { setTimeout(initTeacherGoogleSignIn,250); return; }
+  google.accounts.id.initialize({client_id:GOOGLE_CLIENT_ID,callback:onTeacherGoogleCredential});
+  google.accounts.id.renderButton(document.getElementById('gsi-button'),{theme:'outline',size:'large',shape:'rectangular',text:'signin_with',locale:'th'});
+}
+initTeacherGoogleSignIn();
 
 async function initDashboard() {
   if (!classes.length) {
     try {
-      const res  = await fetch(SCRIPT_URL + '?action=getClasses&tc=' + encodeURIComponent(teacherCode), { redirect:'follow' });
-      const data = await res.json();
-      if (data.error) { logout(); return; }
+      const data=await teacherApi('getClasses');
       classes = data.classes || [];
     } catch { logout(); return; }
   }
@@ -350,9 +364,7 @@ async function loadClass(code) {
   document.getElementById('dash-heading').textContent = 'นักเรียน — ห้อง ' + code;
   document.getElementById('student-grid').innerHTML = '<div class="loading-msg">กำลังโหลด...</div>';
   try {
-    const url  = SCRIPT_URL + '?action=getClassData&classCode=' + encodeURIComponent(code) + '&tc=' + encodeURIComponent(teacherCode);
-    const data = await (await fetch(url, { redirect:'follow' })).json();
-    if (data.error) throw new Error(data.error);
+    const data=await teacherApi('getClassData',{classCode:code});
     allStudents = data.students || [];
     renderSummary();
     renderStudentCards();
@@ -456,10 +468,7 @@ async function resetCurrentStudentPin() {
   if (!currentStudentName) return;
   if (!confirm('รีเซ็ต PIN ของ ' + currentStudentName + ' ใช่ไหม?\n\nนักเรียนต้องตั้ง PIN ใหม่ตอน login ครั้งถัดไป')) return;
   try {
-    const url  = SCRIPT_URL + '?action=resetPin&tc=' + encodeURIComponent(teacherCode)
-               + '&code=' + encodeURIComponent(currentClass)
-               + '&student=' + encodeURIComponent(currentStudentName);
-    const data = await (await fetch(url, { redirect:'follow' })).json();
+    const data=await teacherApi('resetPin',{code:currentClass,student:currentStudentName});
     if (data.ok) alert('✅ รีเซ็ต PIN ของ ' + currentStudentName + ' แล้ว');
     else alert('❌ ' + (data.error || 'เกิดข้อผิดพลาด'));
   } catch {
@@ -476,16 +485,13 @@ function showDash() {
 }
 
 function logout() {
-  sessionStorage.removeItem('teacherCode');
-  teacherCode = ''; classes = []; currentClass = ''; allStudents = []; currentStudentName = '';
+  teacherIdToken = ''; classes = []; currentClass = ''; allStudents = []; currentStudentName = '';
   document.getElementById('navbar').classList.remove('visible');
   document.getElementById('s-dash').classList.remove('active');
   document.getElementById('s-detail').classList.remove('active');
   document.getElementById('s-login').style.display = 'flex';
-  document.getElementById('tc-input').value = '';
   document.getElementById('login-err').style.display = 'none';
-  document.getElementById('login-btn').disabled = false;
-  document.getElementById('login-btn').textContent = 'เข้าสู่ระบบ →';
+  try { google.accounts.id.disableAutoSelect(); } catch(e) {}
 }
 
 function needsAttention(st) { return daysSince(st.lastActive) > 7 || st.avgAcc < 85 || st.avgCpm < 15; }
@@ -557,10 +563,7 @@ function showAssignments() {
 async function loadAssignments() {
   document.getElementById('assign-list').innerHTML = '<div class="loading-msg">กำลังโหลด...</div>';
   try {
-    const url = SCRIPT_URL + '?action=getClassAssignments&classCode=' +
-      encodeURIComponent(currentClass) + '&tc=' + encodeURIComponent(teacherCode);
-    const data = await (await fetch(url, {redirect:'follow'})).json();
-    if (data.error) throw new Error(data.error);
+    const data=await teacherApi('getClassAssignments',{classCode:currentClass});
     assignmentsData = data.assignments || [];
     allStudentsForModal = data.classStudents || [];
     renderAssignments();
@@ -617,9 +620,7 @@ function renderAssignments() {
 
 async function deleteAssign(assignId) {
   if (!confirm('ลบ Assignment นี้?')) return;
-  const url = SCRIPT_URL + '?action=deleteAssignment&tc=' + encodeURIComponent(teacherCode)
-    + '&assignId=' + encodeURIComponent(assignId);
-  const data = await (await fetch(url, {redirect:'follow'})).json();
+  const data=await teacherApi('deleteAssignment',{assignId});
   if (data.ok) loadAssignments();
   else alert('ลบไม่ได้: ' + (data.error||'error'));
 }
@@ -692,12 +693,9 @@ async function submitAssignments() {
   let successCount = 0;
   for (const opt of selected) {
     const {lessonId, exerciseTitle} = JSON.parse(opt.value);
-    const p = new URLSearchParams({
-      action:'createAssignment', tc:teacherCode,
-      classCode:currentClass, studentName:student,
-      lessonId, exerciseTitle, deadline,
+    const data=await teacherApi('createAssignment',{
+      classCode:currentClass,studentName:student,lessonId,exerciseTitle,deadline,
     });
-    const data = await (await fetch(SCRIPT_URL+'?'+p.toString(), {redirect:'follow'})).json();
     if (data.ok) successCount++;
   }
 

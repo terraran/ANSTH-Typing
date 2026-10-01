@@ -41,16 +41,9 @@
     .login-sub   { font-size: 12px; color: #94A3B8; margin-bottom: 28px; }
     .field-label { display: block; font-size: 12px; font-weight: 700; color: #475569;
                     text-align: left; margin-bottom: 6px; }
-    .field-input { width: 100%; padding: 12px 14px; border: 2px solid #E2E8F0;
-                    border-radius: 10px; font-size: 16px; font-family: inherit;
-                    outline: none; margin-bottom: 14px; letter-spacing: 2px;
-                    transition: border-color .15s; }
-    .field-input:focus { border-color: #2563EB; }
-    .primary-btn { width: 100%; background: #0F172A; color: #fff; border: none;
-                    border-radius: 10px; padding: 13px; font-size: 15px; font-weight: 700;
-                    font-family: inherit; cursor: pointer; transition: opacity .15s; }
-    .primary-btn:disabled { opacity: .45; cursor: not-allowed; }
-    .primary-btn:hover:not(:disabled) { opacity: .85; }
+    .field-select { width:100%; padding:10px 12px; border:2px solid #E2E8F0; border-radius:8px;
+                    font-size:14px; font-family:inherit; margin-bottom:16px; outline:none; background:#fff; }
+    .field-select:focus { border-color:#2563EB; }
     .error-msg { color: #DC2626; font-size: 12px; margin-bottom: 10px; }
     #s-dash { padding: 24px; max-width: 1000px; margin: 0 auto; }
     .summary-row { display: flex; gap: 12px; margin-bottom: 24px; flex-wrap: wrap; }
@@ -115,31 +108,43 @@
     .no-sessions { color: #94A3B8; font-size: 13px; padding: 24px;
                     text-align: center; background: #fff; border-radius: 12px;
                     border: 1.5px solid #E2E8F0; }
-    /* ── ASSIGNMENTS ── */
-    .assign-modal-bg { position:fixed;inset:0;background:rgba(0,0,0,.6);
-      display:flex;align-items:center;justify-content:center;z-index:500;padding:20px; }
-    .assign-modal { background:#fff;border-radius:20px;padding:28px;
-      width:100%;max-width:560px;max-height:90vh;overflow-y:auto; }
-    .assign-row { background:#fff;border:1.5px solid #E2E8F0;border-radius:10px;
-      padding:12px 16px;margin-bottom:8px;display:flex;align-items:center;gap:12; }
-    .assign-progress { background:#F1F5F9;border-radius:6px;height:8px;flex:1;overflow:hidden; }
-    .assign-wrap { margin-bottom:10px; }
-    .assign-wrap .assign-row { cursor:pointer; margin-bottom:0; }
-    .assign-detail { display:none; border:1.5px solid #E2E8F0; border-top:none; border-radius:0 0 10px 10px;
-                     padding:10px 14px; background:#F8FAFC; overflow-x:auto; }
-    .assign-wrap.open .assign-detail { display:block; }
-    .assign-wrap.open .assign-row { border-radius:10px 10px 0 0; }
-    .res-table { width:100%; border-collapse:collapse; font-size:12px; }
+    /* ── WEEKLY TESTS ── */
+    #s-weekly .wrap { max-width: 900px; margin: 0 auto; padding: 24px; }
+    .wk-head { display:flex; align-items:center; gap:12px; margin-bottom:6px; }
+    .wk-title { font-size:20px; font-weight:800; }
+    .wk-sub { font-size:12px; color:#64748B; margin-bottom:20px; }
+    .wk-group { margin-bottom:22px; }
+    .wk-group-title { font-size:13px; font-weight:800; color:#475569; margin-bottom:8px; }
+    .wk-group-title .now { background:#DBEAFE; color:#1D4ED8; border-radius:6px; padding:1px 8px; margin-left:6px; font-size:11px; }
+    .wk-group-title .soon { background:#F1F5F9; color:#64748B; border-radius:6px; padding:1px 8px; margin-left:6px; font-size:11px; }
+    .wk-item { margin-bottom:8px; }
+    .wk-row { background:#fff; border:1.5px solid #E2E8F0; border-radius:10px; padding:12px 16px;
+              display:flex; align-items:center; gap:14px; cursor:pointer; }
+    .wk-row:hover { border-color:#CBD5E1; }
+    .wk-item.open .wk-row { border-radius:10px 10px 0 0; }
+    .wk-grade { font-size:20px; font-weight:800; color:#1D4ED8; min-width:44px; }
+    .wk-progress { background:#F1F5F9; border-radius:6px; height:8px; flex:1; overflow:hidden; }
+    .wk-progress-fill { height:100%; border-radius:6px; background:#059669; }
+    .wk-detail { display:none; border:1.5px solid #E2E8F0; border-top:none; border-radius:0 0 10px 10px;
+                 padding:12px 14px; background:#F8FAFC; overflow-x:auto; }
+    .wk-item.open .wk-detail { display:block; }
+    .mini-btn { background:transparent; border:1px solid #CBD5E1; color:#334155; border-radius:6px;
+                padding:3px 9px; cursor:pointer; font-size:11px; font-family:inherit; }
+    .mini-btn.danger { border-color:#FCA5A5; color:#DC2626; }
+    .primary-small { background:#0F172A; color:#fff; border:none; border-radius:8px; padding:8px 16px;
+                     cursor:pointer; font-size:13px; font-weight:700; font-family:inherit; }
+    .res-table { width:100%; border-collapse:collapse; font-size:12px; background:#fff; border-radius:8px; }
     .res-table th { text-align:left; color:#64748B; font-weight:700; padding:6px 8px; border-bottom:1.5px solid #E2E8F0; white-space:nowrap; }
     .res-table td { padding:6px 8px; border-bottom:1px solid #EEF2F7; white-space:nowrap; }
-    .res-table tr.todo td { color:#94A3B8; }
-    .assign-progress-fill { height:100%;border-radius:6px;background:#059669;transition:width .3s; }
-    .badge-done { background:#D1FAE5;color:#065F46;border-radius:6px;
-      padding:2px 8px;font-size:11px;font-weight:700; }
-    .badge-pending { background:#FEF3C7;color:#92400E;border-radius:6px;
-      padding:2px 8px;font-size:11px;font-weight:700; }
-    .badge-overdue { background:#FEE2E2;color:#991B1B;border-radius:6px;
-      padding:2px 8px;font-size:11px;font-weight:700; }
+    .notdone { margin-top:12px; }
+    .notdone-room { font-size:12px; margin-bottom:6px; line-height:1.6; }
+    .notdone-room b { color:#92400E; }
+    .modal-bg { position:fixed; inset:0; background:rgba(0,0,0,.6); display:flex; align-items:center;
+                justify-content:center; z-index:500; padding:20px; }
+    .modal { background:#fff; border-radius:20px; padding:28px; width:100%; max-width:520px;
+             max-height:90vh; overflow-y:auto; }
+    .modal-note { background:#FEF3C7; border:1.5px solid #FCD34D; color:#92400E; border-radius:8px;
+                  padding:8px 12px; font-size:12px; margin:-6px 0 16px; }
   </style>
 </head>
 <body>
@@ -147,15 +152,9 @@
   <nav id="navbar">
     <div class="nav-title">🎓 Teacher Panel</div>
     <div class="nav-class-tabs" id="class-tabs"></div>
-    <button class="nav-btn" id="btn-back" onclick="showDash()"
-      style="display:none;background:rgba(255,255,255,.1);border:1.5px solid rgba(255,255,255,.25);
-      color:#fff;border-radius:7px;padding:5px 13px;font-size:12px;font-weight:600;
-      font-family:inherit;cursor:pointer">← กลับ</button>
-    <a href="index.html" class="nav-btn" style="text-decoration:none;background:rgba(255,255,255,.1);
-      border:1.5px solid rgba(255,255,255,.25);color:#fff;border-radius:7px;padding:5px 13px;
-      font-size:12px;font-weight:600;font-family:inherit;cursor:pointer">⌨️ นักเรียน</a>
-    <button class="nav-btn" id="btn-assignments" onclick="showAssignments()"
-      style="display:none">📋 Assignments</button>
+    <button class="nav-btn" id="btn-back" onclick="showDash()" style="display:none">← กลับ</button>
+    <a href="index.html" class="nav-btn" style="text-decoration:none">⌨️ นักเรียน</a>
+    <button class="nav-btn" id="btn-weekly" onclick="showWeekly()" style="display:none">🏆 แบบทดสอบประจำสัปดาห์</button>
     <button class="nav-btn danger" onclick="logout()">ออกจากระบบ</button>
   </nav>
 
@@ -214,71 +213,49 @@
     <div id="detail-sessions"></div>
   </div>
 
-<!-- SCREEN 4: ASSIGNMENTS -->
-<div class="screen" id="s-assign">
-  <div style="max-width:860px;margin:0 auto;padding:24px">
-    <div style="display:flex;align-items:center;gap:12;margin-bottom:20">
-      <div style="font-size:20px;font-weight:800">📋 Assignments</div>
-      <button onclick="openCreateModal()"
-        style="margin-left:auto;background:#0F172A;color:#fff;border:none;border-radius:8px;
-          padding:8px 16px;cursor:pointer;font-size:13px;font-weight:700;font-family:inherit">
-        + Assign งาน
-      </button>
+  <!-- WEEKLY TESTS -->
+  <div class="screen" id="s-weekly">
+    <div class="wrap">
+      <div class="wk-head">
+        <div class="wk-title">🏆 แบบทดสอบประจำสัปดาห์</div>
+        <button class="mini-btn" onclick="loadWeeklyTests()" title="โหลดใหม่" style="margin-left:4px">↻</button>
+        <button class="primary-small" onclick="openWeeklyModal()" style="margin-left:auto">+ ตั้งแบบทดสอบ</button>
+      </div>
+      <div class="wk-sub">1 ระดับชั้นมี 1 แบบทดสอบต่อสัปดาห์ (จันทร์–อาทิตย์) · จับเวลา 2 นาที · ทุกห้องในระดับชั้นได้ข้อความเดียวกัน · นักเรียนทำซ้ำได้ ระบบนับครั้งที่ดีที่สุด</div>
+      <div id="weekly-list"><div class="loading-msg">กำลังโหลด...</div></div>
     </div>
-    <div id="assign-list"><div class="loading-msg">กำลังโหลด...</div></div>
   </div>
-</div>
 
-<!-- CREATE ASSIGNMENT MODAL -->
-<div class="assign-modal-bg" id="create-modal" style="display:none">
-  <div class="assign-modal">
-    <div style="font-size:18px;font-weight:800;margin-bottom:20">+ Assign งานใหม่</div>
+<!-- SET WEEKLY TEST MODAL -->
+<div class="modal-bg" id="weekly-modal" style="display:none">
+  <div class="modal">
+    <div style="font-size:18px;font-weight:800;margin-bottom:20px" id="wm-title">ตั้งแบบทดสอบประจำสัปดาห์</div>
 
-    <label class="field-label">ห้องเรียน</label>
-    <div id="modal-class-display" style="font-size:18px;font-weight:800;
-      margin-bottom:16px;color:#2563EB"></div>
+    <label class="field-label" for="wm-grade">ระดับชั้น</label>
+    <select id="wm-grade" class="field-select" onchange="updateModalNote()"></select>
 
-    <label class="field-label">มอบหมายให้</label>
-    <select id="modal-student" style="width:100%;padding:10px 12px;border:2px solid #E2E8F0;
-      border-radius:8px;font-size:14px;font-family:inherit;margin-bottom:16px;outline:none">
-      <option value="ALL">ทั้งห้อง (ALL)</option>
-    </select>
+    <label class="field-label" for="wm-week">สัปดาห์</label>
+    <select id="wm-week" class="field-select" onchange="updateModalNote()"></select>
 
-    <label class="field-label">Chapter & Exercise</label>
-    <select id="modal-chapter" onchange="updateExerciseList()"
-      style="width:100%;padding:10px 12px;border:2px solid #E2E8F0;
-        border-radius:8px;font-size:14px;font-family:inherit;margin-bottom:8px;outline:none">
-      <option value="">-- เลือก Chapter --</option>
-    </select>
-    <select id="modal-exercise" multiple
-      style="width:100%;padding:8px 12px;border:2px solid #E2E8F0;border-radius:8px;
-        font-size:13px;font-family:inherit;margin-bottom:16px;outline:none;min-height:120px">
-    </select>
-    <div style="font-size:11px;color:#94A3B8;margin-top:-12px;margin-bottom:16px">
-      กด Ctrl+Click เพื่อเลือกหลายแบบฝึก
-    </div>
+    <div id="wm-note" class="modal-note" style="display:none"></div>
 
-    <label class="field-label">Deadline (ไม่บังคับ)</label>
-    <input type="date" id="modal-deadline"
-      style="width:100%;padding:10px 12px;border:2px solid #E2E8F0;border-radius:8px;
-        font-size:14px;font-family:inherit;margin-bottom:20px;outline:none">
+    <label class="field-label" for="wm-exercise">แบบฝึก (1 อัน)</label>
+    <select id="wm-exercise" class="field-select"></select>
 
     <label style="display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600;
-      color:#334155;margin:-6px 0 20px;cursor:pointer">
-      <input type="checkbox" id="modal-hints" checked style="width:16px;height:16px">
+      color:#334155;margin:-4px 0 20px;cursor:pointer">
+      <input type="checkbox" id="wm-hints" checked style="width:16px;height:16px">
       แสดงไฮไลต์ปุ่มถัดไปบนคีย์บอร์ด (ปิด = นักเรียนต้องจำตำแหน่งเอง)
     </label>
 
-    <div id="modal-err" class="error-msg" style="display:none"></div>
-    <div style="display:flex;gap:10">
-      <button onclick="closeCreateModal()"
+    <div id="wm-err" class="error-msg" style="display:none"></div>
+    <div style="display:flex;gap:10px">
+      <button onclick="closeWeeklyModal()"
         style="flex:1;background:#F1F5F9;border:none;border-radius:8px;padding:12px;
           cursor:pointer;font-size:14px;font-weight:600;font-family:inherit">ยกเลิก</button>
-      <button onclick="submitAssignments()" id="modal-submit-btn"
+      <button onclick="submitWeeklyTest()" id="wm-submit"
         style="flex:2;background:#0F172A;color:#fff;border:none;border-radius:8px;padding:12px;
-          cursor:pointer;font-size:14px;font-weight:700;font-family:inherit">
-        Assign →
-      </button>
+          cursor:pointer;font-size:14px;font-weight:700;font-family:inherit">บันทึกแบบทดสอบ</button>
     </div>
   </div>
 </div>
@@ -294,8 +271,12 @@ let filterMode   = 'all';
 
 async function teacherApi(action, values={}) {
   if (!teacherIdToken) throw new Error('กรุณาเข้าสู่ระบบ Google ใหม่');
-  const body=new URLSearchParams({action,idToken:teacherIdToken});
-  Object.entries(values).forEach(([key,value])=>body.set(key,String(value??'')));
+  return teacherApiWithToken(action, values, teacherIdToken);
+}
+
+async function teacherApiWithToken(action, values, token) {
+  const body=new URLSearchParams({action,idToken:token});
+  Object.entries(values||{}).forEach(([key,value])=>body.set(key,String(value??'')));
   const res=await fetch(SCRIPT_URL,{method:'POST',body,redirect:'follow'});
   if (!res.ok) throw new Error('HTTP '+res.status);
   const data=await res.json();
@@ -320,16 +301,6 @@ async function onTeacherGoogleCredential(response) {
   }
 }
 
-async function teacherApiWithToken(action, values, token) {
-  const body=new URLSearchParams({action,idToken:token});
-  Object.entries(values).forEach(([key,value])=>body.set(key,String(value??'')));
-  const res=await fetch(SCRIPT_URL,{method:'POST',body,redirect:'follow'});
-  if (!res.ok) throw new Error('HTTP '+res.status);
-  const data=await res.json();
-  if (data?.error) throw new Error(data.error);
-  return data;
-}
-
 function initTeacherGoogleSignIn() {
   if (!window.google?.accounts?.id) { setTimeout(initTeacherGoogleSignIn,250); return; }
   google.accounts.id.initialize({client_id:GOOGLE_CLIENT_ID,callback:onTeacherGoogleCredential});
@@ -346,6 +317,7 @@ async function initDashboard() {
   }
   document.getElementById('s-login').style.display = 'none';
   document.getElementById('navbar').classList.add('visible');
+  document.getElementById('btn-weekly').style.display = 'inline-block';
   showDash();
   buildClassTabs();
   if (classes.length) loadClass(classes[0]);
@@ -359,7 +331,7 @@ function buildClassTabs() {
     const btn = document.createElement('button');
     btn.className = 'tab-btn' + (code === currentClass ? ' active' : '');
     btn.textContent = code;
-    btn.onclick = () => loadClass(code);
+    btn.onclick = () => { showDash(); loadClass(code); };
     container.appendChild(btn);
   });
 }
@@ -378,7 +350,7 @@ async function loadClass(code) {
     renderSummary();
     renderStudentCards();
   } catch (e) {
-    document.getElementById('student-grid').innerHTML = '<div class="empty-msg">โหลดข้อมูลไม่ได้: ' + e.message + '</div>';
+    document.getElementById('student-grid').innerHTML = '<div class="empty-msg">โหลดข้อมูลไม่ได้: ' + esc(e.message) + '</div>';
   }
 }
 
@@ -420,7 +392,7 @@ function renderStudentCards() {
     else if (status === 'yellow') warnHtml = '<div class="card-warn warn-yellow">⚠️ ต้องการความช่วยเหลือ</div>';
     card.innerHTML = `
       <div class="status-dot status-${status}"></div>
-      <div class="card-name">${st.name}</div>
+      <div class="card-name">${esc(st.name)}</div>
       <div class="card-stats">
         <div class="card-stat"><div class="card-stat-val" style="color:${cpmColor}">${st.avgCpm}</div><div class="card-stat-lbl">CPM เฉลี่ย</div></div>
         <div class="card-stat"><div class="card-stat-val" style="color:${accColor}">${st.avgAcc}%</div><div class="card-stat-lbl">ความแม่น</div></div>
@@ -457,7 +429,7 @@ function showStudentDetail(student) {
   const rows = student.sessions.map(s => {
     const accClass = s.accuracy >= 95 ? 'acc-good' : s.accuracy >= 85 ? 'acc-ok' : 'acc-low';
     return `<tr>
-      <td>${formatDate(s.date)}</td><td>${s.exercise}</td>
+      <td>${formatDate(s.date)}</td><td>${esc(s.exercise)}</td>
       <td><strong>${s.cpm}</strong></td><td>${s.wpm}</td>
       <td class="${accClass}">${s.accuracy}%</td>
       <td>${s.errors}</td><td>${s.chars}</td>
@@ -473,7 +445,7 @@ function showStudentDetail(student) {
 
 function showDash() {
   document.getElementById('s-detail').classList.remove('active');
-  document.getElementById('s-assign').classList.remove('active');
+  document.getElementById('s-weekly').classList.remove('active');
   document.getElementById('s-dash').classList.add('active');
   document.getElementById('btn-back').style.display = 'none';
 }
@@ -483,6 +455,7 @@ function logout() {
   document.getElementById('navbar').classList.remove('visible');
   document.getElementById('s-dash').classList.remove('active');
   document.getElementById('s-detail').classList.remove('active');
+  document.getElementById('s-weekly').classList.remove('active');
   document.getElementById('s-login').style.display = 'flex';
   document.getElementById('login-err').style.display = 'none';
   try { google.accounts.id.disableAutoSelect(); } catch(e) {}
@@ -515,10 +488,13 @@ function formatDuration(seconds) {
   const m = Math.floor(seconds / 60), s = seconds % 60;
   return m > 0 ? `${m}:${String(s).padStart(2,'0')}` : `${s}s`;
 }
+// Text from the sheet is inserted with innerHTML, so escape it.
+function esc(v) {
+  return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
 
-// ── LESSON INDEX (for assignment picker) ──
-// Generated from LESSONS in index.html — titles must match the app exactly.
-// Re-sync this list whenever lessons are added or renamed.
+// ── LESSON INDEX (for the weekly test picker) ──
+// Titles must match LESSONS in index.html exactly. Re-sync when lessons change.
 const LESSON_INDEX = [
   {ch:1,title:'Chapter 1 — แถวหลัก',lessons:[
     {id:1,name:'1 แถวกลาง',exs:['1.1 ตัวอักษรเดี่ยว','1.2 คำสั้น','1.3 เก้า & วรรณยุกต์','1.4 ผสม','1.5 ความเร็ว']},
@@ -542,236 +518,233 @@ const LESSON_INDEX = [
     {id:13,name:'13 เครื่องหมาย',exs:['13.1 ฿ และ %','13.2 ( ) และ ?','13.3 . , และ "','13.4 ผสม','13.5 ความเร็ว']},
   ]},
 ];
-
-// ── ASSIGNMENTS SCREEN ──
-let allStudentsForModal = [];
-let assignmentsData = [];
-
-function showAssignments() {
-  document.getElementById('s-dash').classList.remove('active');
-  document.getElementById('s-detail').classList.remove('active');
-  document.getElementById('s-assign').classList.add('active');
-  document.getElementById('btn-back').style.display = 'inline-block';
-  loadAssignments();
+function lessonName(id) {
+  for (const ch of LESSON_INDEX) for (const l of ch.lessons) if (l.id===Number(id)) return l.name;
+  return 'บท '+id;
 }
 
-async function loadAssignments() {
-  document.getElementById('assign-list').innerHTML = '<div class="loading-msg">กำลังโหลด...</div>';
-  try {
-    const data=await teacherApi('getClassAssignments',{classCode:currentClass});
-    assignmentsData = data.assignments || [];
-    allStudentsForModal = data.classStudents || [];
-    renderAssignments();
-  } catch(e) {
-    document.getElementById('assign-list').innerHTML =
-      '<div class="empty-msg">โหลดไม่ได้: ' + e.message + '</div>';
-  }
-}
+// ── WEEKLY TESTS ──
+let weeklyTests = [];
+let weeklyGrades = [];
+let currentWeek = '';
+const weeklyResultsCache = {};
 
-// Text from the sheet is inserted with innerHTML below, so escape it.
-function esc(v) {
-  return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+// Calendar helpers on "yyyy-MM-dd" strings (weeks start on Monday).
+function parseYmd(s) { const m=String(s||'').match(/^(\d{4})-(\d{2})-(\d{2})/); return m?new Date(+m[1],+m[2]-1,+m[3]):null; }
+function toYmd(d) { return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
+function addDaysYmd(ymd,n) { const d=parseYmd(ymd); d.setDate(d.getDate()+n); return toYmd(d); }
+function weekLabel(ymd) {
+  const a=parseYmd(ymd); if (!a) return ymd;
+  const b=new Date(a); b.setDate(b.getDate()+6);
+  const f=d=>d.toLocaleDateString('th-TH',{day:'numeric',month:'short'});
+  return f(a)+' – '+f(b)+' '+String(b.getFullYear()+543).slice(-2);
 }
-// Due dates are calendar days ("yyyy-MM-dd"): late only after the day ends.
-function parseDue(deadline) {
-  const m=String(deadline||'').match(/^(\d{4})-(\d{2})-(\d{2})/);
-  if (!m) return null;
-  return new Date(+m[1],+m[2]-1,+m[3],23,59,59);
+function weekTag(ymd) {
+  if (ymd===currentWeek) return '<span class="now">สัปดาห์นี้</span>';
+  if (currentWeek && ymd===addDaysYmd(currentWeek,7)) return '<span class="soon">สัปดาห์หน้า</span>';
+  if (currentWeek && ymd>currentWeek) return '<span class="soon">ล่วงหน้า</span>';
+  return '';
 }
-function formatDue(deadline) {
-  const d=parseDue(deadline);
-  if (!d) return esc(deadline);
-  return String(d.getDate()).padStart(2,'0')+'/'+String(d.getMonth()+1).padStart(2,'0')+'/'+String(d.getFullYear()+543).slice(-2);
-}
-
-function renderAssignments() {
-  const list = document.getElementById('assign-list');
-  if (!assignmentsData.length) {
-    list.innerHTML = '<div class="empty-msg">ยังไม่มี Assignment — กด "+ Assign งาน" เพื่อเริ่ม</div>';
-    return;
-  }
-  list.innerHTML = '';
-  assignmentsData.forEach(a => {
-    const pct = a.totalTargets > 0 ? Math.round(a.completedCount/a.totalTargets*100) : 0;
-    const dl  = parseDue(a.deadline);
-    const overdue = dl && dl < new Date();
-    const badge = pct === 100
-      ? '<span class="badge-done">✅ ครบแล้ว</span>'
-      : overdue ? '<span class="badge-overdue">⚠️ เลยกำหนด</span>'
-                : '<span class="badge-pending">⏳ รอทำ</span>';
-    const wrap = document.createElement('div');
-    wrap.className = 'assign-wrap';
-    const row = document.createElement('div');
-    row.className = 'assign-row';
-    row.title = 'กดเพื่อดูคะแนนรายคน';
-    row.onclick = () => wrap.classList.toggle('open');
-    row.innerHTML = `
-      <div style="flex:1;min-width:0">
-        <div style="font-size:14px;font-weight:800;margin-bottom:4px">${esc(a.exerciseTitle)}</div>
-        <div style="font-size:11px;color:#64748B;margin-bottom:8px">
-          ${a.forAll?'ทั้งห้อง':'👤 '+esc(a.studentName)} ·
-          ${dl?'กำหนด '+formatDue(a.deadline):'ไม่มีกำหนด'}
-          ${a.showHints===false?' · 🙈 ไม่มีไฮไลต์':''} · ▾ ดูคะแนน
-        </div>
-        <div style="display:flex;align-items:center;gap:8">
-          <div class="assign-progress">
-            <div class="assign-progress-fill" style="width:${pct}%"></div>
-          </div>
-          <span style="font-size:11px;color:#64748B;white-space:nowrap">
-            ${a.completedCount}/${a.totalTargets} คน (${pct}%)
-          </span>
-        </div>
-      </div>
-      <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6;flex-shrink:0">
-        ${badge}
-        <button data-assign-id="${esc(a.assignId)}" onclick="event.stopPropagation();deleteAssign(this.dataset.assignId)"
-          style="background:transparent;border:1px solid #FCA5A5;color:#DC2626;
-            border-radius:6px;padding:3px 8px;cursor:pointer;font-size:11px;font-family:inherit">
-          ลบ
-        </button>
-      </div>`;
-    const detail = document.createElement('div');
-    detail.className = 'assign-detail';
-    detail.innerHTML = renderResultsTable(a.results||[]);
-    wrap.appendChild(row); wrap.appendChild(detail);
-    list.appendChild(wrap);
-  });
-}
-
-// Same thresholds as the student app: ⭐⭐⭐ ≥85% · ⭐⭐ ≥65% · ⭐ ≥45% of max score.
 function starsText(score, max) {
   const pct = max > 0 ? score / max * 100 : 0;
   const n = pct >= 85 ? 3 : pct >= 65 ? 2 : pct >= 45 ? 1 : 0;
   return '⭐'.repeat(n) + '☆'.repeat(3 - n);
 }
+const fmtNum = n => Number(n||0).toLocaleString('en-US');
 
-function renderResultsTable(results) {
-  if (!results.length) return '<div style="font-size:12px;color:#94A3B8">ไม่มีนักเรียนในงานนี้</div>';
-  // Not-done first (so the teacher sees who to chase), then highest score.
-  const rows = [...results].sort((x,y) =>
-    (x.attempts>0) - (y.attempts>0) || (y.bestScore||0) - (x.bestScore||0) || x.name.localeCompare(y.name,'th'));
-  const fmt = n => Number(n||0).toLocaleString('en-US');
-  return `<table class="res-table">
-    <thead><tr><th>นักเรียน</th><th>สถานะ</th><th>คะแนนดีสุด</th><th>ดาว</th><th>WPM</th><th>ความแม่น</th><th>ครั้ง</th><th>ทำล่าสุด</th></tr></thead>
-    <tbody>${rows.map(r => r.attempts>0 ? `
-      <tr><td>${esc(r.name)}</td>
-        <td>✅${r.late?' <span style="color:#D97706;font-weight:700">⚠️ ส่งช้า</span>':''}</td>
-        <td><b>${fmt(r.bestScore)}</b></td><td>${starsText(r.bestScore,r.maxScore)}</td>
-        <td>${r.wpm}</td><td>${r.accuracy}%</td><td>${r.attempts}</td>
-        <td>${new Date(r.lastAt).toLocaleDateString('th-TH',{day:'numeric',month:'short'})}</td></tr>` : `
-      <tr class="todo"><td>${esc(r.name)}</td><td>⏳ ยังไม่ทำ</td><td>–</td><td>–</td><td>–</td><td>–</td><td>0</td><td>–</td></tr>`
-    ).join('')}</tbody></table>`;
+function showWeekly() {
+  document.getElementById('s-dash').classList.remove('active');
+  document.getElementById('s-detail').classList.remove('active');
+  document.getElementById('s-weekly').classList.add('active');
+  document.getElementById('btn-back').style.display = 'inline-block';
+  loadWeeklyTests();
 }
 
-async function deleteAssign(assignId) {
-  if (!confirm('ลบ Assignment นี้?')) return;
+async function loadWeeklyTests() {
+  const list=document.getElementById('weekly-list');
+  list.innerHTML='<div class="loading-msg">กำลังโหลด...</div>';
   try {
-    const data=await teacherApi('deleteAssignment',{assignId});
-    if (data.ok) loadAssignments();
-    else alert('ลบไม่ได้: ' + (data.error||'error'));
+    const data=await teacherApi('getWeeklyTests');
+    weeklyTests=data.tests||[];
+    weeklyGrades=data.grades||[];
+    currentWeek=data.currentWeek||'';
+    Object.keys(weeklyResultsCache).forEach(k=>delete weeklyResultsCache[k]);
+    renderWeeklyTests();
   } catch(e) {
-    alert('ลบไม่ได้: ' + e.message);
+    list.innerHTML='<div class="empty-msg">โหลดไม่ได้: '+esc(e.message)+'</div>';
   }
 }
 
-// ── CREATE MODAL ──
-function openCreateModal() {
-  document.getElementById('modal-class-display').textContent = currentClass;
-
-  // Populate students
-  const sel = document.getElementById('modal-student');
-  sel.innerHTML = '<option value="ALL">ทั้งห้อง (ALL)</option>';
-  allStudentsForModal.forEach(s => {
-    const opt = document.createElement('option');
-    opt.value = s; opt.textContent = s;
-    sel.appendChild(opt);
-  });
-
-  // Populate chapters
-  const chSel = document.getElementById('modal-chapter');
-  chSel.innerHTML = '<option value="">-- เลือก Chapter --</option>';
-  LESSON_INDEX.forEach(ch => {
-    const opt = document.createElement('option');
-    opt.value = ch.ch; opt.textContent = ch.title;
-    chSel.appendChild(opt);
-  });
-
-  document.getElementById('modal-exercise').innerHTML = '';
-  document.getElementById('modal-deadline').value = '';
-  document.getElementById('modal-hints').checked = true;
-  document.getElementById('modal-err').style.display = 'none';
-  document.getElementById('create-modal').style.display = 'flex';
-}
-
-function updateExerciseList() {
-  const chVal = parseInt(document.getElementById('modal-chapter').value);
-  const exSel = document.getElementById('modal-exercise');
-  exSel.innerHTML = '';
-  if (!chVal) return;
-  const ch = LESSON_INDEX.find(c => c.ch === chVal);
-  if (!ch) return;
-  ch.lessons.forEach(les => {
-    const group = document.createElement('optgroup');
-    group.label = les.name;
-    les.exs.forEach(ex => {
-      const opt = document.createElement('option');
-      opt.value = JSON.stringify({lessonId:les.id, exerciseTitle:ex});
-      opt.textContent = ex;
-      group.appendChild(opt);
+function renderWeeklyTests() {
+  const list=document.getElementById('weekly-list');
+  if (!weeklyGrades.length) {
+    list.innerHTML='<div class="empty-msg">ไม่พบห้องรูปแบบ Y603 ในแท็บ Roster — แบบทดสอบประจำสัปดาห์ใช้รหัสห้องแบบ Yx0x</div>';
+    return;
+  }
+  if (!weeklyTests.length) {
+    list.innerHTML='<div class="empty-msg">ยังไม่มีแบบทดสอบ — กด "+ ตั้งแบบทดสอบ" เพื่อเริ่ม</div>';
+    return;
+  }
+  const weeks=[...new Set(weeklyTests.map(t=>t.weekStart))].sort().reverse();
+  list.innerHTML='';
+  weeks.forEach(w=>{
+    const group=document.createElement('div');
+    group.className='wk-group';
+    group.innerHTML=`<div class="wk-group-title">${esc(weekLabel(w))} ${weekTag(w)}</div>`;
+    weeklyTests.filter(t=>t.weekStart===w).forEach(t=>{
+      const pct=t.total>0?Math.round(t.done/t.total*100):0;
+      const item=document.createElement('div');
+      item.className='wk-item';
+      const row=document.createElement('div');
+      row.className='wk-row';
+      row.title='กดเพื่อดูอันดับเต็มและคนที่ยังไม่ทำ';
+      row.innerHTML=`
+        <div class="wk-grade">${esc(t.grade)}</div>
+        <div style="flex:1;min-width:0">
+          <div style="font-size:14px;font-weight:800">${esc(t.exerciseTitle)}</div>
+          <div style="font-size:11px;color:#64748B;margin:2px 0 6px">
+            ${esc(lessonName(t.lessonId))} · ${t.showHints?'มีไฮไลต์ปุ่ม':'🙈 ไม่มีไฮไลต์ปุ่ม'} · ▾ ดูอันดับ
+          </div>
+          <div style="display:flex;align-items:center;gap:8px">
+            <div class="wk-progress"><div class="wk-progress-fill" style="width:${pct}%"></div></div>
+            <span style="font-size:11px;color:#64748B;white-space:nowrap">ทำแล้ว ${t.done}/${t.total} คน (${pct}%)</span>
+          </div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:6px;flex-shrink:0">
+          <button class="mini-btn" data-act="edit">แก้</button>
+          <button class="mini-btn danger" data-act="del">ลบ</button>
+        </div>`;
+      const detail=document.createElement('div');
+      detail.className='wk-detail';
+      row.onclick=(ev)=>{
+        const act=ev.target?.dataset?.act;
+        if (act==='edit') { ev.stopPropagation(); openWeeklyModal(t); return; }
+        if (act==='del')  { ev.stopPropagation(); deleteWeekly(t); return; }
+        item.classList.toggle('open');
+        if (item.classList.contains('open')) loadWeeklyResults(t, detail);
+      };
+      item.appendChild(row); item.appendChild(detail);
+      group.appendChild(item);
     });
-    exSel.appendChild(group);
+    list.appendChild(group);
   });
 }
 
-function closeCreateModal() {
-  document.getElementById('create-modal').style.display = 'none';
-}
-
-async function submitAssignments() {
-  const student  = document.getElementById('modal-student').value;
-  const selected = [...document.getElementById('modal-exercise').selectedOptions];
-  const deadline = document.getElementById('modal-deadline').value;
-  const showHints = document.getElementById('modal-hints').checked ? '1' : '0';
-  const btn      = document.getElementById('modal-submit-btn');
-  const err      = document.getElementById('modal-err');
-
-  if (!selected.length) {
-    err.textContent = 'เลือก Exercise อย่างน้อย 1 อัน'; err.style.display='block'; return;
-  }
-  err.style.display = 'none';
-  btn.disabled = true; btn.textContent = 'กำลัง Assign...';
-
-  // Keep going if one fails, and always re-enable the button afterwards.
-  let successCount = 0;
-  const failed = [];
+async function loadWeeklyResults(t, el) {
+  if (weeklyResultsCache[t.testId]) { el.innerHTML=renderResults(weeklyResultsCache[t.testId]); return; }
+  el.innerHTML='<div class="loading-msg" style="padding:12px">กำลังโหลดอันดับ...</div>';
   try {
-    for (const opt of selected) {
-      const {lessonId, exerciseTitle} = JSON.parse(opt.value);
-      try {
-        const data=await teacherApi('createAssignment',{
-          classCode:currentClass,studentName:student,lessonId,exerciseTitle,deadline,showHints,
-        });
-        if (data.ok) successCount++; else failed.push(exerciseTitle);
-      } catch(e) {
-        failed.push(exerciseTitle);
-      }
-    }
-  } finally {
-    btn.disabled = false; btn.textContent = 'Assign →';
+    const data=await teacherApi('getWeeklyResults',{testId:t.testId});
+    weeklyResultsCache[t.testId]=data;
+    el.innerHTML=renderResults(data);
+  } catch(e) {
+    el.innerHTML='<div style="font-size:12px;color:#DC2626">โหลดไม่ได้: '+esc(e.message)+'</div>';
   }
-  closeCreateModal();
-  alert(failed.length
-    ? `Assign แล้ว ${successCount}/${selected.length} แบบฝึก\n❌ ไม่สำเร็จ: ${failed.join(', ')}`
-    : `✅ Assign แล้ว ${successCount}/${selected.length} แบบฝึก`);
-  loadAssignments();
 }
 
-// ── SHOW ASSIGNMENTS BUTTON WHEN LOGGED IN ──
-const _origInitDash = initDashboard;
-initDashboard = async function() {
-  await _origInitDash.apply(this, arguments);
-  document.getElementById('btn-assignments').style.display = 'inline-block';
-};
+function renderResults(data) {
+  const r=data.ranking||[];
+  const table=r.length ? `<table class="res-table">
+    <thead><tr><th>อันดับ</th><th>นักเรียน</th><th>ชื่อบนกระดาน</th><th>ห้อง</th><th>คะแนนดีสุด</th><th>ดาว</th><th>KPM</th><th>WPM</th><th>ความแม่น</th><th>ครั้ง</th><th>ทำล่าสุด</th></tr></thead>
+    <tbody>${r.map(x=>`<tr>
+      <td><b>${x.rank<=3?['🥇','🥈','🥉'][x.rank-1]:x.rank}</b></td>
+      <td>${esc(x.name)}</td><td>${esc(x.displayName)}</td><td>${esc(x.room)}</td>
+      <td><b>${fmtNum(x.score)}</b></td><td>${starsText(x.score,x.max)}</td>
+      <td>${x.kpm}</td><td>${x.wpm}</td><td>${x.accuracy}%</td><td>${x.attempts}</td>
+      <td>${new Date(x.lastAt).toLocaleDateString('th-TH',{day:'numeric',month:'short'})}</td></tr>`).join('')}
+    </tbody></table>` : '<div style="font-size:12px;color:#94A3B8">ยังไม่มีใครทำแบบทดสอบนี้</div>';
+  const nd=data.notDone||[];
+  const notDone=nd.length ? `<div class="notdone">
+      <div style="font-size:13px;font-weight:800;margin-bottom:6px">⏳ ยังไม่ทำ (${nd.reduce((s,g)=>s+g.names.length,0)} คน)</div>
+      ${nd.map(g=>`<div class="notdone-room"><b>${esc(g.room)}</b> (${g.names.length}) · ${g.names.map(esc).join(', ')}</div>`).join('')}
+    </div>` : '<div class="notdone" style="font-size:13px;font-weight:700;color:#059669">✅ ทุกคนในระดับชั้นทำแล้ว</div>';
+  return table+notDone;
+}
+
+async function deleteWeekly(t) {
+  const msg=t.done>0
+    ? `ลบแบบทดสอบ ${t.grade} สัปดาห์ ${weekLabel(t.weekStart)}?\nมีนักเรียนทำแล้ว ${t.done} คน — กระดานอันดับของสัปดาห์นี้จะหายไป (ผลยังอยู่ในแท็บ Submissions)`
+    : `ลบแบบทดสอบ ${t.grade} สัปดาห์ ${weekLabel(t.weekStart)}?`;
+  if (!confirm(msg)) return;
+  try {
+    await teacherApi('deleteWeeklyTest',{testId:t.testId});
+    loadWeeklyTests();
+  } catch(e) { alert('ลบไม่ได้: '+e.message); }
+}
+
+// ── SET / EDIT MODAL ──
+function openWeeklyModal(existing) {
+  if (!weeklyGrades.length) { alert('ไม่พบห้องรูปแบบ Y603 ในแท็บ Roster'); return; }
+  document.getElementById('wm-title').textContent=existing?'แก้แบบทดสอบประจำสัปดาห์':'ตั้งแบบทดสอบประจำสัปดาห์';
+  const gSel=document.getElementById('wm-grade');
+  gSel.innerHTML=weeklyGrades.map(g=>`<option value="${esc(g.grade)}">${esc(g.grade)} (${g.students} คน)</option>`).join('');
+  gSel.disabled=!!existing;
+  const wSel=document.getElementById('wm-week');
+  const base=currentWeek||toYmd(new Date());
+  const weeks=[];
+  for (let i=-2;i<=8;i++) weeks.push(addDaysYmd(base,7*i));
+  if (existing && !weeks.includes(existing.weekStart)) weeks.unshift(existing.weekStart);
+  wSel.innerHTML=weeks.map(w=>`<option value="${w}">${esc(weekLabel(w))}${w===currentWeek?' (สัปดาห์นี้)':w===addDaysYmd(base,7)?' (สัปดาห์หน้า)':''}</option>`).join('');
+  wSel.disabled=!!existing;
+  const eSel=document.getElementById('wm-exercise');
+  eSel.innerHTML=LESSON_INDEX.map(ch=>ch.lessons.map(les=>
+    `<optgroup label="${esc(ch.title.split(' — ')[0]+' · '+les.name)}">${les.exs.map(ex=>
+      `<option value="${esc(JSON.stringify({lessonId:les.id,exerciseTitle:ex}))}">${esc(ex)}</option>`).join('')}</optgroup>`
+  ).join('')).join('');
+  if (existing) {
+    gSel.value=existing.grade; wSel.value=existing.weekStart;
+    const v=JSON.stringify({lessonId:existing.lessonId,exerciseTitle:existing.exerciseTitle});
+    [...eSel.options].forEach(o=>{ if (o.value===v) o.selected=true; });
+    document.getElementById('wm-hints').checked=existing.showHints!==false;
+  } else {
+    wSel.value=currentWeek||weeks[2];
+    document.getElementById('wm-hints').checked=true;
+  }
+  document.getElementById('wm-err').style.display='none';
+  updateModalNote();
+  document.getElementById('weekly-modal').style.display='flex';
+}
+
+function findWeekly(grade, week) { return weeklyTests.find(t=>t.grade===grade&&t.weekStart===week)||null; }
+
+function updateModalNote() {
+  const note=document.getElementById('wm-note');
+  const t=findWeekly(document.getElementById('wm-grade').value,document.getElementById('wm-week').value);
+  if (t) {
+    note.textContent=`${t.grade} มีแบบทดสอบสัปดาห์นี้แล้ว (${t.exerciseTitle}) — บันทึกจะแทนที่ของเดิม`+
+      (t.done>0?` · มีนักเรียนทำแล้ว ${t.done} คน ถ้าเปลี่ยนแบบฝึก กระดานจะเริ่มใหม่`:'');
+    note.style.display='block';
+  } else note.style.display='none';
+}
+
+function closeWeeklyModal() { document.getElementById('weekly-modal').style.display='none'; }
+
+async function submitWeeklyTest() {
+  const grade=document.getElementById('wm-grade').value;
+  const weekStart=document.getElementById('wm-week').value;
+  const exVal=document.getElementById('wm-exercise').value;
+  const showHints=document.getElementById('wm-hints').checked?'1':'0';
+  const err=document.getElementById('wm-err');
+  const btn=document.getElementById('wm-submit');
+  if (!grade||!weekStart||!exVal) { err.textContent='เลือกระดับชั้น สัปดาห์ และแบบฝึกให้ครบ'; err.style.display='block'; return; }
+  const {lessonId,exerciseTitle}=JSON.parse(exVal);
+  const old=findWeekly(grade,weekStart);
+  const num=s=>(String(s||'').match(/^(\d+\.\d+)/)||[])[1];
+  if (old && old.done>0 && (old.lessonId!==lessonId || num(old.exerciseTitle)!==num(exerciseTitle))) {
+    if (!confirm(`มีนักเรียน ${old.done} คนทำ "${old.exerciseTitle}" ไปแล้ว\nถ้าเปลี่ยนเป็น "${exerciseTitle}" กระดานอันดับสัปดาห์นี้จะเริ่มนับใหม่ (ผลเดิมยังอยู่ในแท็บ Submissions)\n\nเปลี่ยนแบบฝึก?`)) return;
+  }
+  err.style.display='none';
+  btn.disabled=true; btn.textContent='กำลังบันทึก...';
+  try {
+    await teacherApi('setWeeklyTest',{grade,weekStart,lessonId,exerciseTitle,showHints});
+    closeWeeklyModal();
+    loadWeeklyTests();
+  } catch(e) {
+    err.textContent='บันทึกไม่ได้: '+e.message; err.style.display='block';
+  } finally {
+    btn.disabled=false; btn.textContent='บันทึกแบบทดสอบ';
+  }
+}
 </script>
 </body>
 </html>

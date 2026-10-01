@@ -1394,7 +1394,6 @@ function LessonScreen({ studentName, classCode, onSelect, onOpenSetup, onJoin, j
 
 // RESULTS SCREEN
 
-function ResultsScreen({ cpm, accuracy, errors, totalChars, lesson, saveStatus, studentName, ghostData, newRecord, roomCode, roomType, roomPlayers, myName, onRestart, onBack }) {
 function ResultsScreen({ cpm, accuracy, errors, totalChars, lesson, saveStatus, studentName, ghostData, newRecord, roomCode, roomType, roomPlayers, myName, bestCombo, onRestart, onBack }) {
   const grade =
     accuracy>=98&&cpm>=40 ? {label:'ยอดเยี่ยม 🏆',color:'#D97706'} :
@@ -2947,7 +2946,6 @@ function ThaiTypingApp() {
       if (e.key==='Escape') { setScreen('lessons'); return; }
       const { pos,target,targetChars,startTime } = stateRef.current;
       if (e.code==='Backspace') {
-        if (pos>0) setPos(p=>p-1);
         if (pos>0) {
           setPos(p=>p-1);
           if (rtRef.current==='1v1') { comboRef.current=0; setCombo(0); }
@@ -3327,7 +3325,6 @@ function ThaiTypingApp() {
               </div>
             )}
             {/* Opponents panel */}
-            {roomType!=='royale'&&roomCode&&Object.keys(roomPlayers).length>0&&(
             {roomType!=='royale'&&roomType!=='1v1'&&roomCode&&Object.keys(roomPlayers).length>0&&(
               <div style={{background:'var(--c-surf)',borderRadius:12,padding:'12px 14px',
                 marginBottom:10,border:'1.5px solid var(--c-border)'}}>

@@ -71,6 +71,7 @@ let _db = null;
 let _googleIdToken = '';
 let _googleSubject = '';
 let _firebaseAuthSubject = '';
+let _googleGISInitialized = false;
 function getDB() {
   if (_db) return _db;
   if (typeof firebase === 'undefined') return null;
@@ -1912,8 +1913,11 @@ function ClassPickerScreen({ googleUser, onSelect, onBack }) {
         } else {
           setStatus('notfound');
         }
-      } catch {
-        setStatus('error');
+      } catch (err) {
+        // The backend uses this response when Google auth succeeded but the
+        // account email is not present in Roster; distinguish it from network
+        // or deployment failures so the student gets the right next step.
+        setStatus(err?.message==='Email not found in roster'?'notfound':'error');
       }
     })();
   }, []);
@@ -2015,19 +2019,22 @@ function GoogleSignInScreen({ onSignIn, onSolo }) {
         if (attempts++ < 30) setTimeout(init, 200);
         return;
       }
-      google.accounts.id.initialize({
-        client_id: GOOGLE_CLIENT_ID,
-        callback: (response) => {
-          const profile = parseJwt(response.credential);
-          if (profile) onSignIn(profile, response.credential);
-        },
-        auto_select: false,
-        ux_mode: 'popup',
-        // Prefer the browser-mediated Sign in with Google button flow. This
-        // avoids relying on cross-window postMessage from a popup where the
-        // hosting platform does not let us configure COOP response headers.
-        use_fedcm_for_button: true,
-      });
+      if (!_googleGISInitialized) {
+        google.accounts.id.initialize({
+          client_id: GOOGLE_CLIENT_ID,
+          callback: (response) => {
+            const profile = parseJwt(response.credential);
+            if (profile) onSignIn(profile, response.credential);
+          },
+          auto_select: false,
+          ux_mode: 'popup',
+          // Prefer the browser-mediated Sign in with Google button flow. This
+          // avoids relying on cross-window postMessage from a popup where the
+          // hosting platform does not let us configure COOP response headers.
+          use_fedcm_for_button: true,
+        });
+        _googleGISInitialized = true;
+      }
       const btn = document.getElementById('google-signin-btn');
       if (btn) {
         google.accounts.id.renderButton(btn, {

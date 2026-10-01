@@ -123,6 +123,16 @@
     .assign-row { background:#fff;border:1.5px solid #E2E8F0;border-radius:10px;
       padding:12px 16px;margin-bottom:8px;display:flex;align-items:center;gap:12; }
     .assign-progress { background:#F1F5F9;border-radius:6px;height:8px;flex:1;overflow:hidden; }
+    .assign-wrap { margin-bottom:10px; }
+    .assign-wrap .assign-row { cursor:pointer; margin-bottom:0; }
+    .assign-detail { display:none; border:1.5px solid #E2E8F0; border-top:none; border-radius:0 0 10px 10px;
+                     padding:10px 14px; background:#F8FAFC; overflow-x:auto; }
+    .assign-wrap.open .assign-detail { display:block; }
+    .assign-wrap.open .assign-row { border-radius:10px 10px 0 0; }
+    .res-table { width:100%; border-collapse:collapse; font-size:12px; }
+    .res-table th { text-align:left; color:#64748B; font-weight:700; padding:6px 8px; border-bottom:1.5px solid #E2E8F0; white-space:nowrap; }
+    .res-table td { padding:6px 8px; border-bottom:1px solid #EEF2F7; white-space:nowrap; }
+    .res-table tr.todo td { color:#94A3B8; }
     .assign-progress-fill { height:100%;border-radius:6px;background:#059669;transition:width .3s; }
     .badge-done { background:#D1FAE5;color:#065F46;border-radius:6px;
       padding:2px 8px;font-size:11px;font-weight:700; }
@@ -252,6 +262,12 @@
     <input type="date" id="modal-deadline"
       style="width:100%;padding:10px 12px;border:2px solid #E2E8F0;border-radius:8px;
         font-size:14px;font-family:inherit;margin-bottom:20px;outline:none">
+
+    <label style="display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600;
+      color:#334155;margin:-6px 0 20px;cursor:pointer">
+      <input type="checkbox" id="modal-hints" checked style="width:16px;height:16px">
+      แสดงไฮไลต์ปุ่มถัดไปบนคีย์บอร์ด (ปิด = นักเรียนต้องจำตำแหน่งเอง)
+    </label>
 
     <div id="modal-err" class="error-msg" style="display:none"></div>
     <div style="display:flex;gap:10">
@@ -501,12 +517,14 @@ function formatDuration(seconds) {
 }
 
 // ── LESSON INDEX (for assignment picker) ──
+// Generated from LESSONS in index.html — titles must match the app exactly.
+// Re-sync this list whenever lessons are added or renamed.
 const LESSON_INDEX = [
   {ch:1,title:'Chapter 1 — แถวหลัก',lessons:[
-    {id:1,name:'1 แถวกลาง 1',exs:['1.1 แถวกลาง','1.2 คำสั้น','1.3 คำยาว','1.4 ผสม','1.5 ความเร็ว']},
-    {id:2,name:'2 แถวบน',exs:['2.1 แถวบน','2.2 คำสั้น','2.3 ผสม','2.4 ผสมยาว','2.5 ความเร็ว']},
-    {id:3,name:'3 แถวล่าง',exs:['3.1 แถวล่าง','3.2 คำสั้น','3.3 ผสม','3.4 ผสมยาว','3.5 ความเร็ว']},
-    {id:4,name:'4 ผสม 3 แถว',exs:['4.1 ผสม','4.2 คำสั้น','4.3 คำยาว','4.4 ผสมยาว','4.5 ความเร็ว']},
+    {id:1,name:'1 แถวกลาง',exs:['1.1 ตัวอักษรเดี่ยว','1.2 คำสั้น','1.3 เก้า & วรรณยุกต์','1.4 ผสม','1.5 ความเร็ว']},
+    {id:2,name:'2 แถวบน',exs:['2.1 สระบน','2.2 สระไ','2.3 คำยาว','2.4 ผสม','2.5 ความเร็ว']},
+    {id:3,name:'3 แถวล่าง',exs:['3.1 สระอิ สระือ','3.2 สระแ','3.3 สระใ','3.4 ผสม','3.5 ความเร็ว']},
+    {id:4,name:'4 แถวบนสุด',exs:['4.1 พยัญชนะใหม่','4.2 สระ ุ ู','4.3 คำยาว','4.4 ผสม','4.5 ความเร็ว']},
   ]},
   {ch:2,title:'Chapter 2 — Shift ง่าย',lessons:[
     {id:5,name:'5 ไม้ไต่คู้ & ทัณฑฆาต',exs:['5.1 ็','5.2 ์','5.3 ผสม','5.4 ผสมยาว','5.5 ความเร็ว']},
@@ -550,6 +568,22 @@ async function loadAssignments() {
   }
 }
 
+// Text from the sheet is inserted with innerHTML below, so escape it.
+function esc(v) {
+  return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+// Due dates are calendar days ("yyyy-MM-dd"): late only after the day ends.
+function parseDue(deadline) {
+  const m=String(deadline||'').match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (!m) return null;
+  return new Date(+m[1],+m[2]-1,+m[3],23,59,59);
+}
+function formatDue(deadline) {
+  const d=parseDue(deadline);
+  if (!d) return esc(deadline);
+  return String(d.getDate()).padStart(2,'0')+'/'+String(d.getMonth()+1).padStart(2,'0')+'/'+String(d.getFullYear()+543).slice(-2);
+}
+
 function renderAssignments() {
   const list = document.getElementById('assign-list');
   if (!assignmentsData.length) {
@@ -559,20 +593,25 @@ function renderAssignments() {
   list.innerHTML = '';
   assignmentsData.forEach(a => {
     const pct = a.totalTargets > 0 ? Math.round(a.completedCount/a.totalTargets*100) : 0;
-    const dl  = a.deadline ? new Date(a.deadline) : null;
+    const dl  = parseDue(a.deadline);
     const overdue = dl && dl < new Date();
     const badge = pct === 100
       ? '<span class="badge-done">✅ ครบแล้ว</span>'
       : overdue ? '<span class="badge-overdue">⚠️ เลยกำหนด</span>'
                 : '<span class="badge-pending">⏳ รอทำ</span>';
+    const wrap = document.createElement('div');
+    wrap.className = 'assign-wrap';
     const row = document.createElement('div');
     row.className = 'assign-row';
+    row.title = 'กดเพื่อดูคะแนนรายคน';
+    row.onclick = () => wrap.classList.toggle('open');
     row.innerHTML = `
       <div style="flex:1;min-width:0">
-        <div style="font-size:14px;font-weight:800;margin-bottom:4px">${a.exerciseTitle}</div>
+        <div style="font-size:14px;font-weight:800;margin-bottom:4px">${esc(a.exerciseTitle)}</div>
         <div style="font-size:11px;color:#64748B;margin-bottom:8px">
-          ${a.forAll?'ทั้งห้อง':'👤 '+a.studentName} ·
-          ${dl?'กำหนด '+formatDate(a.deadline):'ไม่มีกำหนด'}
+          ${a.forAll?'ทั้งห้อง':'👤 '+esc(a.studentName)} ·
+          ${dl?'กำหนด '+formatDue(a.deadline):'ไม่มีกำหนด'}
+          ${a.showHints===false?' · 🙈 ไม่มีไฮไลต์':''} · ▾ ดูคะแนน
         </div>
         <div style="display:flex;align-items:center;gap:8">
           <div class="assign-progress">
@@ -585,21 +624,54 @@ function renderAssignments() {
       </div>
       <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6;flex-shrink:0">
         ${badge}
-        <button onclick="deleteAssign('${a.assignId}')"
+        <button data-assign-id="${esc(a.assignId)}" onclick="event.stopPropagation();deleteAssign(this.dataset.assignId)"
           style="background:transparent;border:1px solid #FCA5A5;color:#DC2626;
             border-radius:6px;padding:3px 8px;cursor:pointer;font-size:11px;font-family:inherit">
           ลบ
         </button>
       </div>`;
-    list.appendChild(row);
+    const detail = document.createElement('div');
+    detail.className = 'assign-detail';
+    detail.innerHTML = renderResultsTable(a.results||[]);
+    wrap.appendChild(row); wrap.appendChild(detail);
+    list.appendChild(wrap);
   });
+}
+
+// Same thresholds as the student app: ⭐⭐⭐ ≥85% · ⭐⭐ ≥65% · ⭐ ≥45% of max score.
+function starsText(score, max) {
+  const pct = max > 0 ? score / max * 100 : 0;
+  const n = pct >= 85 ? 3 : pct >= 65 ? 2 : pct >= 45 ? 1 : 0;
+  return '⭐'.repeat(n) + '☆'.repeat(3 - n);
+}
+
+function renderResultsTable(results) {
+  if (!results.length) return '<div style="font-size:12px;color:#94A3B8">ไม่มีนักเรียนในงานนี้</div>';
+  // Not-done first (so the teacher sees who to chase), then highest score.
+  const rows = [...results].sort((x,y) =>
+    (x.attempts>0) - (y.attempts>0) || (y.bestScore||0) - (x.bestScore||0) || x.name.localeCompare(y.name,'th'));
+  const fmt = n => Number(n||0).toLocaleString('en-US');
+  return `<table class="res-table">
+    <thead><tr><th>นักเรียน</th><th>สถานะ</th><th>คะแนนดีสุด</th><th>ดาว</th><th>WPM</th><th>ความแม่น</th><th>ครั้ง</th><th>ทำล่าสุด</th></tr></thead>
+    <tbody>${rows.map(r => r.attempts>0 ? `
+      <tr><td>${esc(r.name)}</td>
+        <td>✅${r.late?' <span style="color:#D97706;font-weight:700">⚠️ ส่งช้า</span>':''}</td>
+        <td><b>${fmt(r.bestScore)}</b></td><td>${starsText(r.bestScore,r.maxScore)}</td>
+        <td>${r.wpm}</td><td>${r.accuracy}%</td><td>${r.attempts}</td>
+        <td>${new Date(r.lastAt).toLocaleDateString('th-TH',{day:'numeric',month:'short'})}</td></tr>` : `
+      <tr class="todo"><td>${esc(r.name)}</td><td>⏳ ยังไม่ทำ</td><td>–</td><td>–</td><td>–</td><td>–</td><td>0</td><td>–</td></tr>`
+    ).join('')}</tbody></table>`;
 }
 
 async function deleteAssign(assignId) {
   if (!confirm('ลบ Assignment นี้?')) return;
-  const data=await teacherApi('deleteAssignment',{assignId});
-  if (data.ok) loadAssignments();
-  else alert('ลบไม่ได้: ' + (data.error||'error'));
+  try {
+    const data=await teacherApi('deleteAssignment',{assignId});
+    if (data.ok) loadAssignments();
+    else alert('ลบไม่ได้: ' + (data.error||'error'));
+  } catch(e) {
+    alert('ลบไม่ได้: ' + e.message);
+  }
 }
 
 // ── CREATE MODAL ──
@@ -626,6 +698,7 @@ function openCreateModal() {
 
   document.getElementById('modal-exercise').innerHTML = '';
   document.getElementById('modal-deadline').value = '';
+  document.getElementById('modal-hints').checked = true;
   document.getElementById('modal-err').style.display = 'none';
   document.getElementById('create-modal').style.display = 'flex';
 }
@@ -658,6 +731,7 @@ async function submitAssignments() {
   const student  = document.getElementById('modal-student').value;
   const selected = [...document.getElementById('modal-exercise').selectedOptions];
   const deadline = document.getElementById('modal-deadline').value;
+  const showHints = document.getElementById('modal-hints').checked ? '1' : '0';
   const btn      = document.getElementById('modal-submit-btn');
   const err      = document.getElementById('modal-err');
 
@@ -667,18 +741,28 @@ async function submitAssignments() {
   err.style.display = 'none';
   btn.disabled = true; btn.textContent = 'กำลัง Assign...';
 
+  // Keep going if one fails, and always re-enable the button afterwards.
   let successCount = 0;
-  for (const opt of selected) {
-    const {lessonId, exerciseTitle} = JSON.parse(opt.value);
-    const data=await teacherApi('createAssignment',{
-      classCode:currentClass,studentName:student,lessonId,exerciseTitle,deadline,
-    });
-    if (data.ok) successCount++;
+  const failed = [];
+  try {
+    for (const opt of selected) {
+      const {lessonId, exerciseTitle} = JSON.parse(opt.value);
+      try {
+        const data=await teacherApi('createAssignment',{
+          classCode:currentClass,studentName:student,lessonId,exerciseTitle,deadline,showHints,
+        });
+        if (data.ok) successCount++; else failed.push(exerciseTitle);
+      } catch(e) {
+        failed.push(exerciseTitle);
+      }
+    }
+  } finally {
+    btn.disabled = false; btn.textContent = 'Assign →';
   }
-
-  btn.disabled = false; btn.textContent = 'Assign →';
   closeCreateModal();
-  alert(`✅ Assign แล้ว ${successCount}/${selected.length} แบบฝึก`);
+  alert(failed.length
+    ? `Assign แล้ว ${successCount}/${selected.length} แบบฝึก\n❌ ไม่สำเร็จ: ${failed.join(', ')}`
+    : `✅ Assign แล้ว ${successCount}/${selected.length} แบบฝึก`);
   loadAssignments();
 }
 

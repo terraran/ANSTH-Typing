@@ -3146,6 +3146,19 @@ function ThaiTypingApp() {
               />
             )}
 
+            {roomType==='royale'&&roomCode&&(
+              <BattleRoyaleHud
+                roomCode={roomCode}
+                roomPlayers={roomPlayers}
+                myName={myRoomName.current||studentName||'ผู้เล่น1'}
+                pos={pos}
+                totalChars={totalChars}
+                zonePos={zonePos}
+                playerLives={playerLives}
+                startTime={startTime}
+              />
+            )}
+
             <div style={{background:'var(--c-surf)',borderRadius:14,padding:'22px 18px',
               marginBottom:14,border:'1.5px solid var(--c-border)',minHeight:96,
               display:'flex',alignItems:'center',justifyContent:'center'}}>
@@ -3221,18 +3234,6 @@ function ThaiTypingApp() {
                   </div>
                 </div>
               </div>
-            )}
-            {roomType==='royale'&&roomCode&&(
-              <BattleRoyaleHud
-                roomCode={roomCode}
-                roomPlayers={roomPlayers}
-                myName={myRoomName.current||studentName||'ผู้เล่น1'}
-                pos={pos}
-                totalChars={totalChars}
-                zonePos={zonePos}
-                playerLives={playerLives}
-                startTime={startTime}
-              />
             )}
             {/* Opponents panel */}
             {roomType!=='royale'&&roomCode&&Object.keys(roomPlayers).length>0&&(

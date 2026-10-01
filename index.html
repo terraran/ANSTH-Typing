@@ -115,6 +115,7 @@ const ZONE_PHASES = [
   { after: 120, cpm: 108 },
   { after: 180, cpm: 132 },
 ];
+const ZONE_TICK_SECS = ZONE_TICK / 1000;
 
 function getZoneSpeed(elapsedSeconds) {
   const phase = [...ZONE_PHASES].reverse().find(p => elapsedSeconds >= ZONE_GRACE + p.after);
@@ -2270,6 +2271,78 @@ function BattleRoyaleResults({ roomCode, roomPlayers, onBack }) {
   );
 }
 
+function BattleRoyaleHud({ roomCode, roomPlayers, myName, pos, totalChars, zonePos, playerLives, startTime }) {
+  const tf = "'Sarabun','Noto Sans Thai',sans-serif";
+  const elapsed = startTime ? Math.max(0,(Date.now()-startTime)/1000) : 0;
+  const untilZone = Math.max(0,ZONE_GRACE-Math.floor(elapsed));
+  const outsideBy = Math.max(0,zonePos-pos-ZONE_GAP);
+  const outside = zonePos>0 && outsideBy>0;
+  const percent = totalChars ? Math.max(0,Math.min(100,Math.round(pos/totalChars*100))) : 0;
+  const zonePercent = totalChars ? Math.max(0,Math.min(100,Math.round(zonePos/totalChars*100))) : 0;
+  const phase = elapsed<ZONE_GRACE ? 0 : Math.min(4,1+Math.floor((elapsed-ZONE_GRACE)/60));
+  const drainIn = ZONE_TICK_SECS-Math.floor(elapsed%ZONE_TICK_SECS);
+  const players = Object.entries(roomPlayers||{})
+    .filter(([,p])=>!p.isSpectator)
+    .sort((a,b)=>{
+      const rank=p=>p.status==='done'?0:(p.lives||0)>0?1:2;
+      return rank(a[1])-rank(b[1]) || (b[1].pos||0)-(a[1].pos||0);
+    });
+  const alive = players.filter(([,p])=>p.status!=='eliminated' && (p.lives||0)>0).length;
+  const card={background:'#fff',border:'1px solid #DFEAF5',borderRadius:18,boxShadow:'0 8px 24px rgba(28,67,108,.08)'};
+  return (
+    <>
+    <style>{`@media(max-width:700px){.br-hud-grid{grid-template-columns:minmax(0,1fr)!important}}`}</style>
+    <div className="br-hud-grid" style={{fontFamily:tf,display:'grid',gridTemplateColumns:'minmax(0,1.35fr) minmax(230px,.65fr)',gap:12,marginBottom:12}}>
+      <section style={{...card,overflow:'hidden'}}>
+        <div style={{background:'linear-gradient(120deg,#173F83,#276FD0 60%,#4EA6DC)',padding:'16px 18px',color:'#fff',position:'relative'}}>
+          <div style={{display:'flex',alignItems:'center',gap:7,fontSize:10,fontWeight:800,letterSpacing:1.4,opacity:.85}}><span>🏆</span><span>BATTLE ROYALE</span><span style={{opacity:.55}}>·</span><span>ห้อง {roomCode}</span></div>
+          <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:12,marginTop:8}}>
+            <div><div style={{fontSize:20,fontWeight:800,lineHeight:1.2}}>หนีพายุให้ทัน!</div><div style={{fontSize:11,opacity:.8,marginTop:3}}>พิมพ์ต่อเนื่อง แล้วตามตำแหน่งวงปลอดภัยให้ทัน</div></div>
+            <div style={{background:'rgba(255,255,255,.16)',border:'1px solid rgba(255,255,255,.22)',borderRadius:13,padding:'7px 11px',textAlign:'center',minWidth:72}}><div style={{fontSize:9,fontWeight:800,opacity:.8}}>เหลือรอด</div><div style={{fontSize:20,fontWeight:800,lineHeight:1.2}}>👤 {alive}</div></div>
+          </div>
+        </div>
+        <div style={{padding:14}}>
+          <div style={{display:'flex',alignItems:'center',gap:10,padding:'10px 12px',borderRadius:13,background:outside?'#FFF4E5':zonePos===0?'#EFF7FF':'#EAF8EF',border:`1px solid ${outside?'#FFD496':zonePos===0?'#D5E8FA':'#CBEBD4'}`}}>
+            <div style={{fontSize:23}}>{outside?'🌪️':zonePos===0?'⏳':'🛡️'}</div>
+            <div style={{flex:1,minWidth:0}}><div style={{fontSize:13,fontWeight:800,color:outside?'#A85008':zonePos===0?'#245D9D':'#247247'}}>{outside?`ตามหลังวง ${outsideBy} ตัวอักษร — เร่งพิมพ์!`:zonePos===0?`เตรียมตัว วงจะเริ่มเคลื่อนใน ${untilZone} วินาที`:'อยู่ในวงปลอดภัย เก่งมาก!'}</div><div style={{fontSize:10,color:'#6A8094',marginTop:2}}>{outside?`หัวใจถัดไปจะหายเมื่อครบ ${drainIn} วินาที`:'ทุกคนใช้เวลาเริ่มแข่งและขอบวงเดียวกัน'}</div></div>
+            <div style={{background:outside?'#E88123':zonePos===0?'#4787C5':'#30A66C',color:'#fff',fontSize:10,fontWeight:800,padding:'5px 8px',borderRadius:9,whiteSpace:'nowrap'}}>{outside?`❤️ ${drainIn}s`:zonePos===0?'กำลังรอ':'ปลอดภัย'}</div>
+          </div>
+          <div style={{marginTop:13,padding:'11px 12px 9px',background:'#F4FAFF',border:'1px solid #E1EFF9',borderRadius:14}}>
+            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',fontSize:10,fontWeight:800,color:'#4F6E8A',marginBottom:8}}><span>🗺️ เส้นทางของคุณ</span><span>เฟส {phase||'เตรียมตัว'}{phase>0?` · ${getZoneSpeed(elapsed)} ตัว/นาที`:''}</span></div>
+            <div style={{height:53,position:'relative',borderRadius:12,background:'#E6EEF5',overflow:'hidden'}}>
+              <div style={{position:'absolute',inset:'0 auto 0 0',width:`${zonePercent}%`,background:'linear-gradient(90deg,#B8F0D2,#D9F7E7)',borderRight:'3px solid #28A56C',transition:'width .4s'}}/>
+              <div style={{position:'absolute',top:0,bottom:0,left:`${percent}%`,width:3,background:outside?'#E67E22':'#276FD0',transition:'left .4s'}}/>
+              <div style={{position:'absolute',top:7,left:`${percent}%`,transform:'translateX(-50%)',fontSize:23,filter:'drop-shadow(0 2px 2px #17324a25)',transition:'left .4s',zIndex:2}}>{playerLives>0?'🧑‍🚀':'💀'}</div>
+              <div style={{position:'absolute',right:7,bottom:5,fontSize:17}}>🏁</div>
+              {zonePos>0&&<div style={{position:'absolute',left:`${zonePercent}%`,bottom:3,transform:'translateX(-50%)',fontSize:8,fontWeight:800,color:'#218457',whiteSpace:'nowrap'}}>ขอบวง</div>}
+            </div>
+            <div style={{display:'flex',justifyContent:'space-between',fontSize:9,color:'#7D93A7',marginTop:4}}><span>เริ่มต้น</span><span>{pos} / {totalChars} ตัวอักษร</span><span>เส้นชัย</span></div>
+          </div>
+          <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:8,marginTop:10,padding:'8px 10px',background:'#FBFCFE',border:'1px solid #EDF1F5',borderRadius:12}}><span style={{fontSize:10,fontWeight:800,color:'#526B83'}}>พลังนักสำรวจ</span><span style={{fontSize:17,letterSpacing:2}}>{Array.from({length:Math.min(8,Math.max(1,playerLives))},(_,i)=>i<playerLives?'❤️':'🩶').join(' ')}</span><span style={{fontSize:10,fontWeight:700,color:'#7C91A5'}}>{playerLives} ชีวิต</span></div>
+        </div>
+      </section>
+      <section style={{...card,padding:'13px 13px 10px'}}>
+        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:9}}><div style={{fontSize:13,fontWeight:800,color:'#203B56'}}>🏃 นักสำรวจ</div><div style={{fontSize:10,color:'#8297AA'}}>เรียงตามอันดับ</div></div>
+        <div style={{display:'flex',flexDirection:'column',gap:7}}>
+          {players.slice(0,6).map(([name,p],i)=>{
+            const mine=name===myName;
+            const pct=totalChars?Math.max(0,Math.min(100,Math.round((p.pos||0)/totalChars*100))):0;
+            const dead=p.status==='eliminated'||(p.lives||0)<=0;
+            return <div key={name} style={{padding:'8px 9px',borderRadius:11,background:mine?'#EFF6FF':dead?'#F5F6F8':'#FAFCFE',border:`1px solid ${mine?'#C9DDF8':'#EAF0F5'}`,opacity:dead ? 0.62 : 1}}>
+              <div style={{display:'flex',alignItems:'center',gap:6}}><span style={{fontSize:11,width:16,fontWeight:800,color:i===0?'#D28A17':'#8195A8'}}>{p.status==='done'?'🏁':i+1}</span><span style={{fontSize:11,fontWeight:800,color:'#344E67',flex:1,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{name}{mine?' (คุณ)':''}</span><span style={{fontSize:10}}>{dead?'💀':(p.lives||0)<=5?'❤️'.repeat(Math.max(0,p.lives||0)):`❤️×${p.lives}`}</span></div>
+              <div style={{height:5,background:'#E7EDF3',borderRadius:5,marginTop:6,overflow:'hidden'}}><div style={{height:'100%',width:`${pct}%`,borderRadius:5,background:dead?'#A8B2BD':p.status==='done'?'#E7A832':mine?'#3982D2':'#31AA78',transition:'width .35s'}}/></div>
+              <div style={{display:'flex',justifyContent:'space-between',fontSize:9,color:'#8296A9',marginTop:3}}><span>{p.status==='done'?'เข้าเส้นชัยแล้ว':dead?'ออกจากเกม':'กำลังแข่ง'}</span><span>{pct}%</span></div>
+            </div>;
+          })}
+          {players.length===0&&<div style={{fontSize:11,color:'#8296A9',padding:14,textAlign:'center'}}>กำลังรอข้อมูลผู้เล่น…</div>}
+        </div>
+        {players.length>6&&<div style={{fontSize:10,color:'#8296A9',textAlign:'center',marginTop:8}}>และอีก {players.length-6} คน</div>}
+      </section>
+    </div>
+    </>
+  );
+}
+
 // DEAD SCREEN — shown to eliminated BR players
 function DeadScreen({ standings, onLeave }) {
   const tf = "'Sarabun','Noto Sans Thai',sans-serif";
@@ -2352,6 +2425,8 @@ function ThaiTypingApp() {
   const [raceStand,   setRaceStand]   = useState([]);
   const [mpSetupMode, setMpSetupMode] = useState(''); // '1v1'|'royale'
   const [zonePos,     setZonePos]     = useState(0); // safe zone boundary position
+  const [serverTimeOffset, setServerTimeOffset] = useState(0);
+  const [serverTimeReady, setServerTimeReady] = useState(false);
   const [ghostData,     setGhostData]     = useState(null);  // best previous run {timings,cpm,accuracy}
   const [ghostPos,      setGhostPos]      = useState(0);     // ghost's current character position
   const [ghostKey,      setGhostKey]      = useState('');    // localStorage key for this exercise
@@ -2372,6 +2447,8 @@ function ThaiTypingApp() {
   const [spectatingPlayer, setSpectatingPlayer] = useState(null);
   const zoneDrainRef  = useRef(null);   // interval for zone life drain
   const lastZoneCalcRef = useRef(0);    // timestamp of last zone calc
+  const serverTimeOffsetRef = useRef(0);
+  const lastZoneDrainTickRef = useRef(0);
   // Theme: 'light' | 'dark' | 'auto'
   const [themeMode, setThemeMode] = useState(()=>{ try{return localStorage.getItem('theme')||'light';}catch{return 'light';} });
   const isDark = themeMode==='dark';
@@ -2474,6 +2551,29 @@ function ThaiTypingApp() {
     return () => clearInterval(id);
   }, [roomType]);
 
+  // Use Firebase's clock offset so every device measures the race from the
+  // same server time, even when their local clocks differ.
+  useEffect(() => {
+    const db = getDB();
+    if (!db || !roomCode) return;
+    const ref = db.ref('.info/serverTimeOffset');
+    const onOffset = snap => {
+      const offset = Number(snap.val()) || 0;
+      serverTimeOffsetRef.current = offset;
+      setServerTimeOffset(offset);
+      setServerTimeReady(true);
+    };
+    ref.on('value', onOffset);
+    return () => ref.off('value', onOffset);
+  }, [roomCode]);
+
+  // A watching host uses the exact same scheduled race start as the players.
+  useEffect(() => {
+    if (screen==='host-dashboard' && roomInfo?.raceStartsAt && serverTimeReady) {
+      setStartTime(roomInfo.raceStartsAt-serverTimeOffsetRef.current);
+    }
+  }, [screen, roomInfo?.raceStartsAt, serverTimeReady]);
+
   // Firebase room listener — active during lobby / countdown / practice
   useEffect(() => {
     if (!roomCode) return;
@@ -2521,89 +2621,65 @@ function ThaiTypingApp() {
   // Countdown 3,2,1 → start race
   useEffect(() => {
     if (screen !== 'countdown') return;
-    let n=3; setCountNum(n);
-    const id = setInterval(() => {
-      n--;
-      if (n <= 0) {
-        clearInterval(id);
-        // Reset practice state and begin race
-        setPos(0); setErrors(0); setStartTime(null); setEndTime(null);
-        setHint(null); setFlashCode(null); setShiftHeld(false); setNow(Date.now());
-        keystrokeTimes.current=[]; errorTimes.current=[];
-        currentTimings.current=[]; lastCorrectTime.current=null;
-        hasSaved.current=false; setSaveStatus('idle');
-        setNewRecord(false); setGhostPos(0);
-        setPlayerLives(maxLives); plRef.current=maxLives;
-        setRaceStand([]); setZonePos(0);
-        setPenaltySecs(0); setPressureSecs(0);
-        frozenRef.current=false; raceEndedRef.current=false;
-        pressCountRef.current=0;
-        setScreen('practice');
-        // Race-end detection is now in the lobby useEffect listener (consolidated)
-      } else { setCountNum(n); }
-    }, 1000);
+    const raceStartsAt = Number(roomInfo?.raceStartsAt);
+    if (!raceStartsAt || !serverTimeReady) return;
+    let launched = false;
+    const launch = () => {
+      const remaining = raceStartsAt - (Date.now()+serverTimeOffsetRef.current);
+      setCountNum(Math.min(3,Math.max(1,Math.ceil(remaining/1000))));
+      if (remaining > 0 || launched) return;
+      launched = true;
+      clearInterval(id);
+      // Reset race data, then use the shared server-scheduled start instant.
+      setPos(0); setErrors(0); setStartTime(raceStartsAt-serverTimeOffsetRef.current); setEndTime(null);
+      setHint(null); setFlashCode(null); setShiftHeld(false); setNow(Date.now());
+      keystrokeTimes.current=[]; errorTimes.current=[];
+      currentTimings.current=[]; lastCorrectTime.current=null;
+      hasSaved.current=false; setSaveStatus('idle');
+      setNewRecord(false); setGhostPos(0);
+      setPlayerLives(maxLives); plRef.current=maxLives;
+      setRaceStand([]); setZonePos(0); setZoneWpm(0); lastZoneDrainTickRef.current=0;
+      setPenaltySecs(0); setPressureSecs(0);
+      frozenRef.current=false; raceEndedRef.current=false;
+      pressCountRef.current=0;
+      setScreen('practice');
+    };
+    const id = setInterval(launch,100);
+    launch();
     return () => clearInterval(id);
-  },[screen]);
+  },[screen,roomInfo?.raceStartsAt,serverTimeReady,serverTimeOffset,maxLives]);
 
-  // Live zone position ticker (updates every second for smooth UI)
+  // All clients derive the same moving boundary from the scheduled race start.
   useEffect(() => {
     if ((screen !== 'practice' && screen !== 'host-dashboard') || roomType !== 'royale') return;
     if (screen === 'practice' && !startTime) return;
-    const id = setInterval(() => setZonePos(getZonePos(startTime, totalChars)), 1000);
+    const update = () => {
+      const elapsed = (Date.now()-startTime)/1000;
+      setZonePos(getZonePos(startTime,totalChars));
+      setZoneWpm(getZoneSpeed(elapsed));
+    };
+    update();
+    const id = setInterval(update,250);
     return () => clearInterval(id);
   }, [screen, roomType, startTime, totalChars]);
 
-  // Zone damage check (every ZONE_TICK ms during BR)
+  // Damage checks use the race-wide 10-second tick, not an interval started
+  // independently on each player's first keypress.
   useEffect(() => {
     if (screen !== 'practice' || roomType !== 'royale' || !startTime) return;
-    // ── Any active player calculates median WPM zone every 20s ──
-    let lastMedianCalc = 0;
     const id = setInterval(() => {
-      const now = Date.now();
-
-      // Host (incl. spectator) OR any player calculates zone — last-write-wins
-      if (rcRef.current && now - lastMedianCalc > 20000) {
-        lastMedianCalc = now;
-        // Read fresh from Firebase to avoid stale closure
-        getDB()?.ref('rooms/'+rcRef.current+'/players').once('value').then(snap=>{
-          const ps = snap.val() || {};
-          const wpms = Object.values(ps)
-            .filter(p => (p.lives??1) > 0 && p.status !== 'eliminated')
-            .map(p => Math.round((p.cpm||0)/5))  // convert KPM→WPM
-            .filter(w => w > 0)
-            .sort((a,b) => a-b);
-          if (wpms.length > 1) {
-            const mid = Math.floor(wpms.length/2);
-            const median = wpms.length%2===0
-              ? Math.round((wpms[mid-1]+wpms[mid])/2)
-              : wpms[mid];
-            // Zone = 85% of median so slowest players always feel pressure
-            // Also add time-based floor that rises 1 WPM per 30s
-            // Keep the lobby/dashboard informed; the actual circle is derived
-            // from the shared race start time, so every player sees the same boundary.
-            const raceStart = stateRef.current.startTime;
-            const elapsedSeconds = raceStart ? (now-raceStart)/1000 : 0;
-            const speed = getZoneSpeed(elapsedSeconds);
-            getDB()?.ref('rooms/'+rcRef.current+'/zone').set({cpm:speed,position:getZonePos(raceStart,totalChars),ts:now});
-            setZoneWpm(speed); setZoneTs(now);
-          }
-        });
-      }
-
-      // All players: the circle advances by text position and drains lives
-      // only while the player remains outside its grace distance.
-      const st = stateRef.current.startTime;
-      const boundary = getZonePos(st, totalChars);
-      const outside = st && boundary - stateRef.current.pos > ZONE_GAP;
-      if (outside && plRef.current > 0) {
-        const newLives = Math.max(0, plRef.current - 1);
-        setPlayerLives(newLives); plRef.current = newLives;
-        fbUpdatePlayer(rcRef.current, myRoomName.current||snRef.current||'Player', {lives:newLives});
-        if (newLives === 0) {
-          fbUpdatePlayer(rcRef.current, myRoomName.current||snRef.current||'Player', {status:'eliminated'});
-        }
-      }
-    }, ZONE_TICK);
+      const elapsedMs = Date.now()-startTime;
+      const tick = Math.floor(elapsedMs/ZONE_TICK);
+      if (tick<=0 || tick<=lastZoneDrainTickRef.current) return;
+      lastZoneDrainTickRef.current=tick;
+      const boundary = getZonePos(startTime,totalChars);
+      const outside = boundary-stateRef.current.pos>ZONE_GAP;
+      if (!outside || plRef.current<=0) return;
+      const newLives = Math.max(0,plRef.current-1);
+      setPlayerLives(newLives); plRef.current=newLives;
+      fbUpdatePlayer(rcRef.current,myRoomName.current||snRef.current||'Player',{lives:newLives});
+      if (newLives===0) fbUpdatePlayer(rcRef.current,myRoomName.current||snRef.current||'Player',{status:'eliminated'});
+    },250);
     return () => clearInterval(id);
   }, [screen, roomType, startTime]);
 
@@ -2777,7 +2853,17 @@ function ThaiTypingApp() {
 
   // Host starts Battle Royale manually
   const handleStartRace = useCallback(async () => {
-    await fbSetStatus(rcRef.current,'countdown');
+    const db = getDB();
+    let offset = serverTimeOffsetRef.current;
+    try {
+      const snap = await db?.ref('.info/serverTimeOffset').once('value');
+      offset = Number(snap?.val()) || offset;
+      serverTimeOffsetRef.current = offset;
+      setServerTimeOffset(offset);
+      setServerTimeReady(true);
+    } catch {}
+    const raceStartsAt = Date.now() + offset + 4000;
+    await fbSetStatus(rcRef.current,'countdown',{raceStartsAt});
   },[]);
 
   // Leave/cleanup room
@@ -2857,7 +2943,7 @@ function ThaiTypingApp() {
         }
       }
 
-      if (!startTime) setStartTime(Date.now());
+      if (!startTime && !rcRef.current) setStartTime(Date.now());
       const typedSoFar=targetChars.slice(0,pos).join('')+char;
       const result=validateInput(target,typedSoFar);
 
@@ -3174,53 +3260,20 @@ function ThaiTypingApp() {
                 </div>
               </div>
             )}
-            {/* Zone warning — BR only */}
-            {roomType==='royale'&&roomCode&&(()=>{
-              const outsideBy = Math.max(0, zonePos - pos - ZONE_GAP);
-              const belowZone = zonePos > 0 && outsideBy > 0;
-              const elapsedSeconds = startTime ? (Date.now()-startTime)/1000 : 0;
-              const secsToDamage = Math.max(0, ZONE_TICK/1000 - Math.floor(elapsedSeconds % (ZONE_TICK/1000)));
-              return (
-                <div style={{marginBottom:10}}>
-                  {/* Zone bar */}
-                  <div style={{display:'flex',alignItems:'center',gap:10,
-                    background:belowZone?'#FEF2F2':'var(--c-surf)',
-                    border:`1.5px solid ${belowZone?'#FCA5A5':'var(--c-border)'}`,
-                    borderRadius:10,padding:'8px 14px',
-                    transition:'background .3s,border-color .3s'}}>
-                    <span style={{fontSize:16}}>{belowZone?'⚠️':'🛡️'}</span>
-                    <div style={{flex:1,fontFamily:"'Sarabun','Noto Sans Thai',sans-serif"}}>
-                      <div style={{fontSize:11,fontWeight:700,
-                        color:belowZone?'#DC2626':'var(--c-t2)'}}>
-                          {belowZone?`อยู่นอกโซน ${outsideBy} ตัวอักษร · เร่งพิมพ์กลับเข้าวง!`:'อยู่ใน Safe Zone'}
-                      </div>
-                      {zonePos>0&&(
-                        <div style={{fontSize:11,color:'var(--c-t3)',marginTop:1}}>
-                          ขอบโซน: ตัวที่ {zonePos} · คุณ: {pos} · ความเร็วโซน {getZoneSpeed(elapsedSeconds)} ตัว/นาที
-                          {belowZone&&<span style={{color:'#DC2626',fontWeight:800,marginLeft:6}}>❤️ ลดใน {secsToDamage}s</span>}
-                        </div>
-                      )}
-                      {zonePos===0&&(
-                        <div style={{fontSize:11,color:'var(--c-t3)'}}>
-                          วงปลอดภัยจะเริ่มเคลื่อนใน {Math.max(0,ZONE_GRACE-Math.floor(elapsedSeconds))}s
-                        </div>
-                      )}
-                    </div>
-                    {zonePos>0&&(
-                      <div style={{
-                        background:belowZone?'#DC2626':'#059669',
-                        color:'#fff',borderRadius:8,padding:'4px 10px',
-                        fontSize:13,fontWeight:800,flexShrink:0,
-                        fontFamily:"'Sarabun','Noto Sans Thai',sans-serif"}}>
-                        {belowZone?`-${outsideBy} ตัว`:'ปลอดภัย'}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              );
-            })()}
+            {roomType==='royale'&&roomCode&&(
+              <BattleRoyaleHud
+                roomCode={roomCode}
+                roomPlayers={roomPlayers}
+                myName={myRoomName.current||studentName||'ผู้เล่น1'}
+                pos={pos}
+                totalChars={totalChars}
+                zonePos={zonePos}
+                playerLives={playerLives}
+                startTime={startTime}
+              />
+            )}
             {/* Opponents panel */}
-            {roomCode&&Object.keys(roomPlayers).length>0&&(
+            {roomType!=='royale'&&roomCode&&Object.keys(roomPlayers).length>0&&(
               <div style={{background:'var(--c-surf)',borderRadius:12,padding:'12px 14px',
                 marginBottom:10,border:'1.5px solid var(--c-border)'}}>
                 <div style={{fontSize:11,color:'var(--c-t2)',fontWeight:700,marginBottom:10,

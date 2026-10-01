@@ -336,19 +336,19 @@ function difficultyOf(lives){ return BR_DIFFICULTIES.find(d=>d.lives===lives) ||
 
 const LESSONS = [
   {
-    id:1, thaiName:'แถวกลาง', engName:'Home Row',
-    desc:'ฟ ห ก ด เ ้ ่ า ส ว ง', accent:'#059669', al:'#D1FAE5',
+    id:1, thaiName:'แถวกลาง 1', engName:'Home Row — กดสหว',
+    desc:'ฝึกนิ้วบน Home Row ไม่ใช้แถวอื่นเลย', accent:'#059669', al:'#D1FAE5',
     exercises:[
-      { title:'1.1 คำสั้น',      minChars:70,
-        words:['กา','ดา','หา','สา','วา','งา','กด','เกา','เสา','เหา','เดา','กาง','วาง','หาง','สาด','ฟาก','ราง','สาง'] },
-      { title:'1.2 คำสามตัว',   minChars:100,
-        words:['กาว','หาว','ดาว','สาว','วาด','หาด','สาด','เกา','เสา','เหา','เดา','กาง','วาง','หาง','ฟาก','ราง','สาง'] },
-      { title:'1.3 วรรณยุกต์', minChars:100,
-        words:['เก้า','เก่า','ว่าง','กว่า','ส่ง','เก่ง','ฟ้า','ว่า','ดาวฟ้า','เก่งกด','เก้าว่า','ส่งดาว','ว่างหาว'] },
-      { title:'1.4 ผสม',         minChars:160,
-        words:['กา','กาว','เก่า','เก้า','ดาว','หาว','สาว','ว่าง','กว่า','เก่ง','ส่ง','ฟ้า','เกา','เสา','เหา','วาด','หาด','กาง','วาง','กด','ว่า','สาด','ราง'] },
-      { title:'1.5 ความเร็ว',   minChars:230,
-        words:['กา','กาว','เก่า','เก้า','ดาว','หาว','สาว','ว่าง','กว่า','เก่ง','ส่ง','ฟ้า','เกา','เสา','เหา','วาด','หาด','กาง','วาง','กด','ว่า','สาด','ราง','ฟาก','สาง','หาง'] },
+      { title:'1.1 ตัวอักษรเดี่ยว', minChars:80,
+        words:['กา','ดา','หา','สา','วา','งา','กาว','ดาว','หาว','สาว','กาด','หาด','ดาด','สาก','วาก'] },
+      { title:'1.2 คำสั้น', minChars:100,
+        words:['กาง','หาง','สาง','กวาง','เกา','เดา','เหา','เสา','เก่า','กว่า','กว้าง','กวาด','สวาง','เด่า','หวาง'] },
+      { title:'1.3 เก้า & วรรณยุกต์', minChars:100,
+        words:['เก้า','ก่า','ด่า','ห่า','ส่า','ก้า','ด้า','ห้า','ส้า','กว้าง','เก่า','เด้า','กว่า','กาด','สวาก'] },
+      { title:'1.4 ผสม', minChars:160,
+        words:['กา','ดา','หา','สา','วา','งา','กาว','ดาว','หาว','สาว','กาง','หาง','สาง','เกา','เดา','เหา','เสา','เก้า','เก่า','กว่า','กว้าง','กวาด','กวาง','ก่า','ห้า'] },
+      { title:'1.5 ความเร็ว', minChars:260,
+        words:['กา','ดา','หา','สา','วา','งา','กาว','ดาว','หาว','สาว','กาง','หาง','สาง','เกา','เดา','เหา','เสา','เก้า','เก่า','กว่า','กว้าง','กวาด','กวาง','ก่า','ด่า','ห่า','ก้า','ห้า','ส้า','กาด','หาด','ดาด','สวาง','เด้า'] },
     ],
   },
   {
@@ -2181,6 +2181,17 @@ function HostDashboard({ roomCode, roomPlayers, roomType, zoneWpm, onSpectate, o
 // SPECTATOR VIEW — host watching a specific player's screen
 function SpectatorView({ playerName, displayChars, progress, onBack }) {
   const tf = "'Sarabun','Noto Sans Thai',sans-serif";
+  // Apply same chunking logic as practice screen so page scrolls with player
+  const chunks = buildChunks(displayChars);
+  const pos    = progress || 0;
+  const chunkIdx = (() => {
+    for (let i=0; i<chunks.length; i++) { if (pos < chunks[i].end) return i; }
+    return Math.max(0, chunks.length-1);
+  })();
+  const curChunk   = chunks[chunkIdx] || {start:0, end:displayChars.length};
+  const chunkChars = displayChars.slice(curChunk.start, curChunk.end);
+  const chunkPos   = Math.max(0, pos - curChunk.start);
+
   return (
     <div style={{fontFamily:tf}}>
       <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:12}}>
@@ -2190,11 +2201,14 @@ function SpectatorView({ playerName, displayChars, progress, onBack }) {
             fontSize:12,fontFamily:tf}}>← กลับ</button>
         <div style={{fontSize:14,fontWeight:800,color:'var(--c-t1)'}}>
           👁 กำลังดู: {playerName}</div>
+        <div style={{marginLeft:'auto',fontSize:11,color:'var(--c-t3)'}}>
+          หน้า {chunkIdx+1}/{chunks.length}
+        </div>
       </div>
       <div style={{background:'var(--c-surf)',borderRadius:14,padding:'22px 18px',
         border:'1.5px solid var(--c-border)',minHeight:96,
         display:'flex',alignItems:'center',justifyContent:'center'}}>
-        <TextDisplay displayChars={displayChars} displayPos={progress||0}/>
+        <TextDisplay displayChars={chunkChars} displayPos={chunkPos}/>
       </div>
     </div>
   );
@@ -2507,7 +2521,11 @@ function ThaiTypingApp() {
             const median = wpms.length%2===0
               ? Math.round((wpms[mid-1]+wpms[mid])/2)
               : wpms[mid];
-            const zone = Math.max(5, median);
+            // Zone = 85% of median so slowest players always feel pressure
+            // Also add time-based floor that rises 1 WPM per 30s
+            const elapsed = (now - (rcRef.current ? (parseInt(rcRef.current)||0) : 0));
+            const timePressure = Math.floor((Date.now() - (stateRef?.current?.startTime||Date.now())) / 30000);
+            const zone = Math.max(5 + timePressure, Math.floor(median * 0.85));
             getDB()?.ref('rooms/'+rcRef.current+'/zone').set({wpm:zone,ts:now});
             setZoneWpm(zone); setZoneTs(now);
           }

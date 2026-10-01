@@ -2127,7 +2127,7 @@ function HostDashboard({ roomCode, roomPlayers, roomType, zoneWpm, onSpectate, o
       {/* Player table */}
       <div style={{display:'flex',flexDirection:'column',gap:6}}>
         {sorted.map(([name, p], i) => {
-          const wpm    = p.wpm || 0;
+          const wpm    = Math.round((p.cpm||p.wpm||0)/5);  // support both cpm and wpm
           const lives  = p.lives ?? 3;
           const pct    = Math.min(100, zoneWpm > 0 ? Math.round(wpm/zoneWpm*100) : 100);
           const danger = zoneWpm > 0 && wpm < zoneWpm;
@@ -2491,7 +2491,7 @@ function ThaiTypingApp() {
           const ps = snap.val() || {};
           const wpms = Object.values(ps)
             .filter(p => (p.lives??1) > 0 && p.status !== 'eliminated')
-            .map(p => p.wpm || 0)
+            .map(p => Math.round((p.cpm||0)/5))  // convert KPM→WPM
             .filter(w => w > 0)
             .sort((a,b) => a-b);
           if (wpms.length > 1) {
@@ -2809,7 +2809,7 @@ function ThaiTypingApp() {
             const el=stateRef.current.startTime?(nowFB-stateRef.current.startTime)/60000:0;
             const np=stateRef.current.pos+1;
             const nc=el>0?Math.round(np/el):0;
-            fbUpdatePlayer(rcRef.current,myRoomName.current||snRef.current||'ผู้เล่น1',{pos:np,cpm:nc,status:'racing'});
+            fbUpdatePlayer(rcRef.current,myRoomName.current||snRef.current||'ผู้เล่น1',{pos:np,cpm:nc,wpm:Math.round(nc/5),status:'racing'});
           }
         }
       } else {

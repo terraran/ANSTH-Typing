@@ -509,7 +509,9 @@ function fmtTimeLeft(ms) {
 function pctOf(score, max) { return max > 0 ? Math.round(score / max * 100) : 0; }
 
 // SPAM THRESHOLDS
-const SPEED_CPM       = 750;
+const SPEED_CPM       = 750;  // keys/min over the last SPAM_WINDOW_KEYS keys…
+const SPAM_WINDOW_KEYS = 10;
+const SPAM_WRONG_SHARE = 0.5; // …and at least half of them wrong → spam
 const ERROR_WINDOW_MS = 3000;
 const ERROR_BURST     = 9;
 const SPAM_PENALTY    = 5;   // seconds frozen after spam detection (no longer a kick)
@@ -3309,22 +3311,24 @@ function ThaiTypingApp() {
       const _nextChForKPM = pos<targetChars.length ? targetChars[pos] : null;
       const _needsShiftForKPM = _nextChForKPM ? (findKeyForChar(_nextChForKPM)?.needsShift??false) : false;
 
-      // SPAM CHECK 1: speed
+      if (!startTime && !rcRef.current) setStartTime(Date.now());
+      const typedSoFar=targetChars.slice(0,pos).join('')+char;
+      const result=validateInput(target,typedSoFar);
+
+      // SPAM CHECK 1: very fast AND mostly wrong. Fast, accurate typing is never
+      // punished — only key-mashing (random keys at high speed) is.
       const nowMs=Date.now();
       const kBuf=keystrokeTimes.current;
-      kBuf.push(nowMs);
-      if (kBuf.length>15) kBuf.shift();
-      if (kBuf.length>=8) {
-        const span=kBuf[kBuf.length-1]-kBuf[0];
-        if (span>0 && ((kBuf.length-1)/span)*60000>SPEED_CPM) {
+      kBuf.push({t:nowMs,ok:!!result.ok});
+      if (kBuf.length>SPAM_WINDOW_KEYS) kBuf.shift();
+      if (kBuf.length>=SPAM_WINDOW_KEYS) {
+        const span=kBuf[kBuf.length-1].t-kBuf[0].t;
+        const wrong=kBuf.filter(k=>!k.ok).length;
+        if (span>0 && ((kBuf.length-1)/span)*60000>SPEED_CPM && wrong/kBuf.length>=SPAM_WRONG_SHARE) {
           keystrokeTimes.current=[]; errorTimes.current=[];
           frozenRef.current=true; setPenaltySecs(SPAM_PENALTY); return;
         }
       }
-
-      if (!startTime && !rcRef.current) setStartTime(Date.now());
-      const typedSoFar=targetChars.slice(0,pos).join('')+char;
-      const result=validateInput(target,typedSoFar);
 
       if (result.ok) {
         setHint(null); setFlashCode(null);

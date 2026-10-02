@@ -10,6 +10,7 @@
 <script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
 <script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.10/babel.min.js"></script>
+<script src="char.js?v=1"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600;700;800&display=swap" rel="stylesheet">
@@ -1217,7 +1218,7 @@ const CHAPTERS = [
 
 // LESSON SELECTOR
 
-function LessonScreen({ studentName, classCode, onSelect, onOpenSetup, onJoin, joinCode, setJoinCode, joinError, mpBusy, storyPath, storyPower, onViewStats, onLogin, weekly, onOpenWeekly, highScores }) {
+function LessonScreen({ studentName, classCode, onSelect, onOpenSetup, onJoin, joinCode, setJoinCode, joinError, mpBusy, storyPath, storyPower, onViewStats, onLogin, weekly, onOpenWeekly, highScores, character, onOpenCharacter }) {
   const savedCh=(()=>{try{return Math.min(parseInt(localStorage.getItem('lastChapter')||'0')||0,CHAPTERS.length-1);}catch{return 0;}})();
   const getExercises=(lesson)=>{
     if(!lesson.story) return lesson.exercises||[];
@@ -1270,18 +1271,33 @@ function LessonScreen({ studentName, classCode, onSelect, onOpenSetup, onJoin, j
               fontFamily:"'Sarabun','Noto Sans Thai',sans-serif",whiteSpace:'nowrap'}}>
             Sign in with Google
           </button>
+          <button onClick={()=>onOpenCharacter&&onOpenCharacter()} title="สร้างตัวละคร"
+            style={{background:'rgba(255,255,255,.18)',border:'none',borderRadius:8,padding:4,cursor:'pointer',lineHeight:0}}>
+            {window.CharKit?<CharKit.Avatar config={character} size={34}/>:'🎨'}
+          </button>
         </div>
       )}
       {studentName&&(
         <div style={{display:'flex',alignItems:'center',gap:12,background:'var(--c-surf)',
           borderRadius:14,padding:'12px 16px',marginBottom:20,border:'1.5px solid var(--c-border)'}}>
-          <div style={{width:42,height:42,borderRadius:'50%',flexShrink:0,
-            background:'linear-gradient(135deg,#1D4ED8,#7C3AED)',
-            display:'flex',alignItems:'center',justifyContent:'center',fontSize:20}}>👤</div>
+          <button onClick={()=>onOpenCharacter&&onOpenCharacter()} title="แก้ไขตัวละคร"
+            style={{background:'none',border:'none',padding:0,cursor:'pointer',position:'relative',lineHeight:0}}>
+            {window.CharKit
+              ? <CharKit.Avatar config={character} size={46}/>
+              : <span style={{fontSize:20}}>👤</span>}
+            {!character&&<span style={{position:'absolute',right:-4,bottom:-2,fontSize:14,lineHeight:1}}>✨</span>}
+          </button>
           <div style={{flex:1}}>
             <div style={{fontSize:15,fontWeight:800,color:'var(--c-t1)'}}>{studentName}</div>
             <div style={{fontSize:11,color:'var(--c-t3)'}}>ห้อง {classCode}</div>
           </div>
+          <button onClick={()=>onOpenCharacter&&onOpenCharacter()}
+            style={{background:character?'var(--c-surf)':'linear-gradient(135deg,#7C3AED,#2563EB)',
+              border:character?'1.5px solid var(--c-border)':'none',color:character?'#7C3AED':'#fff',
+              borderRadius:8,padding:'6px 12px',cursor:'pointer',fontSize:12,
+              fontWeight:700,fontFamily:"'Sarabun','Noto Sans Thai',sans-serif",whiteSpace:'nowrap'}}>
+            {character?'🎨 ตัวละคร':'✨ สร้างตัวละคร'}
+          </button>
           <button onClick={()=>onViewStats&&onViewStats()}
             style={{background:'var(--c-surf)',border:'1.5px solid var(--c-border)',color:'#2563EB',
               borderRadius:8,padding:'6px 12px',cursor:'pointer',fontSize:12,
@@ -2010,7 +2026,7 @@ function ClassPickerScreen({ googleUser, onSelect, onBack }) {
         if (cancelled) return;
         setResult(data);
         setStatus('found');
-        onSelect(data.classCode, data.studentName);
+        onSelect(data.classCode, data.studentName, data.character);
       } catch (err) {
         if (cancelled) return;
         console.warn('lookupByEmail failed:',err?.message);
@@ -2687,6 +2703,8 @@ function ThaiTypingApp() {
   const pendingStoryRef = useRef(null);
   // Google Sign-In
   const [googleUser, setGoogleUser]   = useState(null); // { name, email, picture, sub }
+  // Pixel character — saved per Google account (school computers are shared)
+  const [character, setCharacter] = useState(()=>window.CharKit?CharKit.loadLocal('guest'):null);
   // Weekly test (one per grade level per week)
   const [weekly,       setWeekly]       = useState(null);   // board payload from getWeeklyBoard
   const [weeklyStatus, setWeeklyStatus] = useState('idle'); // idle|loading|ok|error
@@ -3098,6 +3116,19 @@ function ThaiTypingApp() {
   rcRef.current = roomCode; rtRef.current = roomType;
   plRef.current = playerLives; snRef.current = studentName;
 
+    // Save on this device first, then to Google Sheets when signed in.
+  const saveCharacter = useCallback(async (cfg) => {
+    CharKit.saveLocal(googleUser?.email||'guest', cfg);
+    setCharacter(cfg);
+    if (studentName && SCRIPT_URL && _googleIdToken) {
+      try {
+        await apiRequest('saveCharacter',{code:classCode,student:studentName,character:JSON.stringify(cfg)});
+      } catch (err) {
+        throw new Error(describeApiError(err)+' — บันทึกไว้ในเครื่องนี้แล้ว');
+      }
+    }
+  },[googleUser, studentName, classCode]);
+
   const startExercise = useCallback((les,ex,opts={}) => {
     if (les.story && les.id===14) {
       const nm=(()=>{try{return localStorage.getItem('adventureName')||'';}catch(e){return '';}})();
@@ -3277,6 +3308,7 @@ function ThaiTypingApp() {
     setLesson(null); setExercise(null); setTarget(''); setPos(0);
     setErrors(0); setStartTime(null); setEndTime(null); setSaveStatus('idle');
     setGoogleUser(null); setWeekly(null); setWeeklyStatus('idle'); setTestBoard(null);
+    setCharacter(window.CharKit?CharKit.loadLocal('guest'):null);
     setActiveTest(null); testRef.current=null;
     _googleIdToken=''; _googleSubject=''; _firebaseAuthSubject='';
     if (typeof firebase!=='undefined'&&firebase.apps.length) firebase.auth().signOut().catch(()=>{});
@@ -3511,8 +3543,14 @@ function ThaiTypingApp() {
         {screen==='class-picker' && googleUser && (
           <ClassPickerScreen
             googleUser={googleUser}
-            onSelect={(code, foundName) => {
+            onSelect={(code, foundName, serverChar) => {
               setClassCode(code);
+              if (window.CharKit) {
+                const who = googleUser?.email || 'guest';
+                const ch = CharKit.sanitize(serverChar) || CharKit.loadLocal(who);
+                setCharacter(ch);
+                if (ch) CharKit.saveLocal(who, ch);
+              }
               const name = foundName || (googleUser ? googleUser.name : '');
               setStudentName(name);
               setDisplayName(name);
@@ -3529,6 +3567,10 @@ function ThaiTypingApp() {
             onBack={() => setScreen('lessons')}
           />
         )}
+        {screen==='character' && window.CharKit && (
+          <CharKit.CreatorScreen initial={character} signedIn={!!studentName}
+            onSave={saveCharacter} onBack={()=>setScreen('lessons')}/>
+        )}
         {screen==='lessons' && (
           <LessonScreen onSelect={startExercise}
             onOpenSetup={(mode)=>{ setMpSetupMode(mode); setScreen('mp-setup'); }}
@@ -3542,6 +3584,8 @@ function ThaiTypingApp() {
             weekly={weekly}
             onOpenWeekly={openWeekly}
             highScores={highScores}
+            character={character}
+            onOpenCharacter={()=>setScreen('character')}
           />
         )}
 

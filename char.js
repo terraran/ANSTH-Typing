@@ -2,6 +2,7 @@
    CharKit — pixel-art character renderer + character creator
    Plain JavaScript (no Babel) so it loads fast. Needs React UMD first.
    Assets: assets/char/char.json, *_base_sheet.png, hair/hair_*.png
+   Phase 2: fromName / fromPlayer / toWire / grayOf / RaceTrack
    ═══════════════════════════════════════════════════════════════ */
 (function () {
   'use strict';
@@ -94,6 +95,30 @@
   function saveLocal(who, cfg) {
     try { localStorage.setItem('char_v1:' + (who || 'guest'), JSON.stringify(sanitize(cfg))); } catch (e) {}
   }
+
+  // ── Phase 2: stable default character from a name ───────────
+  // Same name → same character on every device, so players without a saved
+  // character still look the same to everyone in the room.
+  function hashStr(s) {
+    let x = 2166136261;
+    for (const ch of String(s || '')) { x ^= ch.codePointAt(0); x = Math.imul(x, 16777619); }
+    return x >>> 0;
+  }
+  function fromName(name) {
+    let x = hashStr(name || 'player') || 1;
+    const pick = list => {
+      const v = list[x % list.length];
+      x = Math.imul(x ^ (x >>> 13), 0x5bd1e995) >>> 0;
+      x = (x ^ (x >>> 15)) >>> 0;
+      return v.id;
+    };
+    return sanitize({ body: pick(BODIES), hair: pick(HAIRSTYLES), hairColor: pick(HAIR_COLORS),
+      skin: pick(SKIN_TONES), socks: pick(SOCK_COLORS), shoes: pick(SHOE_COLORS) });
+  }
+  // A room player's look: their saved character, else the one from their name.
+  function fromPlayer(p) { return sanitize(p && p.char) || fromName(p && p.name); }
+  // Short JSON string for the Firebase `char` field (rules allow ≤ 200 chars).
+  function toWire(cfg) { const c = sanitize(cfg); return c ? JSON.stringify(c) : ''; }
 
   // ── Asset loading ───────────────────────────────────────────
   let _data = null, _loading = null;
@@ -190,6 +215,26 @@
     });
   }
 
+  // Grey copy of a finished sprite (eliminated players). Cached per sprite.
+  const _gray = new WeakMap();
+  function grayOf(sprite) {
+    if (_gray.has(sprite)) return _gray.get(sprite);
+    const src = sprite.sheet, cv = document.createElement('canvas');
+    cv.width = src.width; cv.height = src.height;
+    const ctx = cv.getContext('2d');
+    ctx.drawImage(src, 0, 0);
+    const id = ctx.getImageData(0, 0, cv.width, cv.height), d = id.data;
+    for (let p = 0; p < d.length; p += 4) {
+      if (!d[p + 3]) continue;
+      const g = Math.min(255, Math.round(lum([d[p], d[p + 1], d[p + 2]]) * 0.8 + 30));
+      d[p] = d[p + 1] = d[p + 2] = g;
+    }
+    ctx.putImageData(id, 0, 0);
+    const g = Object.assign({}, sprite, { sheet: cv });
+    _gray.set(sprite, g);
+    return g;
+  }
+
   // Draws one frame. crop = part of the 64×64 frame to show.
   function drawFrame(ctx, sprite, anim, frame, dx, dy, scale, crop) {
     const a = sprite.anims[anim] || sprite.anims.idle, S = sprite.size;
@@ -261,6 +306,179 @@
       config
         ? h(CharCanvas, { config, crop: HEAD, scale: 2, still: !animate, style: { width: size * 1.05, height: 'auto' } })
         : h('span', { style: { fontSize: size * 0.48, lineHeight: size + 'px', width: '100%', textAlign: 'center' } }, '👤'));
+  }
+
+  // ── Phase 2: race track (1v1 lanes / Battle Royale lane) ────
+  // One canvas, drawn with requestAnimationFrame. New props are read from a ref
+  // on the next frame, so the race never adds React re-renders.
+  //
+  // runners: [{ id, label, cfg, pct (0..1), kpm, me, finished, out, color }]
+  //   mode '1v1'    → lane 1 = runners[0] (me), lane 2 = runners[1]
+  //   mode 'royale' → one lane; rivals drawn faint behind, me in front
+  // zonePct: Battle Royale storm edge (0..1)
+  const PAD_L = 30, PAD_R = 46, LANE_H = 70, IDLE_AFTER = 1500;
+  function RaceTrack(props) {
+    const { mode = '1v1', runners = [], style } = props;
+    const isDuel = mode !== 'royale';
+    const height = isDuel ? LANE_H * 2 + 6 : 96;
+    const wrapRef = useRef(null), cvRef = useRef(null);
+    const optRef = useRef(props); optRef.current = props;
+    const spritesRef = useRef(new Map());    // runner id → finished sprite
+    const stateRef = useRef(new Map());      // runner id → position / animation state
+    const [width, setWidth] = useState(0);
+    const keys = runners.map(r => r.id + '=' + keyOf(sanitize(r.cfg) || defaults('boy'))).join(',');
+
+    // Build sprites only when someone's look changes.
+    useEffect(() => {
+      let alive = true;
+      optRef.current.runners.forEach(r => {
+        buildSprite(r.cfg).then(s => { if (alive) spritesRef.current.set(r.id, s); }).catch(() => {});
+      });
+      return () => { alive = false; };
+    }, [keys]);
+
+    // Follow the container width.
+    useEffect(() => {
+      const el = wrapRef.current; if (!el) return;
+      const upd = () => setWidth(Math.max(220, Math.floor(el.clientWidth)));
+      upd();
+      if (typeof ResizeObserver === 'undefined') {
+        window.addEventListener('resize', upd);
+        return () => window.removeEventListener('resize', upd);
+      }
+      const ro = new ResizeObserver(upd); ro.observe(el);
+      return () => ro.disconnect();
+    }, []);
+
+    useEffect(() => {
+      if (!width) return;
+      const cv = cvRef.current, dpr = Math.min(2, window.devicePixelRatio || 1);
+      cv.width = Math.round(width * dpr); cv.height = Math.round(height * dpr);
+      const ctx = cv.getContext('2d');
+      const xOf = pct => PAD_L + Math.max(0, Math.min(1, pct)) * (width - PAD_L - PAD_R);
+      const font = (w, px) => w + ' ' + px + "px 'Sarabun','Noto Sans Thai',sans-serif";
+
+      function step(r, now, dt) {
+        let st = stateRef.current.get(r.id);
+        const target = Math.max(0, Math.min(1, Number(r.pct) || 0));
+        if (!st) { st = { x: target, tgt: target, moveAt: 0, frame: 0, acc: 0, anim: 'idle' }; stateRef.current.set(r.id, st); }
+        if (target > st.tgt + 1e-6) st.moveAt = now;
+        st.tgt = target;
+        // Others arrive in ~350 ms Firebase steps, so they glide more slowly.
+        st.x += (target - st.x) * (1 - Math.exp(-dt / (r.me ? 70 : 240)));
+        const moving = !r.out && !r.finished && now - st.moveAt < IDLE_AFTER;
+        const anim = moving ? 'run' : 'idle';
+        if (anim !== st.anim) { st.anim = anim; st.frame = 0; st.acc = 0; }
+        if (!r.out) {
+          const sp = spritesRef.current.get(r.id);
+          const fm = (sp && sp.anims[anim] && sp.anims[anim].frameMs) || 200;
+          const speed = moving ? Math.max(0.6, Math.min(2.2, (Number(r.kpm) || 0) / 120)) : 1;
+          st.acc += dt * speed;
+          while (st.acc >= fm) { st.acc -= fm; st.frame++; }
+        }
+        return st;
+      }
+
+      function drawRunner(r, st, feetY, alpha) {
+        const s0 = spritesRef.current.get(r.id); if (!s0) return;
+        const s = r.out ? grayOf(s0) : s0;
+        const x = Math.round(xOf(st.x));
+        ctx.save();
+        ctx.globalAlpha = alpha;
+        ctx.fillStyle = 'rgba(15,23,42,.16)';
+        ctx.beginPath(); ctx.ellipse(x, feetY - 1, 14, 3, 0, 0, Math.PI * 2); ctx.fill();
+        drawFrame(ctx, s, st.anim, r.out ? 0 : st.frame, x - FULL.w / 2, feetY - FULL.h, 1, FULL);
+        ctx.restore();
+      }
+
+      function drawFlag(top, bottom) {
+        const fx = Math.round(xOf(1)) + 18, sq = 4;
+        for (let y = top, row = 0; y < bottom; y += sq, row++) {
+          for (let c = 0; c < 2; c++) {
+            ctx.fillStyle = (row + c) % 2 ? '#0F172A' : '#FFFFFF';
+            ctx.fillRect(fx + c * sq, y, sq, Math.min(sq, bottom - y));
+          }
+        }
+        ctx.font = font(400, 16); ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
+        ctx.fillText('🏁', fx + sq, top - 2);
+      }
+
+      function paintDuel(now, dt, rs) {
+        for (let i = 0; i < 2; i++) {
+          const top = 2 + i * (LANE_H + 2), feetY = top + LANE_H - 9, r = rs[i];
+          const color = (r && r.color) || (i === 0 ? '#347ED0' : '#E79035');
+          ctx.fillStyle = i === 0 ? '#F2F7FD' : '#FEF7EE';
+          ctx.fillRect(0, top, width, LANE_H);
+          ctx.fillStyle = color; ctx.globalAlpha = .22;
+          ctx.fillRect(0, feetY - 2, width, 8);
+          ctx.globalAlpha = 1;
+          ctx.fillStyle = color; ctx.fillRect(PAD_L - 2, feetY - 10, 2, 16);   // start line
+          drawFlag(top + 22, feetY + 6);
+          if (!r) {
+            ctx.font = font(700, 11); ctx.textAlign = 'left'; ctx.fillStyle = '#94A3B8';
+            ctx.fillText('รอคู่แข่ง...', PAD_L + 30, feetY - 20);
+            continue;
+          }
+          const st = step(r, now, dt);
+          ctx.font = font(800, 11); ctx.textAlign = 'right'; ctx.textBaseline = 'alphabetic';
+          ctx.fillStyle = color;
+          ctx.fillText((r.label || '') + '  ' + Math.round(st.tgt * 100) + '%', width - PAD_R - 4, top + 14);
+          drawRunner(r, st, feetY, 1);
+        }
+      }
+
+      function paintRoyale(now, dt, rs, zonePct) {
+        const feetY = height - 12;
+        ctx.fillStyle = '#F4F8FC'; ctx.fillRect(0, 0, width, height);
+        ctx.fillStyle = '#DDE7F0'; ctx.fillRect(0, feetY - 3, width, 9);
+        ctx.fillStyle = '#94A3B8'; ctx.fillRect(PAD_L - 2, feetY - 12, 2, 18);
+        drawFlag(26, feetY + 6);
+        // Storm wall: everything left of the safe-zone edge
+        if (zonePct > 0) {
+          const zx = xOf(zonePct);
+          const g = ctx.createLinearGradient(0, 0, zx, 0);
+          g.addColorStop(0, 'rgba(76,29,149,.62)');
+          g.addColorStop(1, 'rgba(124,58,237,.30)');
+          ctx.fillStyle = g; ctx.fillRect(0, 0, zx, height);
+          ctx.strokeStyle = '#7C3AED'; ctx.lineWidth = 2.5; ctx.beginPath();
+          for (let y = 0; y <= height; y += 4) {
+            const wx = zx + Math.sin(y / 7 + now / 140) * 3;
+            y ? ctx.lineTo(wx, y) : ctx.moveTo(wx, y);
+          }
+          ctx.stroke();
+          if (Math.floor(now / 900) % 3 === 0) {
+            ctx.font = font(400, 14); ctx.textAlign = 'center';
+            ctx.fillText('⚡', Math.max(10, zx - 14), 22 + (Math.floor(now / 900) % 2) * 30);
+          }
+        }
+        const me = rs.find(r => r.me), others = rs.filter(r => !r.me);
+        others.forEach(r => drawRunner(r, step(r, now, dt), feetY - 7, r.out ? .35 : .45));
+        if (me) {
+          const st = step(me, now, dt);
+          drawRunner(me, st, feetY, 1);
+          const x = Math.round(xOf(st.x));
+          ctx.font = font(800, 10); ctx.textAlign = 'center'; ctx.fillStyle = me.out ? '#64748B' : '#1D4ED8';
+          ctx.fillText((me.label || 'คุณ') + ' ▼', x, feetY - FULL.h - 2);
+        }
+      }
+
+      let raf = 0, last = performance.now();
+      const tick = now => {
+        const dt = Math.min(100, now - last); last = now;
+        const o = optRef.current;
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        ctx.clearRect(0, 0, width, height);
+        ctx.imageSmoothingEnabled = false;
+        if (isDuel) paintDuel(now, dt, o.runners || []);
+        else paintRoyale(now, dt, o.runners || [], Number(o.zonePct) || 0);
+        raf = requestAnimationFrame(tick);
+      };
+      raf = requestAnimationFrame(tick);
+      return () => cancelAnimationFrame(raf);
+    }, [width, height, isDuel]);
+
+    return h('div', { ref: wrapRef, style: Object.assign({ width: '100%', borderRadius: 10, overflow: 'hidden' }, style) },
+      h('canvas', { ref: cvRef, style: { width: (width || 0) + 'px', height: height + 'px', display: 'block', imageRendering: 'pixelated' } }));
   }
 
   // ── React: character creator screen ─────────────────────────
@@ -394,6 +612,7 @@
   window.CharKit = {
     OPTIONS, defaults, sanitize, randomize, loadLocal, saveLocal,
     load, buildSprite, drawFrame, CharCanvas, Avatar, CreatorScreen,
+    fromName, fromPlayer, toWire, grayOf, RaceTrack,
     CROP: { FULL, HEAD },
   };
 })();

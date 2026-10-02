@@ -10,7 +10,7 @@
 <script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
 <script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.10/babel.min.js"></script>
-<script src="char.js?v=1"></script>
+<script src="char.js?v=2"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600;700;800&display=swap" rel="stylesheet">
@@ -213,6 +213,15 @@ async function fbUpdatePlayer(code,name,data) {
   const db=getDB(); if(!db) return;
   const user=await ensureFirebaseUser();
   await db.ref('rooms/'+code+'/players/'+user.uid).update({...data,uid:user.uid});
+}
+// Phase 2: send this player's look separately — if the rules reject it, the race still works.
+async function fbSetChar(code,cfg) {
+  try {
+    const db=getDB(); if(!db||!window.CharKit) return;
+    const wire=CharKit.toWire(cfg); if(!wire) return;
+    const user=await ensureFirebaseUser();
+    await db.ref('rooms/'+code+'/players/'+user.uid).update({char:wire});
+  } catch(e) { console.warn('fbSetChar skipped:',e?.message); }
 }
 async function fbSetStatus(code,status,extra={}) {
   const db=getDB(); if(!db) return;
@@ -1100,7 +1109,7 @@ function MPSetupScreen({ mode, onSelect, onBack, busy }) {
 
 // LOBBY SCREEN  (Phase 4)
 
-function LobbyScreen({ roomCode, roomInfo, roomPlayers, isHost, roomType, myName, onStart, onLeave, onStartSpectator }) {
+function LobbyScreen({ roomCode, roomInfo, roomPlayers, isHost, roomType, myName, myCfg, onStart, onLeave, onStartSpectator }) {
   const tf = "'Sarabun','Noto Sans Thai',sans-serif";
   const players = Object.entries(roomPlayers||{});
   const canStart = players.length >= 2;
@@ -1146,8 +1155,12 @@ function LobbyScreen({ roomCode, roomInfo, roomPlayers, isHost, roomType, myName
             return (
             <div key={uid} style={{background:isMe?'#EFF6FF':'#F8FAFC',
               border:'1.5px solid '+(isMe?'#BFDBFE':'#E2E8F0'),
-              borderRadius:10,padding:'8px 18px',fontFamily:tf,fontWeight:700,fontSize:15}}>
-              {isMe?'👤':''} {name}
+              borderRadius:10,padding:'5px 14px 5px 5px',fontFamily:tf,fontWeight:700,fontSize:15,
+              display:'flex',alignItems:'center',gap:8}}>
+              {window.CharKit
+                ? <CharKit.Avatar config={isMe&&myCfg?myCfg:CharKit.fromPlayer(p)} size={30}/>
+                : (isMe?'👤':'')}
+              <span>{name}</span>
             </div>
           );})}
           {roomType==='1v1'&&players.length<2&&(
@@ -1191,7 +1204,7 @@ function LobbyScreen({ roomCode, roomInfo, roomPlayers, isHost, roomType, myName
 
 // COUNTDOWN SCREEN  (Phase 4)
 
-function CountdownScreen({ num, roomCode, roomType }) {
+function CountdownScreen({ num, roomCode, roomType, roomPlayers, myCfg, myName }) {
   const tf = "'Sarabun','Noto Sans Thai',sans-serif";
   return (
     <div style={{textAlign:'center',padding:'48px 20px',fontFamily:tf}}>
@@ -1203,6 +1216,15 @@ function CountdownScreen({ num, roomCode, roomType }) {
       </div>
       <div style={{fontSize:18,color:'var(--c-t2)',marginTop:20}}>
         {num>0?'วางนิ้วบน Home Row...':'🏃 พิมพ์เลย!'}</div>
+      {window.CharKit&&(
+        <div style={{maxWidth:560,margin:'28px auto 0'}}>
+          <CharKit.RaceTrack mode={roomType==='royale'?'royale':'1v1'}
+            runners={raceRunners(roomPlayers,{myCfg,
+              myLabel:roomType==='royale'?'คุณ':(myName||'คุณ')+' (คุณ)',
+              limit:roomType==='royale'?5:1})
+              .map((r,i)=>({...r,color:i===0?'#347ED0':'#E79035'}))}/>
+        </div>
+      )}
     </div>
   );
 }
@@ -2467,9 +2489,25 @@ function SpectatorView({ playerName, targetChars, progress, onBack }) {
   );
 }
 
+// Phase 2 — runners for CharKit.RaceTrack: me first, then the nearest rivals.
+function raceRunners(roomPlayers, o={}) {
+  if (!window.CharKit) return [];
+  const uid=currentFirebaseUid(), total=Math.max(1,o.totalChars||1), myPos=o.myPos||0;
+  const others=Object.entries(roomPlayers||{})
+    .filter(([k,p])=>p&&!p.isSpectator&&k!==uid&&p.uid!==uid)
+    .map(([k,p])=>({id:k,label:p.name||'ผู้เล่น',cfg:CharKit.fromPlayer(p),
+      pct:Math.min(1,(Number(p.pos)||0)/total),kpm:Number(p.cpm)||0,
+      finished:p.status==='done',out:p.status==='eliminated'}))
+    .sort((a,b)=>Math.abs(a.pct*total-myPos)-Math.abs(b.pct*total-myPos))
+    .slice(0,o.limit??5);
+  const me={id:'me',me:true,label:o.myLabel||'คุณ',cfg:o.myCfg||CharKit.fromName(o.myLabel),
+    pct:Math.min(1,myPos/total),kpm:o.myKpm||0,finished:myPos>=total,out:!!o.myOut};
+  return [me,...others];
+}
+
 // 1v1 HUD — live score of both players (score decides the winner) + progress lanes
 
-function OneVsOneHud({ roomCode, roomPlayers, myName, pos, totalChars, score, streak }) {
+function OneVsOneHud({ roomCode, roomPlayers, myName, pos, totalChars, score, streak, myCfg, kpm }) {
   const roster=Object.entries(roomPlayers||{}).filter(([,p])=>!p.isSpectator);
   const uid=currentFirebaseUid();
   const mine=roster.find(([key,p])=>key===uid||p.uid===uid)?.[1]||{};
@@ -2513,6 +2551,12 @@ function OneVsOneHud({ roomCode, roomPlayers, myName, pos, totalChars, score, st
           ))}
         </div>
         <div style={{fontSize:10,fontWeight:800,color:lead>=100?'#287347':lead<=-100?'#A86417':'#47647E',marginBottom:7}}>{result}</div>
+        {window.CharKit ? (
+          <CharKit.RaceTrack mode="1v1"
+            runners={raceRunners(roomPlayers,{myCfg,myLabel:(myName||'คุณ')+' (คุณ)',
+              myPos,myKpm:kpm,totalChars,limit:1})
+              .map((r,i)=>({...r,color:i===0?'#347ED0':'#E79035'}))}/>
+        ) : (
         <div style={{display:'flex',flexDirection:'column',gap:7}}>
           {lanes.map(lane=>(
             <div key={lane.name+(lane.mine?'-me':'')}>
@@ -2525,6 +2569,7 @@ function OneVsOneHud({ roomCode, roomPlayers, myName, pos, totalChars, score, st
             </div>
           ))}
         </div>
+        )}
         <div style={{display:'flex',justifyContent:'space-between',fontSize:8,color:'#8A9DAF',marginTop:6}}><span>พิมพ์ถูกต่อเนื่องคอมโบยิ่งสูง · ผิดแล้วคอมโบเริ่มใหม่</span><span>{myPos} / {totalChars} ตัว</span></div>
       </div>
     </div>
@@ -2567,7 +2612,7 @@ function BattleRoyaleResults({ roomCode, roomPlayers, onBack }) {
   );
 }
 
-function BattleRoyaleHud({ roomCode, roomPlayers, myName, pos, totalChars, zonePos, playerLives, startTime }) {
+function BattleRoyaleHud({ roomCode, roomPlayers, myName, pos, totalChars, zonePos, playerLives, startTime, myCfg, kpm }) {
   const elapsed=startTime?Math.max(0,(Date.now()-startTime)/1000):0;
   const untilZone=Math.max(0,ZONE_GRACE-Math.floor(elapsed));
   const outsideBy=Math.max(0,zonePos-pos-ZONE_GAP);
@@ -2595,6 +2640,11 @@ function BattleRoyaleHud({ roomCode, roomPlayers, myName, pos, totalChars, zoneP
         <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',fontSize:9,fontWeight:700,color:'#657E96',marginBottom:5}}>
           <span>เส้นทาง</span><span>คุณ {progress}% · ขอบวง {edge}%</span>
         </div>
+        {window.CharKit ? (
+          <CharKit.RaceTrack mode="royale" zonePct={totalChars?zonePos/totalChars:0}
+            runners={raceRunners(roomPlayers,{myCfg,myLabel:'คุณ',myPos:pos,myKpm:kpm,
+              totalChars,limit:5,myOut:playerLives<=0})}/>
+        ) : (<>
         <div style={{height:12,position:'relative',borderRadius:20,background:'#E8EEF4',margin:'0 6px'}}>
           <div style={{position:'absolute',left:0,top:0,bottom:0,width:`${edge}%`,background:'linear-gradient(90deg,#9DDFB8,#D2F2DC)',borderRadius:'20px 0 0 20px',transition:'width .3s'}}/>
           <div style={{position:'absolute',left:`${edge}%`,top:-2,bottom:-2,width:3,background:'#239B60',borderRadius:3,transition:'left .3s'}}/>
@@ -2602,6 +2652,7 @@ function BattleRoyaleHud({ roomCode, roomPlayers, myName, pos, totalChars, zoneP
           <span style={{position:'absolute',right:-7,top:-5,fontSize:14}}>🏁</span>
         </div>
         <div style={{display:'flex',justifyContent:'space-between',fontSize:8,color:'#8296A9',margin:'4px 5px 0'}}><span>เริ่ม</span><span style={{color:'#25875A',fontWeight:800}}>ขอบ Safezone</span><span>{pos} / {totalChars} ตัว</span><span>เส้นชัย</span></div>
+        </>)}
       </div>
     </div>
   );
@@ -2733,6 +2784,7 @@ function ThaiTypingApp() {
   const plRef          = useRef(3);       // playerLives ref
   const snRef          = useRef('');      // studentName ref
   const myRoomName     = useRef('');      // name used when joining/creating room (used for all Firebase writes)
+  const charRef        = useRef(null);    // latest character (for room create/join callbacks)
   const currentTimings = useRef([]);       // inter-keystroke intervals for ghost recording
   const lastCorrectTime= useRef(null);     // timestamp of last correct keypress
   const frozenRef      = useRef(false);    // true while spam penalty is active
@@ -2782,6 +2834,10 @@ function ThaiTypingApp() {
   const needsShift  = nextKey?.needsShift ?? false;
   // Correct shift hand: left-hand target → Right Shift; right-hand target → Left Shift
   const showHints   = !activeTest || activeTest.showHints !== false;
+  // My look on the race track: saved character, else the stable one from my room name
+  const myCfg = window.CharKit
+    ? (CharKit.sanitize(character) || CharKit.fromName(myRoomName.current||studentName||'ผู้เล่น1'))
+    : null;
   const correctShiftCode = (needsShift && nextCode)
     ? (['LP','LR','LM','LI'].includes(KEY_META[nextCode]?.f) ? 'ShiftRight' : 'ShiftLeft')
     : null;
@@ -3114,7 +3170,7 @@ function ThaiTypingApp() {
   const stateRef = useRef({});
   stateRef.current = { pos, target, targetChars, startTime, endTime };
   rcRef.current = roomCode; rtRef.current = roomType;
-  plRef.current = playerLives; snRef.current = studentName;
+  plRef.current = playerLives; snRef.current = studentName; charRef.current = character;
 
     // Save on this device first, then to Google Sheets when signed in.
   const saveCharacter = useCallback(async (cfg) => {
@@ -3206,6 +3262,7 @@ function ThaiTypingApp() {
       const h1name = snRef.current || 'ผู้เล่น1';
       myRoomName.current = h1name;
       await fbJoin(code, h1name);
+      if (charRef.current) fbSetChar(code, charRef.current);
       setRoomCode(code); rcRef.current=code;
       setRoomType('1v1'); rtRef.current='1v1';
       setIsHost(true);
@@ -3230,6 +3287,7 @@ function ThaiTypingApp() {
       const hBRname = snRef.current || 'ครู';
       myRoomName.current = hBRname;
       await fbJoin(code, hBRname, lives);
+      if (charRef.current) fbSetChar(code, charRef.current);
       setMaxLives(lives); setPlayerLives(lives); plRef.current=lives;
       setRoomCode(code); rcRef.current=code;
       setRoomType('royale'); rtRef.current='royale';
@@ -3256,6 +3314,7 @@ function ThaiTypingApp() {
       const rl = data.info?.maxLives || 3;
       setMaxLives(rl); setPlayerLives(rl); plRef.current=rl;
       await fbJoin(roomId, name, rl);
+      if (charRef.current) fbSetChar(roomId, charRef.current);
       const les = LESSONS.find(l=>l.id===data.info.lessonId)||null;
       setRoomCode(roomId); rcRef.current=roomId;
       setRoomType(data.info.type); rtRef.current=data.info.type;
@@ -3614,6 +3673,7 @@ function ThaiTypingApp() {
                 totalChars={totalChars}
                 score={score}
                 streak={scoreStreak}
+                myCfg={myCfg} kpm={kpm}
               />
             )}
 
@@ -3626,6 +3686,7 @@ function ThaiTypingApp() {
                 totalChars={totalChars}
                 zonePos={zonePos}
                 playerLives={playerLives}
+                myCfg={myCfg} kpm={kpm}
                 startTime={startTime}
               />
             )}
@@ -3745,7 +3806,7 @@ function ThaiTypingApp() {
         )}
         {screen==='mp-lobby'&&(
           <LobbyScreen
-            roomCode={roomCode} roomInfo={roomInfo}
+            roomCode={roomCode} roomInfo={roomInfo} myCfg={myCfg}
             roomPlayers={roomPlayers} isHost={isHost}
             roomType={roomType} myName={myRoomName.current||studentName||'ผู้เล่น1'}
             onStart={handleStartRace} onLeave={handleLeaveRoom}
@@ -3785,7 +3846,8 @@ function ThaiTypingApp() {
           )
         )}
         {screen==='countdown'&&(
-          <CountdownScreen num={countNum} roomCode={roomCode} roomType={roomType}/>
+          <CountdownScreen num={countNum} roomCode={roomCode} roomType={roomType}
+            roomPlayers={roomPlayers} myCfg={myCfg} myName={myRoomName.current||studentName||'ผู้เล่น1'}/>
         )}
         {screen==='results'&&lesson?.story&&exercise?.isChoice?(
           <StoryChoiceScreen exercise={exercise}

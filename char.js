@@ -308,19 +308,20 @@
         : h('span', { style: { fontSize: size * 0.48, lineHeight: size + 'px', width: '100%', textAlign: 'center' } }, '👤'));
   }
 
-  // ── Phase 2: race track (1v1 lanes / Battle Royale lane) ────
+  // ── Phase 2: race track (1v1 / Battle Royale) ───────────────
   // One canvas, drawn with requestAnimationFrame. New props are read from a ref
   // on the next frame, so the race never adds React re-renders.
   //
   // runners: [{ id, label, cfg, pct (0..1), kpm, me, finished, out, color }]
-  //   mode '1v1'    → lane 1 = runners[0] (me), lane 2 = runners[1]
-  //   mode 'royale' → one lane; rivals drawn faint behind, me in front
-  // zonePct: Battle Royale storm edge (0..1)
-  const PAD_L = 30, PAD_R = 46, LANE_H = 70, IDLE_AFTER = 1500;
+  //   Both modes use one shared lane: rivals stand a few pixels behind, me in front.
+  //   mode '1v1'    → rival drawn solid, both get a name tag
+  //   mode 'royale' → rivals faint, storm wall from the left (zonePct)
+  // info: small text in the top-right corner (e.g. "43 / 199 ตัว")
+  const PAD_L = 30, PAD_R = 46, TRACK_H = 88, IDLE_AFTER = 1500, BEHIND = 7;
   function RaceTrack(props) {
     const { mode = '1v1', runners = [], style } = props;
     const isDuel = mode !== 'royale';
-    const height = isDuel ? LANE_H * 2 + 6 : 96;
+    const height = TRACK_H;
     const wrapRef = useRef(null), cvRef = useRef(null);
     const optRef = useRef(props); optRef.current = props;
     const spritesRef = useRef(new Map());    // runner id → finished sprite
@@ -357,6 +358,7 @@
       const ctx = cv.getContext('2d');
       const xOf = pct => PAD_L + Math.max(0, Math.min(1, pct)) * (width - PAD_L - PAD_R);
       const font = (w, px) => w + ' ' + px + "px 'Sarabun','Noto Sans Thai',sans-serif";
+      const feetY = height - 9;
 
       function step(r, now, dt) {
         let st = stateRef.current.get(r.id);
@@ -379,62 +381,50 @@
         return st;
       }
 
-      function drawRunner(r, st, feetY, alpha) {
+      function drawRunner(r, st, fy, alpha) {
         const s0 = spritesRef.current.get(r.id); if (!s0) return;
         const s = r.out ? grayOf(s0) : s0;
         const x = Math.round(xOf(st.x));
         ctx.save();
         ctx.globalAlpha = alpha;
         ctx.fillStyle = 'rgba(15,23,42,.16)';
-        ctx.beginPath(); ctx.ellipse(x, feetY - 1, 14, 3, 0, 0, Math.PI * 2); ctx.fill();
-        drawFrame(ctx, s, st.anim, r.out ? 0 : st.frame, x - FULL.w / 2, feetY - FULL.h, 1, FULL);
+        ctx.beginPath(); ctx.ellipse(x, fy - 1, 14, 3, 0, 0, Math.PI * 2); ctx.fill();
+        drawFrame(ctx, s, st.anim, r.out ? 0 : st.frame, x - FULL.w / 2, fy - FULL.h, 1, FULL);
         ctx.restore();
       }
 
-      function drawFlag(top, bottom) {
-        const fx = Math.round(xOf(1)) + 18, sq = 4;
+      // Name tag: small pill beside the head, so it never covers the text area above.
+      function drawTag(text, color, x, y) {
+        ctx.font = font(800, 10);
+        const w = Math.ceil(ctx.measureText(text).width) + 10;
+        const left = Math.max(2, Math.min(width - PAD_R - w, x - w / 2));
+        ctx.fillStyle = 'rgba(255,255,255,.88)';
+        ctx.fillRect(left, y - 11, w, 14);
+        ctx.fillStyle = color; ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
+        ctx.fillText(text, left + 5, y);
+      }
+
+      function drawFlag() {
+        const fx = Math.round(xOf(1)) + 18, sq = 4, top = 22, bottom = feetY + 6;
         for (let y = top, row = 0; y < bottom; y += sq, row++) {
           for (let c = 0; c < 2; c++) {
             ctx.fillStyle = (row + c) % 2 ? '#0F172A' : '#FFFFFF';
             ctx.fillRect(fx + c * sq, y, sq, Math.min(sq, bottom - y));
           }
         }
-        ctx.font = font(400, 16); ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
-        ctx.fillText('🏁', fx + sq, top - 2);
+        ctx.font = font(400, 14); ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
+        ctx.fillText('🏁', fx + sq, top - 3);
       }
 
-      function paintDuel(now, dt, rs) {
-        for (let i = 0; i < 2; i++) {
-          const top = 2 + i * (LANE_H + 2), feetY = top + LANE_H - 9, r = rs[i];
-          const color = (r && r.color) || (i === 0 ? '#347ED0' : '#E79035');
-          ctx.fillStyle = i === 0 ? '#F2F7FD' : '#FEF7EE';
-          ctx.fillRect(0, top, width, LANE_H);
-          ctx.fillStyle = color; ctx.globalAlpha = .22;
-          ctx.fillRect(0, feetY - 2, width, 8);
-          ctx.globalAlpha = 1;
-          ctx.fillStyle = color; ctx.fillRect(PAD_L - 2, feetY - 10, 2, 16);   // start line
-          drawFlag(top + 22, feetY + 6);
-          if (!r) {
-            ctx.font = font(700, 11); ctx.textAlign = 'left'; ctx.fillStyle = '#94A3B8';
-            ctx.fillText('รอคู่แข่ง...', PAD_L + 30, feetY - 20);
-            continue;
-          }
-          const st = step(r, now, dt);
-          ctx.font = font(800, 11); ctx.textAlign = 'right'; ctx.textBaseline = 'alphabetic';
-          ctx.fillStyle = color;
-          ctx.fillText((r.label || '') + '  ' + Math.round(st.tgt * 100) + '%', width - PAD_R - 4, top + 14);
-          drawRunner(r, st, feetY, 1);
-        }
-      }
-
-      function paintRoyale(now, dt, rs, zonePct) {
-        const feetY = height - 12;
+      function paint(now, dt, o) {
+        const rs = o.runners || [];
         ctx.fillStyle = '#F4F8FC'; ctx.fillRect(0, 0, width, height);
         ctx.fillStyle = '#DDE7F0'; ctx.fillRect(0, feetY - 3, width, 9);
         ctx.fillStyle = '#94A3B8'; ctx.fillRect(PAD_L - 2, feetY - 12, 2, 18);
-        drawFlag(26, feetY + 6);
-        // Storm wall: everything left of the safe-zone edge
-        if (zonePct > 0) {
+        drawFlag();
+        // Storm wall (Battle Royale): everything left of the safe-zone edge
+        const zonePct = Number(o.zonePct) || 0;
+        if (!isDuel && zonePct > 0) {
           const zx = xOf(zonePct);
           const g = ctx.createLinearGradient(0, 0, zx, 0);
           g.addColorStop(0, 'rgba(76,29,149,.62)');
@@ -451,33 +441,44 @@
             ctx.fillText('⚡', Math.max(10, zx - 14), 22 + (Math.floor(now / 900) % 2) * 30);
           }
         }
+        if (o.info) {
+          ctx.font = font(700, 10); ctx.textAlign = 'right'; ctx.textBaseline = 'alphabetic';
+          ctx.fillStyle = '#64748B';
+          ctx.fillText(o.info, width - PAD_R - 6, 13);
+        }
         const me = rs.find(r => r.me), others = rs.filter(r => !r.me);
-        others.forEach(r => drawRunner(r, step(r, now, dt), feetY - 7, r.out ? .35 : .45));
+        const tags = [];
+        others.forEach(r => {
+          const st = step(r, now, dt);
+          drawRunner(r, st, feetY - BEHIND, isDuel ? (r.out ? .5 : 1) : (r.out ? .35 : .45));
+          if (isDuel) tags.push([r.label || '', r.color || '#E79035', xOf(st.x), feetY - BEHIND - FULL.h + 8]);
+        });
         if (me) {
           const st = step(me, now, dt);
           drawRunner(me, st, feetY, 1);
-          const x = Math.round(xOf(st.x));
-          ctx.font = font(800, 10); ctx.textAlign = 'center'; ctx.fillStyle = me.out ? '#64748B' : '#1D4ED8';
-          ctx.fillText((me.label || 'คุณ') + ' ▼', x, feetY - FULL.h - 2);
+          tags.push([(me.label || 'คุณ') + ' ▼', me.out ? '#64748B' : (me.color || '#1D4ED8'), xOf(st.x), feetY - FULL.h + 14]);
         }
+        // Tags last so they sit on top; if two tags overlap, lift the rival's.
+        tags.forEach((t, i) => {
+          const near = tags.length === 2 && Math.abs(tags[0][2] - tags[1][2]) < 70;
+          drawTag(t[0], t[1], near ? t[2] + (i === 0 ? -40 : 40) : t[2], t[3]);
+        });
       }
 
       let raf = 0, last = performance.now();
       const tick = now => {
         const dt = Math.min(100, now - last); last = now;
-        const o = optRef.current;
         ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
         ctx.clearRect(0, 0, width, height);
         ctx.imageSmoothingEnabled = false;
-        if (isDuel) paintDuel(now, dt, o.runners || []);
-        else paintRoyale(now, dt, o.runners || [], Number(o.zonePct) || 0);
+        paint(now, dt, optRef.current);
         raf = requestAnimationFrame(tick);
       };
       raf = requestAnimationFrame(tick);
       return () => cancelAnimationFrame(raf);
     }, [width, height, isDuel]);
 
-    return h('div', { ref: wrapRef, style: Object.assign({ width: '100%', borderRadius: 10, overflow: 'hidden' }, style) },
+    return h('div', { ref: wrapRef, style: Object.assign({ width: '100%', overflow: 'hidden' }, style) },
       h('canvas', { ref: cvRef, style: { width: (width || 0) + 'px', height: height + 'px', display: 'block', imageRendering: 'pixelated' } }));
   }
 

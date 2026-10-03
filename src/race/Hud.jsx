@@ -2,7 +2,7 @@ import { ZONE_GAP, ZONE_GRACE, ZONE_TICK_SECS, currentFirebaseUid } from '../fir
 import { comboMultiplier, fmtScore } from '../engine/scoring';
 import { brOrder, isAliveState, playerState } from './presence';
 
-const { useEffect, useState } = React;
+const { useEffect, useRef, useState } = React;
 
 // Battle Royale lane: only me — plus the leader once the zone starts moving.
 // If I am leading, I get the crown and the closest chaser (2nd place) is shown instead.
@@ -102,7 +102,16 @@ export function BattleRoyaleHud({ roomCode, roomPlayers, myName, pos, totalChars
   const outsideBy=Math.max(0,zonePos-pos-ZONE_GAP);
   const outside=zonePos>0&&outsideBy>0;
   const progress=totalChars?Math.max(0,Math.min(100,Math.round(pos/totalChars*100))):0;
-  const edge=totalChars?Math.max(0,Math.min(100,Math.round(zonePos/totalChars*100))):0;
+  // Draw the storm where damage really starts (ZONE_GAP chars behind the zone edge)
+  const dangerPos=Math.max(0,zonePos-ZONE_GAP);
+  const edge=totalChars?Math.max(0,Math.min(100,Math.round(dangerPos/totalChars*100))):0;
+  // Red flash on the lane whenever a life is lost (storm, AFK or a wrong key)
+  const prevLives=useRef(playerLives);
+  const [hitAt,setHitAt]=useState(0);
+  useEffect(()=>{
+    if (playerLives<prevLives.current) setHitAt(Date.now());
+    prevLives.current=playerLives;
+  },[playerLives]);
   const drainIn=ZONE_TICK_SECS-Math.floor(elapsed%ZONE_TICK_SECS);
   const players=Object.entries(roomPlayers||{}).filter(([,p])=>!p.isSpectator);
   const alive=players.filter(([,p])=>isAliveState(playerState(p,'royale',Date.now()))&&(p.lives||0)>0).length;
@@ -131,7 +140,7 @@ export function BattleRoyaleHud({ roomCode, roomPlayers, myName, pos, totalChars
         </div>
       )}
       {window.CharKit ? (
-        <CharKit.RaceTrack mode="royale" zonePct={totalChars?zonePos/totalChars:0}
+        <CharKit.RaceTrack mode="royale" zonePct={totalChars?dangerPos/totalChars:0} hitAt={hitAt}
           info={`คุณ ${progress}% · ขอบวง ${edge}% · ${pos} / ${totalChars} ตัว`}
           runners={brTrackRunners(roomPlayers,{myCfg,myPos:pos,myKpm:kpm,totalChars,myOut:playerLives<=0,
             showLeader:elapsed>=ZONE_GRACE})}/>

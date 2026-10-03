@@ -328,6 +328,8 @@
   //   Both modes use one shared lane: rivals stand a few pixels behind, me in front.
   //   mode '1v1'    → rival drawn solid, both get a name tag
   //   mode 'royale' → rivals faint, storm wall from the left (zonePct)
+  //   r.alpha overrides the opacity, r.tag shows a name tag in royale mode,
+  //   r.track = { timings, start, total } makes a ghost replay its own position
   // info: small text in the top-right corner (e.g. "43 / 199 ตัว")
   const PAD_L = 30, PAD_R = 46, TRACK_H = 100, IDLE_AFTER = 1500, BEHIND = 7;
   function RaceTrack(props) {
@@ -372,9 +374,19 @@
       const font = (w, px) => w + ' ' + px + "px 'Sarabun','Noto Sans Thai',sans-serif";
       const feetY = height - 9;
 
+      // Ghost runner: position replayed from recorded keystroke gaps, computed here
+      // every frame so the page itself never re-renders for it.
+      function ghostPct(g) {
+        if (!g.start || !g.total) return 0;
+        const elapsed = Date.now() - g.start;
+        let cum = 0, n = 0;
+        for (const t of g.timings) { cum += t; if (cum <= elapsed) n++; else break; }
+        return Math.min(1, n / g.total);
+      }
+
       function step(r, now, dt) {
         let st = stateRef.current.get(r.id);
-        const target = Math.max(0, Math.min(1, Number(r.pct) || 0));
+        const target = Math.max(0, Math.min(1, r.track ? ghostPct(r.track) : (Number(r.pct) || 0)));
         if (!st) { st = { x: target, tgt: target, moveAt: 0, frame: 0, acc: 0, anim: 'idle' }; stateRef.current.set(r.id, st); }
         if (target > st.tgt + 1e-6) st.moveAt = now;
         st.tgt = target;
@@ -463,8 +475,9 @@
         const tags = [];
         others.forEach(r => {
           const st = step(r, now, dt);
-          drawRunner(r, st, feetY - BEHIND, isDuel ? (r.out ? .5 : 1) : (r.out ? .35 : .45));
-          if (isDuel) tags.push([r.label || '', r.color || '#E79035', xOf(st.x), feetY - BEHIND - FULL.h - 4]);
+          const alpha = r.alpha != null ? r.alpha : isDuel ? (r.out ? .5 : 1) : (r.out ? .35 : .45);
+          drawRunner(r, st, feetY - BEHIND, alpha);
+          if (isDuel || r.tag) tags.push([r.label || '', r.color || '#E79035', xOf(st.x), feetY - BEHIND - FULL.h - 4]);
         });
         if (me) {
           const st = step(me, now, dt);

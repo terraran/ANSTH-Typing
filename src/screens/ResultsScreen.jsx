@@ -34,7 +34,7 @@ export function duelOutcome(roomPlayers, myScore, waited, sNow=Date.now()) {
 
 // RESULT STAGE — who stands on the podium and in which pose (Phase 3)
 
-export function resultStage({ roomType, roomCode, roomPlayers, myCfg, myName, duel, soloBest }) {
+export function resultStage({ roomType, roomCode, roomPlayers, myCfg, myName, duel, soloBest, brRows }) {
   if (!window.CharKit || !myCfg) return null;
   const uid=currentFirebaseUid();
   const me={id:'me',cfg:myCfg,label:'คุณ',me:true};
@@ -49,7 +49,7 @@ export function resultStage({ roomType, roomCode, roomPlayers, myCfg, myName, du
     return {confetti:false,actors:[{...me,pose:'idle',level:1,color:'#347ED0'},{...rival,pose:'idle',level:1,color:'#E79035'}]};
   }
   if (roomCode && roomType==='royale') {
-    const order=brOrder(roomPlayers);
+    const order=brRows||brOrder(roomPlayers);
     const myRank=order.findIndex(([k,p])=>k===uid||p.uid===uid)+1;
     if (myRank===1) return {confetti:true,actors:[{...me,pose:'cheer',level:2,label:'🥇 คุณ'}]};
     const top=order[0];
@@ -64,7 +64,7 @@ export function resultStage({ roomType, roomCode, roomPlayers, myCfg, myName, du
 
 // RESULTS SCREEN
 
-export function ResultsScreen({ cpm, accuracy, errors, totalChars, lesson, saveStatus, saveError, studentName, ghostData, newRecord, roomCode, roomType, roomPlayers, myName, myCfg, bestCombo, score, maxScore, isTest, testBoard, prevBest, sOffset=0, onRestart, onBack }) {
+export function ResultsScreen({ cpm, accuracy, errors, totalChars, lesson, saveStatus, saveError, studentName, ghostData, newRecord, roomCode, roomType, roomPlayers, myName, myCfg, bestCombo, score, maxScore, isTest, testBoard, prevBest, sOffset=0, brFinal, onDuelSettled, onRestart, onBack }) {
   const tf="'Sarabun','Noto Sans Thai',sans-serif";
   const isDuel = roomType==='1v1' && !!roomCode;
   const [waited, setWaited] = useState(false);
@@ -82,6 +82,14 @@ export function ResultsScreen({ cpm, accuracy, errors, totalChars, lesson, saveS
     duel = lockedDuel.current || duelOutcome(roomPlayers, score, waited, Date.now()+sOffset);
     if (!lockedDuel.current && duel.outcome!=='wait') lockedDuel.current = duel;
   }
+  const settledSent = useRef(false);
+  useEffect(()=>{
+    if (isDuel && lockedDuel.current && !settledSent.current && onDuelSettled) {
+      settledSent.current = true; onDuelSettled(lockedDuel.current);
+    }
+  });
+  // Battle Royale: the order is locked by the app 2 s after the end.
+  const brRows = roomType==='royale' && roomCode ? (brFinal || brOrder(roomPlayers, Date.now()+sOffset)) : null;
 
   const grade =
     accuracy>=98&&cpm>=40 ? {label:'ยอดเยี่ยม 🏆',color:'#D97706'} :
@@ -93,7 +101,7 @@ export function ResultsScreen({ cpm, accuracy, errors, totalChars, lesson, saveS
   const soloBest = !roomCode && (isTest
     ? (saveStatus==='saved' && !!testBoard?.me && score>0 && score>=testBoard.me.score)
     : (score>0 && score>prevBest));
-  const stage = resultStage({ roomType, roomCode, roomPlayers, myCfg, myName, duel, soloBest });
+  const stage = resultStage({ roomType, roomCode, roomPlayers, myCfg, myName, duel, soloBest, brRows });
   return (
     <div style={{textAlign:'center',fontFamily:tf}}>
       {stage ? (
@@ -222,7 +230,7 @@ export function ResultsScreen({ cpm, accuracy, errors, totalChars, lesson, saveS
           padding:'14px 16px',marginBottom:20,textAlign:'left'}}>
           <div style={{fontSize:13,fontWeight:800,marginBottom:10,fontFamily:tf}}>
             🏆 Battle Royale — ผลการแข่ง</div>
-          {brOrder(roomPlayers, Date.now()+sOffset)
+          {brRows
             .map(([key,p],i)=>(
               <div key={key} style={{display:'flex',alignItems:'center',gap:10,
                 padding:'8px 0',borderBottom:'1px solid var(--c-border)'}}>

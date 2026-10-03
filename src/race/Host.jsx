@@ -132,10 +132,10 @@ export function SpectatorView({ playerName, targetChars, progress, onBack }) {
   );
 }
 
-export function BattleRoyaleResults({ roomCode, roomPlayers, onBack, sOffset=0, backLabel='ออกจากห้อง' }) {
+export function BattleRoyaleResults({ roomCode, roomPlayers, rows: lockedRows, onBack, sOffset=0, backLabel='ออกจากห้อง' }) {
   const tf = "'Sarabun','Noto Sans Thai',sans-serif";
   const sNow = Date.now()+sOffset;
-  const rows = brOrder(roomPlayers, sNow);
+  const rows = lockedRows || brOrder(roomPlayers, sNow);   // locked final order once available
   const label = p => {
     const st=playerState(p,'royale',sNow);
     return st==='done'?'พิมพ์จบแล้ว':isAliveState(st)?'รอดจนจบ':st==='eliminated'?'ถูกคัดออก':'ออกจากการแข่ง';

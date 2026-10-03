@@ -3,9 +3,9 @@ import { buildChunks, generateBRText, generateStoryText, generateText, generateT
 import { CHAR_CLASS, CLASS_NAMES, KEY_META, findKeyForChar, mapKey, validateInput } from './engine/keymap';
 import { ERROR_BURST, ERROR_WINDOW_MS, PRESSURE_SECS, SPAM_PENALTY, SPAM_WINDOW_KEYS, SPAM_WRONG_SHARE, SPEED_CPM, TEST_MIN_CHARS, TEST_SECS, charBasePoints, comboMultiplier, fmtScore, hsKey, readGuestHighScores, speedMultiplier, testTargetScore, writeGuestHighScores } from './engine/scoring';
 import { ROOM_CODE_LEN, ROOM_CODE_RE, ZONE_GAP, ZONE_TICK, currentFirebaseUid, ensureFirebaseUser, fbArmLobby, fbArmRace, fbClearActiveRoom, fbCreate, fbDisarm, fbGet, fbGetActiveRoom, fbJoin, fbListen, fbRemove, fbServerOffset, fbSetActiveRoom, fbSetChar, fbSetStatus, fbUpdatePlayer, getDB, getZonePos, getZoneSpeed, makeFreeCode, zonePosAt } from './firebase';
-import { brRaceOver, dcLeftMs, graceMs, isOutState, playerState } from './race/presence';
+import { brOrder, brRaceOver, dcLeftMs, graceMs, isOutState, playerState } from './race/presence';
 import { LeaveConfirm, RejoinBanner } from './race/PresenceUI';
-import { apiGetStudentStats, apiGetWeeklyBoard, apiRequest, apiSubmitWeekly, describeApiError, saveSession } from './api';
+import { apiGetStudentStats, apiGetWeeklyBoard, apiRequest, apiSaveMatch, apiSubmitWeekly, describeApiError, saveSession } from './api';
 import { auth } from './auth';
 import { LESSONS } from './data/lessons';
 import { PenaltyScreen, TestTimer, TextDisplay, TimeUpOverlay } from './ui/common';
@@ -64,6 +64,7 @@ export function ThaiTypingApp() {
   const [rejoinBusy,  setRejoinBusy]  = useState(false);
   const [notice,      setNotice]      = useState('');     // one-line message (room closed, …)
   const [brOver,      setBrOver]      = useState(false);  // Battle Royale finished (for spectators)
+  const [brFinal,     setBrFinal]     = useState(null);   // Battle Royale final order, locked 2 s after the end
   const [rivalDcSecs, setRivalDcSecs] = useState(0);      // 1v1: seconds the dropped opponent has left
   const [presTick,    setPresTick]    = useState(0);      // 1 s tick: re-check grace periods
   const [zonePos,     setZonePos]     = useState(0); // safe zone boundary position
@@ -117,7 +118,9 @@ export function ThaiTypingApp() {
   const ccRef          = useRef('');       // class code (sent with room joins for match stats)
   const leaveAskRef    = useRef(false);
   const raceRunningRef = useRef(false);
-  const requestLeaveRef= useRef(()=>{});    // latest character (for room create/join callbacks)
+  const requestLeaveRef= useRef(()=>{});
+  const brFinalRef     = useRef(null);
+  const matchSavedRef  = useRef('');     // matchId already sent to the Matches sheet    // latest character (for room create/join callbacks)
   const practiceRef    = useRef(null);    // typing area — scrolled into view once per run
   const currentTimings = useRef([]);       // inter-keystroke intervals for ghost recording
   const lastCorrectTime= useRef(null);     // timestamp of last correct keypress
@@ -328,6 +331,8 @@ export function ThaiTypingApp() {
       if (screen==='practice' && over && !raceEndedRef.current) {
         raceEndedRef.current=true;
         setEndTime(Date.now());
+        // last position (the 350 ms throttle may have skipped it) — used for the final order
+        fbUpdatePlayer(roomCode,'',{pos:stateRef.current.pos}).catch(()=>{});
         finishPresence();
         setTimeout(()=>setScreen(s=>s==='practice'?'results':s),400);
       }
@@ -521,6 +526,7 @@ export function ThaiTypingApp() {
       }
     }
     if (!studentName || !SCRIPT_URL) return;
+    if (rcRef.current) return;            // races are saved to the Matches sheet (recordMatch), not Sessions
     if (hasSaved.current) return;         // guard — only save once per results view
     hasSaved.current = true;
     setSaveStatus('saving'); setSaveError('');
@@ -583,7 +589,8 @@ export function ThaiTypingApp() {
   }, [screen, loadWeekly]);
 
   const stateRef = useRef({});
-  stateRef.current = { pos, target, targetChars, startTime, endTime };
+  stateRef.current = { pos, target, targetChars, startTime, endTime, errors };
+  brFinalRef.current = brFinal;
   rcRef.current = roomCode; rtRef.current = roomType;
   roomInfoRef.current = roomInfo; roomPlayersRef.current = roomPlayers; isHostRef.current = isHost;
   ccRef.current = classCode; leaveAskRef.current = leaveAsk;
@@ -769,6 +776,50 @@ export function ThaiTypingApp() {
     fbClearActiveRoom().catch(()=>{});
   },[]);
 
+  // Send this race to the Matches sheet (signed-in students only, once per race).
+  const recordMatch = useCallback((m) => {
+    const info=roomInfoRef.current, code=rcRef.current;
+    if (!code || !info?.raceStartsAt || !snRef.current || !SCRIPT_URL || !auth.idToken) return;
+    const matchId=code+'-'+info.raceStartsAt;
+    if (matchSavedRef.current===matchId) return;
+    matchSavedRef.current=matchId;
+    const st=stateRef.current, end=st.endTime||Date.now();
+    const mins=st.startTime?Math.max(1/60,(end-st.startTime)/60000):0;
+    const cpm=mins?Math.min(3000,Math.round(pressCountRef.current/mins)):0;
+    const accuracy=(st.pos+st.errors)>0?Math.round(st.pos/(st.pos+st.errors)*100):100;
+    setSaveStatus('saving');
+    apiSaveMatch({classCode:ccRef.current,studentName:snRef.current,matchId,type:info.type,room:code,
+      cpm,accuracy,chars:st.pos,...m})
+      .then(d=>setSaveStatus(d&&d.ok?'saved':'error'))
+      .catch(()=>{ setSaveStatus('error'); matchSavedRef.current=''; });
+  },[]);
+
+  // Battle Royale: lock the final order 2 s after the end (late position updates
+  // can still arrive), then save my place. Nothing after that changes the order.
+  useEffect(() => {
+    if (!roomCode || roomType!=='royale' || !brOver || brFinal) return;
+    const t=setTimeout(()=>{
+      const order=brOrder(roomPlayersRef.current,Date.now()+serverTimeOffsetRef.current);
+      setBrFinal(order);
+      const uid=currentFirebaseUid();
+      const i=order.findIndex(([k,p])=>k===uid||p.uid===uid);
+      if (i>=0) {
+        const me=order[i][1];
+        recordMatch({result:i===0?'win':'lose',place:i+1,players:order.length,
+          note:me.status==='eliminated'?'eliminated':me.status==='done'?'finished':'survived'});
+      }
+    },2000);
+    return ()=>clearTimeout(t);
+  },[brOver,roomCode,roomType,brFinal]);
+
+  // 1v1: save once the result screen has locked the winner.
+  const onDuelSettled = useCallback((d) => {
+    const uid=currentFirebaseUid();
+    const rv=Object.entries(roomPlayersRef.current||{}).find(([k,p])=>p&&!p.isSpectator&&k!==uid&&p.uid!==uid)?.[1];
+    recordMatch({result:d.outcome,oppName:rv?.name||d.rvName,oppClass:rv?.cls||'',
+      myScore:scoreRef.current,oppScore:d.rvScore,note:d.rvLeft?'opp-left':''});
+  },[recordMatch]);
+
   // Forget the room on this device (no Firebase writes).
   const cleanupRoomLocal = useCallback(() => {
     if (fbUnsub.current) { fbUnsub.current(); fbUnsub.current=null; }
@@ -776,7 +827,7 @@ export function ThaiTypingApp() {
     setRoomType(''); rtRef.current='';
     setIsHost(false); setRoomPlayers({}); setRoomInfo(null);
     setPressureSecs(0); setPenaltySecs(0); setLeaveAsk(false);
-    setBrOver(false); setRivalDcSecs(0); setSpectatingPlayer(null); setIsHostSpectator(false);
+    setBrOver(false); setBrFinal(null); setRivalDcSecs(0); setSpectatingPlayer(null); setIsHostSpectator(false);
     frozenRef.current=false; raceEndedRef.current=false;
     myRoomName.current='';
     setScreen('lessons');
@@ -799,8 +850,24 @@ export function ThaiTypingApp() {
           const me=uid&&players[uid];
           if (me) {
             const upd={active:false};
-            if (['waiting','racing','disconnected'].includes(me.status)) upd.status='left';
+            // Only a race that is still running counts as a forfeit. After the end,
+            // leaving just closes the room for me — my place does not change.
+            const forfeit = raceRunningRef.current && ['waiting','racing','disconnected'].includes(me.status);
+            if (forfeit) upd.status='left';
             await fbUpdatePlayer(code,'',upd);
+            // Match stats: a forfeit is a loss; an eliminated BR player who leaves before
+            // the end is saved with the place they have now.
+            if (info.raceStartsAt && (forfeit || (info.type==='royale' && !brFinalRef.current && me.status==='eliminated'))) {
+              if (info.type==='1v1') {
+                const rv=Object.entries(players).find(([k,p])=>k!==uid&&p&&!p.isSpectator)?.[1];
+                recordMatch({result:'lose',oppName:rv?.name||'',oppClass:rv?.cls||'',
+                  myScore:scoreRef.current,oppScore:Number(rv?.score)||0,note:'left'});
+              } else {
+                const order=brOrder({...players,[uid]:{...me,...upd}},Date.now()+serverTimeOffsetRef.current);
+                const i=order.findIndex(([k])=>k===uid);
+                if (i>=0) recordMatch({result:'lose',place:i+1,players:order.length,note:forfeit?'left':'eliminated'});
+              }
+            }
           }
           const others=Object.entries(players).filter(([k,p])=>k!==uid&&p&&!p.isSpectator);
           if (others.every(([,p])=>p.active===false||p.status==='left')) await fbRemove(code).catch(()=>{});
@@ -1199,6 +1266,7 @@ export function ThaiTypingApp() {
           <MyStatsScreen
             studentName={studentName}
             classCode={classCode}
+            myCfg={myCfg}
             onBack={() => setScreen('lessons')}
           />
         )}
@@ -1410,6 +1478,7 @@ export function ThaiTypingApp() {
             <BattleRoyaleResults
               roomCode={roomCode}
               roomPlayers={roomPlayers}
+              rows={brFinal}
               sOffset={serverTimeOffset}
               onBack={handleLeaveRoom}
             />
@@ -1459,6 +1528,8 @@ export function ThaiTypingApp() {
             prevBest={prevBest}
             myCfg={myCfg}
             sOffset={serverTimeOffset}
+            brFinal={brFinal}
+            onDuelSettled={onDuelSettled}
             onRestart={()=>{
               if(rcRef.current){handleLeaveRoom();}
               else if(testRef.current) startWeeklyTest();

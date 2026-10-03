@@ -46,6 +46,17 @@ export async function apiSubmitWeekly(data) {
   });
 }
 
+// Save one finished 1v1 / Battle Royale race (one row per student per race — the
+// backend ignores repeats of the same matchId).
+export async function apiSaveMatch(m) {
+  return apiRequest('saveMatch',{
+    code:m.classCode,student:m.studentName,matchId:m.matchId,type:m.type,room:m.room,
+    result:m.result,place:m.place||0,players:m.players||0,
+    oppName:m.oppName||'',oppClass:m.oppClass||'',myScore:Math.round(m.myScore||0),oppScore:Math.round(m.oppScore||0),
+    cpm:m.cpm||0,accuracy:m.accuracy||0,chars:m.chars||0,note:m.note||'',
+  });
+}
+
 // Fetch student's own session history
 export async function apiGetStudentStats(classCode, studentName) {
   return apiRequest('getStudentStats',{code:classCode,student:studentName});

@@ -96,7 +96,7 @@ export function OneVsOneHud({ roomCode, roomPlayers, myName, pos, totalChars, sc
   );
 }
 
-export function BattleRoyaleHud({ roomCode, roomPlayers, myName, pos, totalChars, zonePos, playerLives, startTime, myCfg, kpm }) {
+export function BattleRoyaleHud({ roomCode, roomPlayers, myName, pos, totalChars, zonePos, playerLives, startTime, myCfg, kpm, afkLeft=null }) {
   const elapsed=startTime?Math.max(0,(Date.now()-startTime)/1000):0;
   const untilZone=Math.max(0,ZONE_GRACE-Math.floor(elapsed));
   const outsideBy=Math.max(0,zonePos-pos-ZONE_GAP);
@@ -124,6 +124,12 @@ export function BattleRoyaleHud({ roomCode, roomPlayers, myName, pos, totalChars
         </span>
         <span style={{fontSize:11,fontWeight:700,whiteSpace:'nowrap'}}>👤 {alive} รอด</span>
       </div>
+      {afkLeft!=null&&playerLives>0&&(
+        <div style={{padding:'4px 10px',background:afkLeft<=3?'#FEE2E2':'#FFF4E7',color:afkLeft<=3?'#B91C1C':'#A85411',
+          fontSize:12,fontWeight:800,display:'flex',alignItems:'center',gap:6,borderBottom:'1px solid #F5D9BD'}}>
+          <span>⌨️</span><span>ไม่ได้พิมพ์! พิมพ์ต่อภายใน {afkLeft} วินาที ไม่งั้นเสีย ❤️</span>
+        </div>
+      )}
       {window.CharKit ? (
         <CharKit.RaceTrack mode="royale" zonePct={totalChars?zonePos/totalChars:0}
           info={`คุณ ${progress}% · ขอบวง ${edge}% · ${pos} / ${totalChars} ตัว`}

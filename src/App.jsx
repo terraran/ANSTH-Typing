@@ -146,6 +146,8 @@ export function ThaiTypingApp() {
   const [prevBest,    setPrevBest]    = useState(0);    // high score before this run
   const testRef       = useRef(null);
   const hsDone        = useRef(false);
+  const highScoresRef = useRef({});   // latest highScores for callbacks with [] deps (ghost score fallback)
+  useEffect(() => { highScoresRef.current = highScores; }, [highScores]);
 
   // ── Derived values — declared early so all effects can reference them ──
   // Text, chunks and the visible chunk are memoised so memoised children (TextDisplay)
@@ -507,11 +509,18 @@ export function ThaiTypingApp() {
     try {
       const existing   = localStorage.getItem(ghostKey);
       const existingData = existing ? JSON.parse(existing) : null;
-      if (!existingData || finalKpm > existingData.cpm) {
+      const finalScore = scoreRef.current;
+      // Ghost = best SCORE run (same rule as High Score). Old ghosts saved before
+      // this change have no score → use the exercise's High Score instead.
+      const ghostScore = existingData
+        ? (existingData.score ?? (lesson&&exercise ? highScoresRef.current[hsKey(lesson.id, exercise.title)] : 0) ?? 0)
+        : 0;
+      if (!existingData || finalScore > ghostScore) {
         localStorage.setItem(ghostKey, JSON.stringify({
           timings:  [...currentTimings.current],
           cpm:      finalKpm,
           accuracy: finalAcc,
+          score:    finalScore,
         }));
         setNewRecord(true);
       }
@@ -657,7 +666,10 @@ export function ThaiTypingApp() {
       setGhostKey(gk);
       try {
         const saved = localStorage.getItem(gk);
-        setGhostData(saved ? JSON.parse(saved) : null);
+        const g = saved ? JSON.parse(saved) : null;
+        // Old ghost (no score) → treat the exercise's High Score as its score
+        if (g && g.score == null) g.score = highScoresRef.current[hsKey(les.id, ex.title)] || 0;
+        setGhostData(g);
       } catch { setGhostData(null); }
     }
     setScreen('practice');
@@ -1350,7 +1362,7 @@ export function ThaiTypingApp() {
               <div style={{marginBottom:8,border:'1px solid var(--c-border)',borderRadius:12,overflow:'hidden'}}>
                 <CharKit.RaceTrack mode="1v1" info={`${pos} / ${totalChars} ตัว`} runners={[
                   {id:'me',me:true,label:'คุณ',cfg:myCfg,pct:totalChars?pos/totalChars:0,kpm,finished:pos>=totalChars,color:'#1D4ED8'},
-                  {id:'ghost',label:'👻 สถิติเดิม '+ghostData.cpm+' KPM',cfg:myCfg,alpha:.38,color:'#64748B',kpm:ghostData.cpm,
+                  {id:'ghost',label:'👻 สถิติ '+fmtScore(ghostData.score||0)+' คะแนน',cfg:myCfg,alpha:.38,color:'#64748B',kpm:ghostData.cpm,
                     track:{timings:ghostData.timings,start:startTime,total:totalChars}},
                 ]}/>
               </div>

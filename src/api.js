@@ -1,0 +1,62 @@
+import { SCRIPT_URL } from './config';
+import { auth } from './auth';
+
+export async function apiRequest(action, values={}) {
+  if (!SCRIPT_URL) throw new Error('Apps Script endpoint is not configured');
+  if (!auth.idToken) throw new Error('กรุณาเข้าสู่ระบบ Google ก่อน');
+  const body=new URLSearchParams({action, idToken:auth.idToken});
+  Object.entries(values).forEach(([key,value])=>body.set(key,String(value??'')));
+  const response=await fetch(SCRIPT_URL,{method:'POST',body,redirect:'follow'});
+  if (!response.ok) throw new Error('HTTP '+response.status);
+  const data=await response.json();
+  if (data?.error) throw new Error(data.error);
+  return data;
+}
+
+export // Turns backend error codes into a message the student/teacher can act on.
+function describeApiError(err) {
+  const m=String(err?.message||'');
+  const map={
+    'Email not found in roster':'ไม่พบ email นี้ใน Roster — ให้ครูตรวจว่าใส่ email ถูกบัญชีหรือไม่',
+    'Unauthorized':'บัญชีนี้ไม่มีสิทธิ์เข้าห้องนี้',
+    'TOKEN_EXPIRED':'การเข้าสู่ระบบหมดอายุ — กด "เปลี่ยน account" แล้วเข้าสู่ระบบใหม่',
+    'CONFIG_CLIENT_ID':'ตั้งค่าระบบไม่ครบ (GOOGLE_CLIENT_ID ไม่ตรงกัน) — แจ้งครู',
+    'CONFIG_SPREADSHEET':'ตั้งค่าระบบไม่ครบ (เปิด Google Sheet ไม่ได้) — แจ้งครู',
+    'ROSTER_SHEET_NOT_FOUND':'ไม่พบแท็บ Roster ใน Google Sheet — แจ้งครู',
+    'CONFIG_SCRIPT_PERMISSION':'Apps Script ยังไม่ได้รับสิทธิ์ใหม่ — ครูต้อง Authorize และ Deploy ใหม่',
+    'TEST_NOT_FOUND':'ครูเปลี่ยนหรือลบแบบทดสอบนี้แล้ว — กลับไปหน้ากระดานเพื่อดูแบบทดสอบล่าสุด',
+    'TEST_CLOSED':'แบบทดสอบของสัปดาห์นี้ปิดแล้ว — คะแนนรอบนี้ไม่ถูกนับ',
+  };
+  if (map[m]) return map[m];
+  if (/^HTTP /.test(m)||/Failed to fetch|NetworkError|JSON/i.test(m)) return 'เชื่อมต่อเซิร์ฟเวอร์ไม่ได้ ('+m+')';
+  return 'เกิดข้อผิดพลาด: '+m;
+}
+
+export // Weekly test board for the student's grade: this week's test, Top 10, my rank, my weekly bests
+async function apiGetWeeklyBoard(classCode, studentName) {
+  return apiRequest('getWeeklyBoard',{code:classCode,student:studentName});
+}
+
+export // Save one weekly test attempt — returns the updated board (with my new rank)
+async function apiSubmitWeekly(data) {
+  return apiRequest('submitWeeklyTest',{
+    code:data.classCode,student:data.studentName,testId:data.testId,
+    score:data.score,maxScore:data.maxScore,cpm:data.cpm,accuracy:data.accuracy,
+    errors:data.errors,chars:data.totalChars,duration:data.duration,
+  });
+}
+
+export // Fetch student's own session history
+async function apiGetStudentStats(classCode, studentName) {
+  return apiRequest('getStudentStats',{code:classCode,student:studentName});
+}
+
+export // Save one completed practice session to Google Sheets
+async function saveSession(data) {
+  return apiRequest('saveSession',{
+    code:data.classCode,student:data.studentName,lessonId:data.lessonId,
+    exercise:data.exerciseTitle,cpm:data.cpm,wpm:data.wpm,
+    accuracy:data.accuracy,errors:data.errors,chars:data.totalChars,duration:data.duration,
+    score:data.score||0,
+  });
+}

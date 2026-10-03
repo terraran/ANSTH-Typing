@@ -1,0 +1,269 @@
+import { currentFirebaseUid } from '../firebase';
+import { PRESSURE_SECS, fmtScore, pctOf, starsFor } from '../engine/scoring';
+import { Stars, StatPill } from '../ui/common';
+
+const { useEffect, useState } = React;
+
+export // 1v1 RESULT — decided by score; equal score → whoever finished the text first
+
+function duelOutcome(roomPlayers, myScore, waited) {
+  const uid=currentFirebaseUid();
+  const racers=Object.entries(roomPlayers||{}).filter(([,p])=>!p.isSpectator);
+  const me=racers.find(([k,p])=>k===uid||p.uid===uid)?.[1]||{};
+  const rv=racers.find(([k,p])=>k!==uid&&p.uid!==uid)?.[1]||null;
+  const rvScore=Number(rv?.score)||0;
+  const settled=!rv || rv.status==='done' || waited;
+  let outcome='wait';
+  if (settled) {
+    if (!rv) outcome='win';
+    else if (myScore!==rvScore) outcome=myScore>rvScore?'win':'lose';
+    else {
+      // finishedAt > 0 means that player typed the whole text
+      const a=Number(me.finishedAt)||0, b=Number(rv.finishedAt)||0;
+      if (a&&b) outcome=a===b?'draw':a<b?'win':'lose';
+      else if (a) outcome='win';
+      else if (b) outcome='lose';
+      else outcome='draw';
+    }
+  }
+  return {outcome,rvName:rv?.name||'คู่แข่ง',rvScore,tie:settled&&!!rv&&myScore===rvScore};
+}
+
+export // RESULT STAGE — who stands on the podium and in which pose (Phase 3)
+// Battle Royale order, same rule as the standings list.
+function brOrder(roomPlayers) {
+  const tier=p=>p.status==='done'?0:p.status==='eliminated'?2:1;
+  return Object.entries(roomPlayers||{}).filter(([,p])=>!p.isSpectator).sort(([,ap],[,bp])=>{
+    const ta=tier(ap), tb=tier(bp);
+    if (ta!==tb) return ta-tb;
+    if (ta===0 && ap.finishedAt && bp.finishedAt) return ap.finishedAt-bp.finishedAt;
+    if ((bp.pos||0)!==(ap.pos||0)) return (bp.pos||0)-(ap.pos||0);
+    return (bp.cpm||0)-(ap.cpm||0);
+  });
+}
+
+export function resultStage({ roomType, roomCode, roomPlayers, myCfg, myName, duel, soloBest }) {
+  if (!window.CharKit || !myCfg) return null;
+  const uid=currentFirebaseUid();
+  const me={id:'me',cfg:myCfg,label:'คุณ',me:true};
+  const KEEP='💪 สู้ใหม่!';
+  if (duel) {
+    const rv=Object.entries(roomPlayers||{}).find(([k,p])=>!p.isSpectator&&k!==uid&&p.uid!==uid);
+    const rival={id:rv?.[0]||'rival',cfg:rv?CharKit.fromPlayer(rv[1]):CharKit.fromName(duel.rvName),label:duel.rvName};
+    const o=duel.outcome;
+    if (o==='win')  return {confetti:true, actors:[{...me,pose:'cheer',level:2},{...rival,pose:'sad',level:1,color:'#E79035'}]};
+    if (o==='lose') return {confetti:false,actors:[{...me,pose:'sad',level:1,color:'#347ED0',note:KEEP},{...rival,pose:'cheer',level:2}]};
+    if (o==='draw') return {confetti:true, actors:[{...me,pose:'cheer',level:2},{...rival,pose:'cheer',level:2}]};
+    return {confetti:false,actors:[{...me,pose:'idle',level:1,color:'#347ED0'},{...rival,pose:'idle',level:1,color:'#E79035'}]};
+  }
+  if (roomCode && roomType==='royale') {
+    const order=brOrder(roomPlayers);
+    const myRank=order.findIndex(([k,p])=>k===uid||p.uid===uid)+1;
+    if (myRank===1) return {confetti:true,actors:[{...me,pose:'cheer',level:2,label:'🥇 คุณ'}]};
+    const top=order[0];
+    const winner=top?{id:top[0],cfg:CharKit.fromPlayer(top[1]),label:'🥇 '+(top[1].name||'ผู้ชนะ'),pose:'cheer',level:2}:null;
+    const mine={...me,pose:'sad',level:1,label:myRank>0?`อันดับ ${myRank}`:'คุณ',note:KEEP,color:'#64748B'};
+    return {confetti:false,actors:winner?[winner,mine]:[mine]};
+  }
+  // Solo practice / weekly test: no "losing" alone — cheer on a personal best, otherwise idle.
+  return {confetti:!!soloBest,actors:[{...me,pose:soloBest?'cheer':'idle',level:soloBest?2:1,
+    label:soloBest?'🏆 สถิติใหม่!':'คุณ',color:soloBest?undefined:'#347ED0'}]};
+}
+
+export // RESULTS SCREEN
+
+function ResultsScreen({ cpm, accuracy, errors, totalChars, lesson, saveStatus, saveError, studentName, ghostData, newRecord, roomCode, roomType, roomPlayers, myName, myCfg, bestCombo, score, maxScore, isTest, testBoard, prevBest, onRestart, onBack }) {
+  const tf="'Sarabun','Noto Sans Thai',sans-serif";
+  const isDuel = roomType==='1v1' && !!roomCode;
+  const [waited, setWaited] = useState(false);
+  useEffect(()=>{
+    if (!isDuel) return;
+    // If the opponent disconnects, settle the result after the grace period anyway.
+    const t=setTimeout(()=>setWaited(true),(PRESSURE_SECS+6)*1000);
+    return ()=>clearTimeout(t);
+  },[isDuel]);
+  const duel = isDuel ? duelOutcome(roomPlayers, score, waited) : null;
+
+  const grade =
+    accuracy>=98&&cpm>=40 ? {label:'ยอดเยี่ยม 🏆',color:'#D97706'} :
+    accuracy>=95&&cpm>=25 ? {label:'ดีมาก ⭐',     color:'#2563EB'} :
+    accuracy>=90           ? {label:'ดี 👍',         color:'#059669'} :
+                             {label:'ฝึกต่อ 💪',    color:'#7C3AED'};
+  const headline = isTest ? 'หมดเวลาแล้ว!' : 'เสร็จแล้ว!';
+  // Personal best: practice → beat the previous high score; weekly test → this attempt is my best.
+  const soloBest = !roomCode && (isTest
+    ? (saveStatus==='saved' && !!testBoard?.me && score>0 && score>=testBoard.me.score)
+    : (score>0 && score>prevBest));
+  const stage = resultStage({ roomType, roomCode, roomPlayers, myCfg, myName, duel, soloBest });
+  return (
+    <div style={{textAlign:'center',fontFamily:tf}}>
+      {stage ? (
+        <CharKit.ResultStage actors={stage.actors} confetti={stage.confetti} style={{marginBottom:6}}/>
+      ) : (
+      <div style={{fontSize:52,marginBottom:8}}>
+        {duel ? (duel.outcome==='win'?'🏆':duel.outcome==='lose'?'💪':duel.outcome==='draw'?'🤝':'⏳')
+          : accuracy>=95?'🎉':accuracy>=85?'👏':'💪'}</div>
+      )}
+      <h2 style={{fontSize:26,fontWeight:800,color:'var(--c-t1)',marginBottom:4}}>{headline}</h2>
+      <div style={{color:grade.color,fontWeight:800,fontSize:18,marginBottom:12}}>
+        {grade.label}
+      </div>
+
+      {/* 1v1 — winner by score */}
+      {duel && (()=>{
+        const tone = duel.outcome==='win'?{bg:'#D1FAE5',bd:'#059669',fg:'#065F46'}
+          : duel.outcome==='lose'?{bg:'#FEF3C7',bd:'#F59E0B',fg:'#92400E'}
+          : {bg:'#EFF6FF',bd:'#2563EB',fg:'#1E3A8A'};
+        const title = duel.outcome==='wait' ? `⏳ รอคู่แข่งพิมพ์ให้จบ (ไม่เกิน ${PRESSURE_SECS} วินาที)...`
+          : duel.outcome==='win' ? '🏆 คุณชนะ!'
+          : duel.outcome==='lose' ? `${duel.rvName} ชนะ — สู้ใหม่ได้!`
+          : '🤝 เสมอ!';
+        const box = (label,value,lead,color) => (
+          <div style={{flex:1,maxWidth:200,borderRadius:12,padding:'10px 12px',
+            background:lead?'#fff':'transparent',border:`1.5px solid ${lead?color:'transparent'}`}}>
+            <div style={{fontSize:12,fontWeight:700,color:'#475569',whiteSpace:'nowrap',
+              overflow:'hidden',textOverflow:'ellipsis'}}>{lead?'👑 ':''}{label}</div>
+            <div style={{fontSize:30,fontWeight:800,color,lineHeight:1.2}}>{fmtScore(value)}</div>
+          </div>
+        );
+        const settled = duel.outcome!=='wait';
+        return (
+          <div style={{marginBottom:18,padding:'14px 16px',borderRadius:14,
+            background:tone.bg,border:`1.5px solid ${tone.bd}`}}>
+            <div style={{fontSize:18,fontWeight:800,color:tone.fg,marginBottom:8}}>{title}</div>
+            <div style={{display:'flex',justifyContent:'center',alignItems:'center',gap:10}}>
+              {box('คุณ',score,settled&&duel.outcome==='win','#347ED0')}
+              <span style={{fontSize:14,fontWeight:800,color:'#64748B'}}>vs</span>
+              {box(duel.rvName,duel.rvScore,settled&&duel.outcome==='lose','#E79035')}
+            </div>
+            {duel.tie && duel.outcome!=='draw' && (
+              <div style={{fontSize:12,color:tone.fg,marginTop:6}}>คะแนนเท่ากัน — คนที่พิมพ์จบก่อนชนะ</div>
+            )}
+          </div>
+        );
+      })()}
+
+      {/* Solo score / weekly test */}
+      {!roomCode && (
+        <div style={{marginBottom:18,padding:'16px 20px',borderRadius:14,
+          background:isTest?'#EDE9FE':'#FFFBEB',border:`1.5px solid ${isTest?'#8B5CF6':'#F59E0B'}`}}>
+          <div style={{fontSize:12,fontWeight:800,color:isTest?'#6D28D9':'#B45309',letterSpacing:1}}>
+            {isTest?'📝 คะแนนแบบทดสอบประจำสัปดาห์':'⭐ คะแนนรอบนี้'}</div>
+          <div style={{fontSize:38,fontWeight:800,color:'#0F172A',lineHeight:1.2}}>{fmtScore(score)}</div>
+          {isTest ? (
+            <div style={{marginTop:4}}>
+              <Stars n={starsFor(score,maxScore)} size={26}/>
+              <div style={{fontSize:12,color:'#64748B',marginTop:4}}>
+                {pctOf(score,maxScore)}% ของคะแนนเป้าหมาย {fmtScore(maxScore)}
+              </div>
+              <div style={{marginTop:10,fontSize:15,fontWeight:800,color:'#4C1D95'}}>
+                {saveStatus==='saving' && '💾 กำลังส่งคะแนน...'}
+                {saveStatus==='error' && <span style={{color:'#DC2626'}}>⚠️ {saveError||'ส่งคะแนนไม่สำเร็จ — ตรวจสัญญาณ'}</span>}
+                {saveStatus==='saved' && testBoard?.me && (
+                  <>🏆 อันดับ {testBoard.me.rank} จาก {testBoard.total} คนใน {testBoard.grade} สัปดาห์นี้</>
+                )}
+              </div>
+              {saveStatus==='saved' && testBoard?.me && testBoard.me.score>score && (
+                <div style={{fontSize:12,color:'#64748B',marginTop:2}}>
+                  นับครั้งที่ดีที่สุดของคุณ ({fmtScore(testBoard.me.score)} คะแนน)
+                </div>
+              )}
+            </div>
+          ) : (
+            <div style={{fontSize:14,fontWeight:700,marginTop:6,
+              color:score>prevBest?'#059669':'#64748B'}}>
+              {score>prevBest
+                ? (prevBest>0 ? `🎉 สถิติใหม่! (เดิม ${fmtScore(prevBest)})` : '🏆 High Score แรกของแบบฝึกนี้!')
+                : `🏆 High Score: ${fmtScore(prevBest)} — ขาดอีก ${fmtScore(prevBest-score+1)} คะแนน`}
+            </div>
+          )}
+        </div>
+      )}
+      {/* Ghost comparison */}
+      {(ghostData || newRecord) && (
+        <div style={{marginBottom:22,padding:'12px 20px',borderRadius:12,
+          background: !ghostData ? '#EDE9FE'
+            : cpm > ghostData.cpm ? '#D1FAE5'
+            : cpm === ghostData.cpm ? '#EFF6FF'
+            : '#EDE9FE',
+          border:`1.5px solid ${!ghostData ? '#8B5CF6'
+            : cpm > ghostData.cpm ? '#059669'
+            : cpm === ghostData.cpm ? '#2563EB'
+            : '#8B5CF6'}`,
+          fontFamily:tf, fontSize:15, fontWeight:700, color:'#0F172A',
+        }}>
+          {!ghostData
+            ? `👻 บันทึก Ghost แล้ว! (${cpm} KPM) — ลองแข่งรอบหน้า`
+            : cpm > ghostData.cpm
+            ? `🏆 ชนะ Ghost! ${cpm} vs ${ghostData.cpm} KPM${newRecord ? ' — สถิติใหม่! 🎉' : ''}`
+            : cpm === ghostData.cpm
+            ? `🤝 เสมอกับ Ghost! (${cpm} KPM)`
+            : `👻 Ghost ชนะ — ${ghostData.cpm} vs ${cpm} KPM — สู้ต่อไป!`}
+        </div>
+      )}
+      <div style={{display:'flex',gap:14,justifyContent:'center',marginBottom:24,flexWrap:'wrap'}}>
+        <StatPill label="KPM"       value={cpm}              color={cpm>=30?'#059669':'#D97706'}/>
+        <StatPill label="WPM"       value={Math.round(cpm/5)} color="#2563EB"/>
+        <StatPill label="ความแม่น" value={`${accuracy}%`}   color={accuracy>=95?'#059669':'#D97706'}/>
+        <StatPill label="ผิด"       value={errors}           color={errors===0?'#059669':'#EF4444'}/>
+        <StatPill label="ตัวอักษร" value={totalChars}/>
+        {(isDuel||isTest)&&<StatPill label="คอมโบสูงสุด" value={`${bestCombo||0} 🔥`} color="#8B5CF6"/>}
+      </div>
+      <div style={{background:'#F1F5F9',borderRadius:12,height:10,marginBottom:22,overflow:'hidden'}}>
+        <div style={{width:`${accuracy}%`,height:'100%',borderRadius:12,
+          background:accuracy>=95?'#059669':accuracy>=85?'#2563EB':'#F59E0B',
+          transition:'width 1s ease-out'}}/>
+      </div>
+      {/* Battle Royale standings */}
+      {roomCode && roomType==='royale' && Object.keys(roomPlayers||{}).length > 0 && (
+        <div style={{background:'var(--c-surf)',border:'1.5px solid var(--c-border)',borderRadius:12,
+          padding:'14px 16px',marginBottom:20,textAlign:'left'}}>
+          <div style={{fontSize:13,fontWeight:800,marginBottom:10,fontFamily:tf}}>
+            🏆 Battle Royale — ผลการแข่ง</div>
+          {Object.entries(roomPlayers)
+            .filter(([,p])=>!p.isSpectator)
+            .sort((a,b)=>{
+              const [,ap]=a, [,bp]=b;
+              // Tier: finished (0) > still racing (1) > eliminated (2)
+              const tier=p=>p.status==='done'?0:p.status==='eliminated'?2:1;
+              const ta=tier(ap), tb=tier(bp);
+              if (ta!==tb) return ta-tb;
+              if (ta===0 && ap.finishedAt && bp.finishedAt) return ap.finishedAt-bp.finishedAt;
+              if ((bp.pos||0)!==(ap.pos||0)) return (bp.pos||0)-(ap.pos||0);
+              return (bp.cpm||0)-(ap.cpm||0);
+            })
+            .map(([key,p],i)=>(
+              <div key={key} style={{display:'flex',alignItems:'center',gap:10,
+                padding:'8px 0',borderBottom:'1px solid var(--c-border)'}}>
+                <span style={{fontSize:18,width:28}}>{i===0?'🥇':i===1?'🥈':i===2?'🥉':'  '}</span>
+                <span style={{flex:1,fontFamily:tf,fontWeight:700,
+                  color:(p.name||key)===(myName||'ผู้เล่น1')?'#059669':'var(--c-t1)',fontSize:14}}>
+                  {p.name||key}
+                  {p.status==='done'&&' 🏁'}
+                  {p.status==='eliminated'&&' 💀'}
+                </span>
+                <span style={{fontSize:13,color:'var(--c-t2)'}}>{p.cpm||0} KPM</span>
+              </div>
+            ))}
+        </div>
+      )}
+      <div style={{display:'flex',gap:12,justifyContent:'center',flexWrap:'wrap'}}>
+        <button onClick={onRestart} style={{background:'#0F172A',color:'#fff',border:'none',
+          borderRadius:10,padding:'11px 26px',cursor:'pointer',fontSize:14,fontWeight:700,fontFamily:tf}}>
+          {isTest?'↻ ทำแบบทดสอบอีกครั้ง':roomCode?'ออกจากห้อง':'สุ่มคำใหม่ / ลองอีกครั้ง'}
+        </button>
+        <button onClick={onBack} style={{background:'#F1F5F9',color:'#0F172A',border:'none',
+          borderRadius:10,padding:'11px 26px',cursor:'pointer',fontSize:14,fontWeight:600,fontFamily:tf}}>
+          {isTest?'🏆 ดูกระดานอันดับ':'เลือกบทเรียน'}
+        </button>
+      </div>
+      {studentName && !isTest && (
+        <div style={{marginTop:18,fontSize:12,color:'var(--c-t3)',fontFamily:tf}}>
+          {saveStatus==='saving' && '💾 กำลังบันทึกผล...'}
+          {saveStatus==='saved'  && '✅ บันทึกผลแล้ว'}
+          {saveStatus==='error'  && '⚠️ บันทึกไม่ได้ — ตรวจสอบสัญญาณ'}
+        </div>
+      )}
+    </div>
+  );
+}

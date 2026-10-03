@@ -5,9 +5,9 @@ import { raceRunners } from './Hud';
 
 const { useState } = React;
 
-export // MULTIPLAYER SETUP — game lobby style
+// MULTIPLAYER SETUP — game lobby style
 
-function MPSetupScreen({ mode, onSelect, onBack, busy }) {
+export function MPSetupScreen({ mode, onSelect, onBack, busy }) {
   const tf = "'Sarabun','Noto Sans Thai',sans-serif";
   const isRoyale = mode==='royale';
   const [pickedLesson, setPickedLesson] = useState(null);
@@ -115,9 +115,9 @@ function MPSetupScreen({ mode, onSelect, onBack, busy }) {
   );
 }
 
-export // LOBBY SCREEN  (Phase 4)
+// LOBBY SCREEN  (Phase 4)
 
-function LobbyScreen({ roomCode, roomInfo, roomPlayers, isHost, roomType, myName, myCfg, onStart, onLeave, onStartSpectator }) {
+export function LobbyScreen({ roomCode, roomInfo, roomPlayers, isHost, roomType, myName, myCfg, onStart, onLeave, onStartSpectator }) {
   const tf = "'Sarabun','Noto Sans Thai',sans-serif";
   const players = Object.entries(roomPlayers||{});
   const canStart = players.length >= 2;
@@ -210,9 +210,9 @@ function LobbyScreen({ roomCode, roomInfo, roomPlayers, isHost, roomType, myName
   );
 }
 
-export // COUNTDOWN SCREEN  (Phase 4)
+// COUNTDOWN SCREEN  (Phase 4)
 
-function CountdownScreen({ num, roomCode, roomType, roomPlayers, myCfg, myName }) {
+export function CountdownScreen({ num, roomCode, roomType, roomPlayers, myCfg, myName }) {
   const tf = "'Sarabun','Noto Sans Thai',sans-serif";
   return (
     <div style={{textAlign:'center',padding:'48px 20px',fontFamily:tf}}>

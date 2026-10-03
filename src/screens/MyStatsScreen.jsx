@@ -3,9 +3,9 @@ import { fmtScore } from '../engine/scoring';
 
 const { useEffect, useState } = React;
 
-export // PROGRESS CHART
+// PROGRESS CHART
 
-function ProgressChart({ sessions }) {
+export function ProgressChart({ sessions }) {
   const [tab, setTab] = useState('wpm'); // 'wpm' | 'both'
   const tf = "'Sarabun','Noto Sans Thai',sans-serif";
 
@@ -136,9 +136,9 @@ function ProgressChart({ sessions }) {
   );
 }
 
-export // MY STATS SCREEN
+// MY STATS SCREEN
 
-function MyStatsScreen({ studentName, classCode, onBack }) {
+export function MyStatsScreen({ studentName, classCode, onBack }) {
   const [data, setData]     = useState(null);
   const [loading, setLoading] = useState(true);
   const tf = "'Sarabun','Noto Sans Thai',sans-serif";

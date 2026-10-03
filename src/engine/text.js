@@ -1,15 +1,15 @@
 import { LESSONS } from '../data/lessons';
 
-export // ── SAFE ZONE CONFIG ──────────────────────────────────────────────────
+// ── SAFE ZONE CONFIG ──────────────────────────────────────────────────
 // Zone starts 30s into the race, advances at ZONE_CPM chars/min.
 // Players more than ZONE_GAP chars behind lose 1 life every ZONE_TICK ms.
 // Text display: show ~2 lines at a time, advance on completion
-const CHUNK_CHARS = 76;
+export const CHUNK_CHARS = 76;
 
-export // chars per chunk (~2 lines at 34px Thai font)
+// chars per chunk (~2 lines at 34px Thai font)
 
 // Build word-boundary chunks — extracted to module level so Babel handles it reliably
-function buildChunks(targetChars) {
+export function buildChunks(targetChars) {
   if (!targetChars.length) return [{start:0,end:0}];
   const result = [];
   let start = 0;
@@ -28,9 +28,9 @@ function buildChunks(targetChars) {
   return result;
 }
 
-export // TEXT GENERATOR
+// TEXT GENERATOR
 
-function generateText(words, minChars, rng = Math.random) {
+export function generateText(words, minChars, rng = Math.random) {
   const arr = [...words];
   for (let i = arr.length - 1; i > 0; i--) {
     const j = Math.floor(rng() * (i + 1));
@@ -48,8 +48,8 @@ function generateText(words, minChars, rng = Math.random) {
   return result.join(' ');
 }
 
-export // Deterministic RNG so every student in a grade gets the same weekly test text.
-function seededRng(seedText) {
+// Deterministic RNG so every student in a grade gets the same weekly test text.
+export function seededRng(seedText) {
   let h = 2166136261;
   for (const c of String(seedText)) { h ^= c.charCodeAt(0); h = Math.imul(h, 16777619); }
   return () => {
@@ -61,10 +61,10 @@ function seededRng(seedText) {
   };
 }
 
-export // longer than anyone can type in 2 minutes
+// longer than anyone can type in 2 minutes
 
 // Reshuffles the word bank pass after pass until the text is long enough.
-function generateTimedText(words, minChars, rng) {
+export function generateTimedText(words, minChars, rng) {
   const pool = cleanTypingWords(words);
   if (!pool.length) return '';
   const out = [];
@@ -84,10 +84,10 @@ function generateTimedText(words, minChars, rng) {
   return out.join(' ');
 }
 
-export // ── STORY UTILITIES ──────────────────────────────────────
+// ── STORY UTILITIES ──────────────────────────────────────
 // Keep a clean, deduplicated wordbank for each lesson. Battle Royale uses only
 // the selected lesson's bank, so later keyboard rows cannot leak into its text.
-const UNSUITABLE_WORDS = ['เด้า','ฆ่า','ฆาตกรรม','เฆี่ยน','ห่า','ด่า'];
+export const UNSUITABLE_WORDS = ['เด้า','ฆ่า','ฆาตกรรม','เฆี่ยน','ห่า','ด่า'];
 
 export function cleanTypingWords(words) {
   return [...new Set((words||[]).filter(word=>word && !UNSUITABLE_WORDS.includes(word)))];

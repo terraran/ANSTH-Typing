@@ -1,17 +1,17 @@
 import { findKeyForChar } from './keymap';
 
-export // ═══════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════
 // SCORING  (Kahoot-style) — points = letter × speed × combo
 // ═══════════════════════════════════════════════════════════════
-const SCORE_RARE = new Set([...'๐๑๒๓๔๕๖๗๘๙ฎฏฐฑฒฌฆฃฅฬฦฤฯฺํ฿".,()?+%']);
+export const SCORE_RARE = new Set([...'๐๑๒๓๔๕๖๗๘๙ฎฏฐฑฒฌฆฃฅฬฦฤฯฺํ฿".,()?+%']);
 
 export const SCORE_HOME = new Set(['KeyA','KeyS','KeyD','KeyF','KeyG','KeyH','KeyJ','KeyK','KeyL','Semicolon','Quote','Space']);
 
 export const SCORE_ROWS = new Set(['KeyQ','KeyW','KeyE','KeyR','KeyT','KeyY','KeyU','KeyI','KeyO','KeyP','BracketLeft','BracketRight',
   'KeyZ','KeyX','KeyC','KeyV','KeyB','KeyN','KeyM','Comma','Period','Slash']);
 
-export // Home 100 · top/bottom 200 · far reach (number row, \ `) 300 · Shift 400 · rare/numerals/marks 500
-function charBasePoints(ch) {
+// Home 100 · top/bottom 200 · far reach (number row, \ `) 300 · Shift 400 · rare/numerals/marks 500
+export function charBasePoints(ch) {
   if (SCORE_RARE.has(ch)) return 500;
   const k = findKeyForChar(ch);
   if (!k) return 100;
@@ -21,22 +21,22 @@ function charBasePoints(ch) {
   return 300;
 }
 
-export // Target speed rises gently through the lessons (keystrokes per minute).
-function lessonTargetKpm(lessonId) { return Math.min(160, 60 + (Math.max(1, Number(lessonId)||1) - 1) * 8); }
+// Target speed rises gently through the lessons (keystrokes per minute).
+export function lessonTargetKpm(lessonId) { return Math.min(160, 60 + (Math.max(1, Number(lessonId)||1) - 1) * 8); }
 
-export // ×1.0 at or above target speed, down to ×0.5 at half speed (average of last 5 keys).
-function speedMultiplier(intervals, lessonId) {
+// ×1.0 at or above target speed, down to ×0.5 at half speed (average of last 5 keys).
+export function speedMultiplier(intervals, lessonId) {
   if (!intervals.length) return 1;
   const avg = intervals.reduce((a,b)=>a+b,0) / intervals.length;
   const targetMs = 60000 / lessonTargetKpm(lessonId);
   return Math.max(0.5, Math.min(1, targetMs / Math.max(1, avg)));
 }
 
-export // +10% per 10 correct keys in a row, max ×1.5. `streak` = correct keys before this one.
-function comboMultiplier(streak) { return 1 + Math.min(5, Math.floor(streak / 10)) * 0.1; }
+// +10% per 10 correct keys in a row, max ×1.5. `streak` = correct keys before this one.
+export function comboMultiplier(streak) { return 1 + Math.min(5, Math.floor(streak / 10)) * 0.1; }
 
-export // Perfect run: full speed, no mistakes.
-function maxScoreFor(chars) {
+// Perfect run: full speed, no mistakes.
+export function maxScoreFor(chars) {
   return chars.reduce((sum, ch, i) => sum + Math.round(charBasePoints(ch) * comboMultiplier(i)), 0);
 }
 
@@ -45,9 +45,9 @@ export function starsFor(score, maxScore) {
   return pct >= 85 ? 3 : pct >= 65 ? 2 : pct >= 45 ? 1 : 0;
 }
 
-export // Practice high scores are keyed like the backend: "lessonId|1.1" (number prefix
+// Practice high scores are keyed like the backend: "lessonId|1.1" (number prefix
 // survives exercise renames). Signed-in: from Sheets. Guest: this device only.
-function hsKey(lessonId, title) {
+export function hsKey(lessonId, title) {
   const t=String(title||'').trim();
   const m=t.match(/^(\d+\.\d+)/);
   return (Number(lessonId)||0)+'|'+(m?m[1]:t);
@@ -59,16 +59,16 @@ export function writeGuestHighScores(map) { try { localStorage.setItem('highScor
 
 export const fmtScore = n => Number(n||0).toLocaleString('en-US');
 
-export // ═══════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════
 // WEEKLY TEST — one 2-minute test per grade level per week
 // ═══════════════════════════════════════════════════════════════
-const TEST_SECS      = 120;
+export const TEST_SECS      = 120;
 
 export const TEST_MIN_CHARS = 700;
 
-export // Target score (100%): every key correct at the lesson's target speed for the full 2 minutes.
+// Target score (100%): every key correct at the lesson's target speed for the full 2 minutes.
 // Fast, accurate students can go above 100%.
-function testTargetScore(chars, lessonId) {
+export function testTargetScore(chars, lessonId) {
   const budget = lessonTargetKpm(lessonId) * TEST_SECS / 60;
   let keys = 0, n = 0;
   while (n < chars.length) {
@@ -103,20 +103,20 @@ export function fmtTimeLeft(ms) {
 
 export function pctOf(score, max) { return max > 0 ? Math.round(score / max * 100) : 0; }
 
-export // SPAM THRESHOLDS
-const SPEED_CPM       = 750;
+// SPAM THRESHOLDS
+export const SPEED_CPM       = 750;
 
-export // keys/min over the last SPAM_WINDOW_KEYS keys…
-const SPAM_WINDOW_KEYS = 10;
+// keys/min over the last SPAM_WINDOW_KEYS keys…
+export const SPAM_WINDOW_KEYS = 10;
 
 export const SPAM_WRONG_SHARE = 0.5;
 
-export // …and at least half of them wrong → spam
-const ERROR_WINDOW_MS = 3000;
+// …and at least half of them wrong → spam
+export const ERROR_WINDOW_MS = 3000;
 
 export const ERROR_BURST     = 9;
 
 export const SPAM_PENALTY    = 5;
 
-export // seconds frozen after spam detection (no longer a kick)
-const PRESSURE_SECS   = 10;
+// seconds frozen after spam detection (no longer a kick)
+export const PRESSURE_SECS   = 10;

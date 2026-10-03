@@ -1,7 +1,7 @@
-export // 1v1: seconds the other player gets after one finishes
+// 1v1: seconds the other player gets after one finishes
 
 // Battle Royale difficulty — host picks life count before creating the room
-const BR_DIFFICULTIES = [
+export const BR_DIFFICULTIES = [
   { lives:1,  emoji:'💀', thai:'ศาสตราจารย์ด้านการพิมพ์',            en:'Professor', color:'#DC2626', bg:'#FEF2F2' },
   { lives:3,  emoji:'⚔️', thai:'ผู้ชำนาญการด้านการพิมพ์',            en:'Expert',    color:'#2563EB', bg:'#DBEAFE' },
   { lives:5,  emoji:'🛡️', thai:'นักพิมพ์ฝึกหัด',                     en:'Trainee',   color:'#059669', bg:'#D1FAE5' },
@@ -10,9 +10,9 @@ const BR_DIFFICULTIES = [
 
 export function difficultyOf(lives){ return BR_DIFFICULTIES.find(d=>d.lives===lives) || BR_DIFFICULTIES[1]; }
 
-export // LESSONS
+// LESSONS
 
-const LESSONS = [
+export const LESSONS = [
   {
     id:1, thaiName:'แถวกลาง', engName:'Home Row — กดสหว',
     desc:'ฝึกนิ้วบน Home Row ไม่ใช้แถวอื่นเลย', accent:'#059669', al:'#D1FAE5',
@@ -221,8 +221,8 @@ const LESSONS = [
 
 ];
 
-export // Chapter groupings for lesson selector
-const CHAPTERS = [
+// Chapter groupings for lesson selector
+export const CHAPTERS = [
   { id:1, label:'Chapter 1', title:'แถวหลัก',   subtitle:'ไม่ต้องใช้ Shift',       icon:'🎹', from:'#1D4ED8', to:'#3B82F6', dot:'#1D4ED8', lessonIds:[1,2,3,4] },
   { id:2, label:'Chapter 2', title:'Shift ง่าย', subtitle:'ตัวอักษรที่ใช้บ่อย',    icon:'⇧',  from:'#059669', to:'#34D399', dot:'#059669', lessonIds:[5,6,7,8] },
   { id:3, label:'Chapter 3', title:'Shift ยาก',  subtitle:'ตัวอักษรหายาก',         icon:'⚡', from:'#DC2626', to:'#F87171', dot:'#DC2626', lessonIds:[9,10,11] },

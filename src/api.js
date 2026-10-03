@@ -13,8 +13,8 @@ export async function apiRequest(action, values={}) {
   return data;
 }
 
-export // Turns backend error codes into a message the student/teacher can act on.
-function describeApiError(err) {
+// Turns backend error codes into a message the student/teacher can act on.
+export function describeApiError(err) {
   const m=String(err?.message||'');
   const map={
     'Email not found in roster':'ไม่พบ email นี้ใน Roster — ให้ครูตรวจว่าใส่ email ถูกบัญชีหรือไม่',
@@ -32,13 +32,13 @@ function describeApiError(err) {
   return 'เกิดข้อผิดพลาด: '+m;
 }
 
-export // Weekly test board for the student's grade: this week's test, Top 10, my rank, my weekly bests
-async function apiGetWeeklyBoard(classCode, studentName) {
+// Weekly test board for the student's grade: this week's test, Top 10, my rank, my weekly bests
+export async function apiGetWeeklyBoard(classCode, studentName) {
   return apiRequest('getWeeklyBoard',{code:classCode,student:studentName});
 }
 
-export // Save one weekly test attempt — returns the updated board (with my new rank)
-async function apiSubmitWeekly(data) {
+// Save one weekly test attempt — returns the updated board (with my new rank)
+export async function apiSubmitWeekly(data) {
   return apiRequest('submitWeeklyTest',{
     code:data.classCode,student:data.studentName,testId:data.testId,
     score:data.score,maxScore:data.maxScore,cpm:data.cpm,accuracy:data.accuracy,
@@ -46,13 +46,13 @@ async function apiSubmitWeekly(data) {
   });
 }
 
-export // Fetch student's own session history
-async function apiGetStudentStats(classCode, studentName) {
+// Fetch student's own session history
+export async function apiGetStudentStats(classCode, studentName) {
   return apiRequest('getStudentStats',{code:classCode,student:studentName});
 }
 
-export // Save one completed practice session to Google Sheets
-async function saveSession(data) {
+// Save one completed practice session to Google Sheets
+export async function saveSession(data) {
   return apiRequest('saveSession',{
     code:data.classCode,student:data.studentName,lessonId:data.lessonId,
     exercise:data.exerciseTitle,cpm:data.cpm,wpm:data.wpm,

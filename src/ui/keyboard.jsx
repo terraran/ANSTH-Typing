@@ -1,8 +1,8 @@
 import { FINGER_COLORS, KEYMAP, KEY_META } from '../engine/keymap';
 
-export // KEYBOARD LAYOUT
+// KEYBOARD LAYOUT
 
-const KB_ROWS = [
+export const KB_ROWS = [
   [ {c:'Backquote'},{c:'Digit1'},{c:'Digit2'},{c:'Digit3'},{c:'Digit4'},{c:'Digit5'},
     {c:'Digit6'},{c:'Digit7'},{c:'Digit8'},{c:'Digit9'},{c:'Digit0'},{c:'Minus'},{c:'Equal'},
     {c:'Backspace',lbl:'⌫',w:2,sp:true} ],
@@ -23,9 +23,9 @@ const KB_ROWS = [
     {c:'AltR',lbl:'Alt',w:1.5,sp:true},{c:'CtrlR',lbl:'Ctrl',w:1.5,sp:true} ],
 ];
 
-export // KEY component
+// KEY component
 
-function Key({ kdef, nextCode, needsShift, flashCode, shiftHeld, correctShiftCode }) {
+export function Key({ kdef, nextCode, needsShift, flashCode, shiftHeld, correctShiftCode }) {
   const { c, lbl, w=1, sp=false } = kdef;
   const meta=KEY_META[c], chars=KEYMAP[c];
   const isNext=(nextCode===c);
@@ -62,9 +62,9 @@ function Key({ kdef, nextCode, needsShift, flashCode, shiftHeld, correctShiftCod
   );
 }
 
-export // ON-SCREEN KEYBOARD
+// ON-SCREEN KEYBOARD
 
-function OnScreenKeyboard({ nextCode, needsShift, flashCode, shiftHeld, correctShiftCode }) {
+export function OnScreenKeyboard({ nextCode, needsShift, flashCode, shiftHeld, correctShiftCode }) {
   return (
     <div style={{display:'flex',flexDirection:'column',gap:3,width:'100%'}}>
       {KB_ROWS.map((row,ri)=>(

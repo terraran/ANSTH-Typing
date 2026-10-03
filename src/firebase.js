@@ -25,9 +25,9 @@ export async function ensureFirebaseUser() {
   return result.user;
 }
 
-export // Room codes: 5 characters from 32 unambiguous symbols (no 0/O, 1/I) ≈ 33 million
+// Room codes: 5 characters from 32 unambiguous symbols (no 0/O, 1/I) ≈ 33 million
 // combinations. Rooms cannot be listed, so a code must be known to join.
-const ROOM_CODE_CHARS='ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+export const ROOM_CODE_CHARS='ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 
 export const ROOM_CODE_LEN=5;
 
@@ -44,14 +44,14 @@ export function currentFirebaseUid() { return typeof firebase==='undefined'?'':(
 
 export const ZONE_GRACE = 25;
 
-export // seconds before the first circle starts closing
-const ZONE_GAP   = 38;
+// seconds before the first circle starts closing
+export const ZONE_GAP   = 38;
 
-export // characters of breathing room behind the zone
-const ZONE_TICK  = 10000;
+// characters of breathing room behind the zone
+export const ZONE_TICK  = 10000;
 
-export // lose one life every 10 seconds outside the zone
-const ZONE_PHASES = [
+// lose one life every 10 seconds outside the zone
+export const ZONE_PHASES = [
   { after: 0,   cpm: 60 },
   { after: 60,  cpm: 84 },
   { after: 120, cpm: 108 },
@@ -67,7 +67,11 @@ export function getZoneSpeed(elapsedSeconds) {
 
 export function getZonePos(startTime, totalChars) {
   if (!startTime) return 0;
-  const elapsed = (Date.now() - startTime) / 1000;
+  return zonePosAt((Date.now() - startTime) / 1000, totalChars);
+}
+
+// Zone edge (in characters) `elapsed` seconds after the race start.
+export function zonePosAt(elapsed, totalChars) {
   if (elapsed < ZONE_GRACE) return 0;
   let remaining = elapsed - ZONE_GRACE;
   let chars = 0;
@@ -83,8 +87,8 @@ export function getZonePos(startTime, totalChars) {
   return Math.min(Math.floor(chars), totalChars);
 }
 
-export // Shorter codes make collisions possible (though rare): retry until a free one.
-async function makeFreeCode() {
+// Shorter codes make collisions possible (though rare): retry until a free one.
+export async function makeFreeCode() {
   for (let i=0;i<5;i++) {
     const code=makeCode();
     if (!(await fbGet(code))) return code;
@@ -98,10 +102,12 @@ export async function fbCreate(code,info) {
   await db.ref('rooms/'+code).set({info:{...info,hostUid:user.uid,createdAt:Date.now(),status:'lobby'},players:{}});
 }
 
-export async function fbJoin(code,name,lives=3) {
+export async function fbJoin(code,name,lives=3,cls='') {
   const db=getDB(); if(!db) throw new Error('Firebase is unavailable');
   const user=await ensureFirebaseUser();
-  await db.ref('rooms/'+code+'/players/'+user.uid).set({uid:user.uid,name,pos:0,cpm:0,errors:0,lives,status:'waiting',finishedAt:0,score:0});
+  const rec={uid:user.uid,name,pos:0,cpm:0,errors:0,lives,status:'waiting',finishedAt:0,score:0};
+  if (cls) rec.cls=String(cls).slice(0,12);   // class code — identifies opponents in match stats
+  await db.ref('rooms/'+code+'/players/'+user.uid).set(rec);
 }
 
 export async function fbGet(code) {
@@ -122,8 +128,8 @@ export async function fbUpdatePlayer(code,name,data) {
   await db.ref('rooms/'+code+'/players/'+user.uid).update({...data,uid:user.uid});
 }
 
-export // Phase 2: send this player's look separately — if the rules reject it, the race still works.
-async function fbSetChar(code,cfg) {
+// Phase 2: send this player's look separately — if the rules reject it, the race still works.
+export async function fbSetChar(code,cfg) {
   try {
     const db=getDB(); if(!db||!window.CharKit) return;
     const wire=CharKit.toWire(cfg); if(!wire) return;
@@ -142,4 +148,46 @@ export async function fbRemove(code) {
   const db=getDB(); if(!db) return;
   await ensureFirebaseUser();
   await db.ref('rooms/'+code).remove();
+}
+
+// ── Presence: disconnect handling, reconnect, "which race am I in" ──
+function myPlayerRef(code) {
+  const db=getDB(), uid=currentFirebaseUid();
+  return db&&uid ? db.ref('rooms/'+code+'/players/'+uid) : null;
+}
+// Lobby: if this tab disappears, remove me from the room (and the room itself if I host it).
+export function fbArmLobby(code, isHost) {
+  const ref=myPlayerRef(code); if(!ref) return;
+  ref.onDisconnect().remove();
+  if (isHost) getDB().ref('rooms/'+code).onDisconnect().remove();
+}
+// Race: if this tab disappears, mark me "disconnected" (I can come back within the grace period).
+export function fbArmRace(code) {
+  const ref=myPlayerRef(code); if(!ref) return;
+  getDB().ref('rooms/'+code).onDisconnect().cancel();          // never delete a running race
+  ref.onDisconnect().cancel();
+  ref.onDisconnect().update({status:'disconnected',dcAt:firebase.database.ServerValue.TIMESTAMP});
+}
+// Finished / eliminated / left: nothing should happen on disconnect any more.
+export function fbDisarm(code) {
+  const ref=myPlayerRef(code); if(!ref) return;
+  ref.onDisconnect().cancel();
+  getDB().ref('rooms/'+code).onDisconnect().cancel();
+}
+// users/<uid>/activeRoom — lets this account find its race again after a refresh or on another computer.
+export async function fbSetActiveRoom(code,type) {
+  const db=getDB(), uid=currentFirebaseUid(); if(!db||!uid) return;
+  await db.ref('users/'+uid+'/activeRoom').set({code,type,at:firebase.database.ServerValue.TIMESTAMP});
+}
+export async function fbClearActiveRoom() {
+  const db=getDB(), uid=currentFirebaseUid(); if(!db||!uid) return;
+  await db.ref('users/'+uid+'/activeRoom').remove();
+}
+export async function fbGetActiveRoom() {
+  const db=getDB(), uid=currentFirebaseUid(); if(!db||!uid) return null;
+  const s=await db.ref('users/'+uid+'/activeRoom').once('value'); return s.val();
+}
+export async function fbServerOffset() {
+  const db=getDB(); if(!db) return 0;
+  const s=await db.ref('.info/serverTimeOffset').once('value'); return Number(s.val())||0;
 }

@@ -2,7 +2,9 @@ import { SCRIPT_URL } from './config';
 import { buildChunks, generateBRText, generateStoryText, generateText, generateTimedText, seededRng } from './engine/text';
 import { CHAR_CLASS, CLASS_NAMES, KEY_META, findKeyForChar, mapKey, validateInput } from './engine/keymap';
 import { ERROR_BURST, ERROR_WINDOW_MS, PRESSURE_SECS, SPAM_PENALTY, SPAM_WINDOW_KEYS, SPAM_WRONG_SHARE, SPEED_CPM, TEST_MIN_CHARS, TEST_SECS, charBasePoints, comboMultiplier, fmtScore, hsKey, readGuestHighScores, speedMultiplier, testTargetScore, writeGuestHighScores } from './engine/scoring';
-import { ROOM_CODE_LEN, ROOM_CODE_RE, ZONE_GAP, ZONE_TICK, currentFirebaseUid, ensureFirebaseUser, fbCreate, fbGet, fbJoin, fbListen, fbRemove, fbSetChar, fbSetStatus, fbUpdatePlayer, getDB, getZonePos, getZoneSpeed, makeFreeCode } from './firebase';
+import { ROOM_CODE_LEN, ROOM_CODE_RE, ZONE_GAP, ZONE_TICK, currentFirebaseUid, ensureFirebaseUser, fbArmLobby, fbArmRace, fbClearActiveRoom, fbCreate, fbDisarm, fbGet, fbGetActiveRoom, fbJoin, fbListen, fbRemove, fbServerOffset, fbSetActiveRoom, fbSetChar, fbSetStatus, fbUpdatePlayer, getDB, getZonePos, getZoneSpeed, makeFreeCode, zonePosAt } from './firebase';
+import { brRaceOver, dcLeftMs, graceMs, isOutState, playerState } from './race/presence';
+import { LeaveConfirm, RejoinBanner } from './race/PresenceUI';
 import { apiGetStudentStats, apiGetWeeklyBoard, apiRequest, apiSubmitWeekly, describeApiError, saveSession } from './api';
 import { auth } from './auth';
 import { LESSONS } from './data/lessons';
@@ -56,6 +58,14 @@ export function ThaiTypingApp() {
   const [mpBusy,      setMpBusy]      = useState(false);
   const [raceStand,   setRaceStand]   = useState([]);
   const [mpSetupMode, setMpSetupMode] = useState(''); // '1v1'|'royale'
+  // Leaving / dropping out / coming back (race presence)
+  const [leaveAsk,    setLeaveAsk]    = useState(false);  // "are you sure?" while a race runs
+  const [rejoinOffer, setRejoinOffer] = useState(null);   // {code,type,expiresAt} — dropped out, can return
+  const [rejoinBusy,  setRejoinBusy]  = useState(false);
+  const [notice,      setNotice]      = useState('');     // one-line message (room closed, …)
+  const [brOver,      setBrOver]      = useState(false);  // Battle Royale finished (for spectators)
+  const [rivalDcSecs, setRivalDcSecs] = useState(0);      // 1v1: seconds the dropped opponent has left
+  const [presTick,    setPresTick]    = useState(0);      // 1 s tick: re-check grace periods
   const [zonePos,     setZonePos]     = useState(0); // safe zone boundary position
   const [serverTimeOffset, setServerTimeOffset] = useState(0);
   const [serverTimeReady, setServerTimeReady] = useState(false);
@@ -100,7 +110,14 @@ export function ThaiTypingApp() {
   const plRef          = useRef(3);       // playerLives ref
   const snRef          = useRef('');      // studentName ref
   const myRoomName     = useRef('');      // name used when joining/creating room (used for all Firebase writes)
-  const charRef        = useRef(null);    // latest character (for room create/join callbacks)
+  const charRef        = useRef(null);
+  const roomInfoRef    = useRef(null);
+  const roomPlayersRef = useRef({});
+  const isHostRef      = useRef(false);
+  const ccRef          = useRef('');       // class code (sent with room joins for match stats)
+  const leaveAskRef    = useRef(false);
+  const raceRunningRef = useRef(false);
+  const requestLeaveRef= useRef(()=>{});    // latest character (for room create/join callbacks)
   const practiceRef    = useRef(null);    // typing area — scrolled into view once per run
   const currentTimings = useRef([]);       // inter-keystroke intervals for ghost recording
   const lastCorrectTime= useRef(null);     // timestamp of last correct keypress
@@ -145,6 +162,8 @@ export function ThaiTypingApp() {
   const wpm         = elapsed>0 ? Math.round(pos/elapsed/5) : 0;
   const accuracy    = (pos+errors)>0 ? Math.round((pos/(pos+errors))*100) : 100;
   const isEliminated = roomType==='royale' && playerLives<=0;
+  // A race I am still in: leaving it now needs confirmation and counts as a forfeit.
+  const raceRunning = !!roomCode && (screen==='countdown' || (screen==='practice' && !endTime && !isEliminated));
   const nextChar    = pos<targetChars.length ? targetChars[pos] : null;
   const nextKey     = nextChar ? findKeyForChar(nextChar) : null;
   const nextCode    = nextKey?.code ?? null;
@@ -272,44 +291,105 @@ export function ThaiTypingApp() {
     if (!roomCode) return;
     if (screen!=='mp-lobby' && screen!=='countdown' && screen!=='practice' && screen!=='host-dashboard' && screen!=='results') return;
     const unsub = fbListen(roomCode, (data) => {
-      if (!data) return;
+      if (!data) {
+        // The host closed the room before the race started.
+        if (screen==='mp-lobby' || screen==='countdown') { cleanupRoomLocal(); setNotice('เจ้าของห้องปิดห้องแล้ว'); }
+        return;
+      }
       setRoomInfo(data.info);
-      const pl = data.players || {};
-      setRoomPlayers(pl);
+      setRoomPlayers(data.players || {});
       if (data.zone?.cpm || data.zone?.wpm) { setZoneWpm(data.zone.cpm||data.zone.wpm); setZoneTs(data.zone.ts||Date.now()); }
       if (data.info?.maxLives) setMaxLives(data.info.maxLives);
-
       // ── Lobby/countdown: host manually triggers countdown ──
       if (data.info?.status==='countdown' && screen==='mp-lobby') setScreen('countdown');
-
-      // Resolve BR completion for both racers and the host spectator.
-      const type = data.info?.type;
-      const entries = Object.entries(pl).filter(([,p])=>!p.isSpectator);
-      const someoneDone = entries.some(([,p])=>p.status==='done');
-      if (type==='royale') {
-        const stillRacing = entries.filter(([,p])=>p.status!=='eliminated' && p.status!=='done');
-        const lastStanding = entries.length>=2 && stillRacing.length<=1 && !someoneDone;
-        const raceOver = someoneDone || lastStanding || data.info?.status==='done';
-        if (raceOver && data.info?.status!=='done') {
-          fbSetStatus(roomCode,'done',{endedAt:Date.now()}).catch(()=>{});
-        }
-        if (screen==='practice' && raceOver && !raceEndedRef.current) {
-          raceEndedRef.current=true;
-          setEndTime(Date.now());
-          setTimeout(()=>setScreen(s=>s==='practice'?'results':s),400);
-        }
-      } else if (screen==='practice' && type==='1v1') {
-        const me = currentFirebaseUid();
-        const iAmDone = Object.values(pl).some(p=>p.uid===me&&p.status==='done');
-        if (someoneDone && !iAmDone && !raceEndedRef.current) {
-          raceEndedRef.current=true;
-          setPressureSecs(PRESSURE_SECS);
-        }
-      }
     });
     fbUnsub.current = unsub;
     return () => { unsub(); fbUnsub.current=null; };
   },[roomCode, screen, isHost]);
+
+  // Presence clock: re-check grace periods once a second during a race.
+  useEffect(() => {
+    if (!roomCode || !['practice','host-dashboard','results'].includes(screen)) return;
+    const id = setInterval(() => setPresTick(t => t+1), 1000);
+    return () => clearInterval(id);
+  }, [roomCode, screen]);
+
+  // Who is still in the race? Ends the race when it is over — also when players
+  // left on purpose or dropped out and did not come back in time.
+  useEffect(() => {
+    if (!roomCode || !roomInfo) return;
+    const sNow = Date.now()+serverTimeOffsetRef.current;
+    if (roomInfo.type==='royale') {
+      const over = brRaceOver(roomPlayers, roomInfo, sNow);
+      setBrOver(over);
+      if (over && roomInfo.status!=='done' && isHost && roomInfo.status==='countdown') {
+        fbSetStatus(roomCode,'done',{endedAt:Date.now()}).catch(()=>{});
+      }
+      if (screen==='practice' && over && !raceEndedRef.current) {
+        raceEndedRef.current=true;
+        setEndTime(Date.now());
+        finishPresence();
+        setTimeout(()=>setScreen(s=>s==='practice'?'results':s),400);
+      }
+    } else if (roomInfo.type==='1v1' && screen==='practice') {
+      const uid = currentFirebaseUid();
+      const rv = Object.entries(roomPlayers||{}).find(([k,p])=>p&&!p.isSpectator&&k!==uid&&p.uid!==uid)?.[1];
+      const rs = rv ? playerState(rv,'1v1',sNow) : null;
+      setRivalDcSecs(rs==='dc' ? Math.ceil(dcLeftMs(rv,'1v1',sNow)/1000) : 0);
+      if (raceEndedRef.current || stateRef.current.endTime) return;
+      if (rs && isOutState(rs)) {
+        // Opponent left (or dropped and did not return) → I win now.
+        raceEndedRef.current=true;
+        setPressureSecs(0); setRivalDcSecs(0);
+        setEndTime(Date.now());
+        fbUpdatePlayer(roomCode,'',{pos:stateRef.current.pos,score:scoreRef.current,status:'done'}).catch(()=>{});
+        finishPresence();
+        setScreen('results');
+      } else if (rs==='done') {
+        const me = roomPlayers?.[uid];
+        if (!me || me.status!=='done') { raceEndedRef.current=true; setPressureSecs(PRESSURE_SECS); }
+      }
+    }
+  }, [roomPlayers, roomInfo, presTick, screen, roomCode, isHost]);
+
+  // Race over for me (finished / eliminated / results): nothing happens on disconnect any more.
+  useEffect(() => {
+    if (!roomCode) return;
+    if (screen==='results' || (roomType==='royale' && playerLives<=0 && screen==='practice')) finishPresence();
+  }, [screen, playerLives, roomCode, roomType]);
+
+  // Connection came back while still racing (Firebase reconnects by itself):
+  // re-arm the disconnect marker and mark me racing again — unless I was gone too long.
+  useEffect(() => {
+    if (!roomCode || screen!=='practice') return;
+    const db = getDB(); if (!db) return;
+    const ref = db.ref('.info/connected');
+    const onConn = snap => {
+      if (snap.val()!==true) return;
+      const code = rcRef.current;
+      if (!code || raceEndedRef.current || stateRef.current.endTime) return;
+      if (rtRef.current==='royale' && plRef.current<=0) return;
+      try { fbArmRace(code); } catch {}
+      const me = roomPlayersRef.current?.[currentFirebaseUid()];
+      if (me && me.status==='disconnected') {
+        const sNow = Date.now()+serverTimeOffsetRef.current;
+        if (dcLeftMs(me,rtRef.current,sNow)<=0) {
+          setNotice('การเชื่อมต่อหลุดนานเกินไป — ถูกนับว่าออกจากการแข่งขัน');
+          handleLeaveRoomRef.current();
+        } else fbUpdatePlayer(code,'',{status:'racing'}).catch(()=>{});
+      }
+    };
+    ref.on('value', onConn);
+    return () => ref.off('value', onConn);
+  }, [roomCode, screen]);
+
+  // Browser warning before refresh / closing the tab during a race.
+  useEffect(() => {
+    if (!raceRunning) return;
+    const h = e => { e.preventDefault(); e.returnValue=''; };
+    window.addEventListener('beforeunload', h);
+    return () => window.removeEventListener('beforeunload', h);
+  }, [raceRunning]);
 
   // Countdown 3,2,1 → start race
   useEffect(() => {
@@ -340,6 +420,11 @@ export function ThaiTypingApp() {
       setPenaltySecs(0); setPressureSecs(0);
       frozenRef.current=false; raceEndedRef.current=false;
       pressCountRef.current=0;
+      // From now on a lost connection marks me "disconnected" (I can come back),
+      // and this account remembers which race it is in.
+      const code=rcRef.current;
+      try { fbArmRace(code); } catch {}
+      fbSetActiveRoom(code, rtRef.current).catch(()=>{});
       setScreen('practice');
     };
     const id = setInterval(launch,100);
@@ -500,6 +585,9 @@ export function ThaiTypingApp() {
   const stateRef = useRef({});
   stateRef.current = { pos, target, targetChars, startTime, endTime };
   rcRef.current = roomCode; rtRef.current = roomType;
+  roomInfoRef.current = roomInfo; roomPlayersRef.current = roomPlayers; isHostRef.current = isHost;
+  ccRef.current = classCode; leaveAskRef.current = leaveAsk;
+  raceRunningRef.current = raceRunning;
   plRef.current = playerLives; snRef.current = studentName; charRef.current = character;
 
     // Save on this device first, then to Google Sheets when signed in.
@@ -591,13 +679,14 @@ export function ThaiTypingApp() {
         hostName:snRef.current||'ผู้เล่น1'});
       const h1name = snRef.current || 'ผู้เล่น1';
       myRoomName.current = h1name;
-      await fbJoin(code, h1name);
+      await fbJoin(code, h1name, 3, ccRef.current);
       if (charRef.current) fbSetChar(code, charRef.current);
       setRoomCode(code); rcRef.current=code;
       setRoomType('1v1'); rtRef.current='1v1';
       setIsHost(true);
       lessonIdRef.current = les.id;
       setLesson(les); setExercise(null); setTarget(text);
+      try { fbArmLobby(code, true); } catch {}
       setScreen('mp-lobby');
     } catch(e) { setJoinError('สร้างห้องไม่ได้: '+e.message); }
     setMpBusy(false);
@@ -616,7 +705,7 @@ export function ThaiTypingApp() {
         hostName:snRef.current||'ครู'});
       const hBRname = snRef.current || 'ครู';
       myRoomName.current = hBRname;
-      await fbJoin(code, hBRname, lives);
+      await fbJoin(code, hBRname, lives, ccRef.current);
       if (charRef.current) fbSetChar(code, charRef.current);
       setMaxLives(lives); setPlayerLives(lives); plRef.current=lives;
       setRoomCode(code); rcRef.current=code;
@@ -624,6 +713,7 @@ export function ThaiTypingApp() {
       setIsHost(true);
       lessonIdRef.current = les.id;
       setLesson(les); setExercise(null); setTarget(text);
+      try { fbArmLobby(code, true); } catch {}
       setScreen('mp-lobby');
     } catch(e) { setJoinError('สร้างห้องไม่ได้'); }
     setMpBusy(false);
@@ -643,7 +733,7 @@ export function ThaiTypingApp() {
       myRoomName.current = name;
       const rl = data.info?.maxLives || 3;
       setMaxLives(rl); setPlayerLives(rl); plRef.current=rl;
-      await fbJoin(roomId, name, rl);
+      await fbJoin(roomId, name, rl, ccRef.current);
       if (charRef.current) fbSetChar(roomId, charRef.current);
       const les = LESSONS.find(l=>l.id===data.info.lessonId)||null;
       setRoomCode(roomId); rcRef.current=roomId;
@@ -651,6 +741,7 @@ export function ThaiTypingApp() {
       setIsHost(false);
       lessonIdRef.current = les?.id || Number(data.info.lessonId) || 1;
       setLesson(les); setTarget(data.info.targetText);
+      try { fbArmLobby(roomId, false); } catch {}
       setScreen('mp-lobby');
     } catch(e) { setJoinError('เชื่อมต่อไม่ได้'); }
     setMpBusy(false);
@@ -671,25 +762,156 @@ export function ThaiTypingApp() {
     await fbSetStatus(rcRef.current,'countdown',{raceStartsAt});
   },[]);
 
-  // Leave/cleanup room
-  const handleLeaveRoom = useCallback(async () => {
-    const code=rcRef.current;
-    if (code) {
-      try {
-        const uid=currentFirebaseUid();
-        if (uid) await getDB()?.ref('rooms/'+code+'/players/'+uid).remove();
-        if (isHost) await fbRemove(code);
-      } catch{}
-    }
+  // Race over for me: cancel the disconnect marker and forget the active race.
+  const finishPresence = useCallback(() => {
+    const code=rcRef.current; if (!code) return;
+    try { fbDisarm(code); } catch {}
+    fbClearActiveRoom().catch(()=>{});
+  },[]);
+
+  // Forget the room on this device (no Firebase writes).
+  const cleanupRoomLocal = useCallback(() => {
     if (fbUnsub.current) { fbUnsub.current(); fbUnsub.current=null; }
     setRoomCode(''); rcRef.current='';
     setRoomType(''); rtRef.current='';
     setIsHost(false); setRoomPlayers({}); setRoomInfo(null);
-    setPressureSecs(0); setPenaltySecs(0);
+    setPressureSecs(0); setPenaltySecs(0); setLeaveAsk(false);
+    setBrOver(false); setRivalDcSecs(0); setSpectatingPlayer(null); setIsHostSpectator(false);
     frozenRef.current=false; raceEndedRef.current=false;
     myRoomName.current='';
     setScreen('lessons');
-  },[isHost]);
+  },[]);
+
+  // Leave the room. Before the race: remove me (host: close the room).
+  // After the start: my name stays — status "left" if I was still racing (forfeit),
+  // and the room is deleted once nobody is in it any more.
+  const handleLeaveRoom = useCallback(async () => {
+    const code=rcRef.current, uid=currentFirebaseUid();
+    if (code) {
+      try { fbDisarm(code); } catch {}
+      try {
+        const info=roomInfoRef.current, players=roomPlayersRef.current||{};
+        const started=!!info && info.status!=='lobby';
+        if (!started) {
+          if (uid) await getDB()?.ref('rooms/'+code+'/players/'+uid).remove();
+          if (isHostRef.current) await fbRemove(code);
+        } else {
+          const me=uid&&players[uid];
+          if (me) {
+            const upd={active:false};
+            if (['waiting','racing','disconnected'].includes(me.status)) upd.status='left';
+            await fbUpdatePlayer(code,'',upd);
+          }
+          const others=Object.entries(players).filter(([k,p])=>k!==uid&&p&&!p.isSpectator);
+          if (others.every(([,p])=>p.active===false||p.status==='left')) await fbRemove(code).catch(()=>{});
+        }
+      } catch {}
+      fbClearActiveRoom().catch(()=>{});
+    }
+    cleanupRoomLocal();
+  },[cleanupRoomLocal]);
+  const handleLeaveRoomRef = useRef(handleLeaveRoom);
+  handleLeaveRoomRef.current = handleLeaveRoom;
+
+  // Every "leave" button goes through here: ask first while a race is running.
+  const requestLeave = useCallback(() => {
+    if (raceRunningRef.current) setLeaveAsk(true);
+    else handleLeaveRoomRef.current();
+  },[]);
+  requestLeaveRef.current = requestLeave;
+
+  // ── Coming back after dropping out (refresh, closed tab, other computer) ──
+  const checkRejoin = useCallback(async () => {
+    try {
+      if (rcRef.current) return;
+      const ar=await fbGetActiveRoom(); if (!ar || !ar.code) return;
+      const data=await fbGet(ar.code), uid=currentFirebaseUid();
+      const me=data?.players?.[uid], type=data?.info?.type;
+      const off=await fbServerOffset(), sNow=Date.now()+off;
+      const ok = data && me && data.info.status!=='done' &&
+        (me.status==='disconnected' || me.status==='racing') &&
+        !(type==='royale' && brRaceOver(data.players,data.info,sNow));
+      if (!ok) { fbClearActiveRoom().catch(()=>{}); return; }
+      const left = me.status==='disconnected' ? dcLeftMs(me,type,sNow) : graceMs(type);
+      if (left<=0) { fbClearActiveRoom().catch(()=>{}); return; }
+      setRejoinOffer({code:ar.code,type,expiresAt:Date.now()+left});
+    } catch (e) { console.warn('rejoin check:',e?.message); }
+  },[]);
+
+  useEffect(() => {
+    if (typeof firebase==='undefined' || !getDB()) return;
+    const unsub=firebase.auth().onAuthStateChanged(user=>{
+      if (!user) { setRejoinOffer(null); return; }
+      checkRejoin();
+    });
+    return () => unsub();
+  },[checkRejoin]);
+
+  const dismissRejoin = useCallback(async (expired) => {
+    const offer=rejoinOffer; setRejoinOffer(null);
+    if (!offer) return;
+    if (!expired) {   // the student chose not to return → counts as leaving the race
+      fbUpdatePlayer(offer.code,'',{status:'left',active:false}).catch(()=>{});
+    }
+    fbClearActiveRoom().catch(()=>{});
+  },[rejoinOffer]);
+
+  const doRejoin = useCallback(async () => {
+    const offer=rejoinOffer; if (!offer) return;
+    setRejoinBusy(true);
+    try {
+      await ensureFirebaseUser();
+      const code=offer.code, data=await fbGet(code), uid=currentFirebaseUid();
+      const me=data?.players?.[uid];
+      if (!data || !me) throw new Error('gone');
+      const info=data.info, type=info.type;
+      const off=await fbServerOffset();
+      serverTimeOffsetRef.current=off; setServerTimeOffset(off); setServerTimeReady(true);
+      const sNow=Date.now()+off;
+      if (me.status==='disconnected' && dcLeftMs(me,type,sNow)<=0) throw new Error('expired');
+      const text=info.targetText||'', total=[...text].length;
+      const p=Math.min(Number(me.pos)||0,total);
+      let lives=Number(me.lives); if (!Number.isFinite(lives)) lives=info.maxLives||3;
+      const nowTick=Math.floor((sNow-info.raceStartsAt)/ZONE_TICK);
+      if (type==='royale' && me.dcAt) {
+        // The storm kept moving while I was away: lose the lives I would have lost.
+        const dcTick=Math.floor((me.dcAt-info.raceStartsAt)/ZONE_TICK);
+        let missed=0;
+        for (let t=Math.max(1,dcTick+1); t<=nowTick; t++) if (zonePosAt(t*ZONE_TICK/1000,total)-p>ZONE_GAP) missed++;
+        lives=Math.max(0,lives-missed);
+      }
+      lastZoneDrainTickRef.current=Math.max(0,nowTick);
+      const les=LESSONS.find(l=>l.id===Number(info.lessonId))||LESSONS[0];
+      myRoomName.current=me.name||snRef.current||'ผู้เล่น';
+      setRoomCode(code); rcRef.current=code; setRoomType(type); rtRef.current=type;
+      setIsHost(info.hostUid===uid); setRoomInfo(info); setRoomPlayers(data.players||{});
+      setMaxLives(info.maxLives||3);
+      lessonIdRef.current=les.id; setLesson(les); setExercise(null); setTarget(text);
+      setPos(p); setErrors(Number(me.errors)||0); setStartTime(info.raceStartsAt-off); setEndTime(null);
+      setHint(null); setFlashCode(null); setShiftHeld(false); setNow(Date.now());
+      keystrokeTimes.current=[]; errorTimes.current=[]; currentTimings.current=[]; lastCorrectTime.current=null;
+      hasSaved.current=false; setSaveStatus('idle'); setSaveError(''); setNewRecord(false);
+      setGhostPos(0); setGhostData(null); setGhostKey('');
+      setPlayerLives(lives); plRef.current=lives;
+      const sc=Number(me.score)||0; setScore(sc); scoreRef.current=sc;
+      setScoreStreak(0); streakRef.current=0; setLastGain(null);
+      scoredIdx.current=new Set(Array.from({length:p},(_,i)=>i)); missedIdx.current=new Set();
+      speedBuf.current=[]; lastScoreTime.current=null; setBestCombo(0);
+      setActiveTest(null); testRef.current=null; setTestBoard(null); setTimeUp(false);
+      setPenaltySecs(0); setPressureSecs(0); frozenRef.current=false; raceEndedRef.current=false;
+      pressCountRef.current=p;
+      const out = type==='royale' && lives<=0;
+      await fbUpdatePlayer(code,'',{status:out?'eliminated':'racing',lives});
+      if (!out) { try { fbArmRace(code); } catch {} }
+      setRejoinOffer(null);
+      setScreen('practice');
+    } catch (e) {
+      setRejoinOffer(null);
+      setNotice('กลับเข้าแข่งไม่ได้แล้ว — การแข่งขันจบหรือหมดเวลาแล้ว');
+      fbClearActiveRoom().catch(()=>{});
+    }
+    setRejoinBusy(false);
+  },[rejoinOffer]);
 
   // Log the student out → back to the sign-in screen
   const handleLogout = useCallback(() => {
@@ -714,8 +936,13 @@ export function ThaiTypingApp() {
       if (e.key==='CapsLock') { setCapsLockOn(e.getModifierState('CapsLock')); return; }
       if (e.ctrlKey||e.altKey||e.metaKey) return;
       e.preventDefault();
+      if (leaveAskRef.current) return;  // "leave the race?" dialog is open
       if (frozenRef.current) return;   // spam penalty active — ignore typing
-      if (e.key==='Escape') { setScreen(testRef.current?'weekly':'lessons'); return; }
+      if (e.key==='Escape') {
+        if (rcRef.current) requestLeaveRef.current();
+        else setScreen(testRef.current?'weekly':'lessons');
+        return;
+      }
       const { pos,target,targetChars,startTime,endTime } = stateRef.current;
       if (endTime) return;             // finished, or the weekly test time is up
       if (e.code==='Backspace') {
@@ -791,6 +1018,7 @@ export function ThaiTypingApp() {
                 {pos:next,status:'done',finishedAt:Date.now(),
                  ...(rtRef.current==='1v1'?{score:scoreRef.current}:{})});
             }
+            if (rcRef.current) { raceEndedRef.current=true; finishPresence(); }
             setTimeout(()=>setScreen('results'),600);
           }
           return next;
@@ -805,7 +1033,9 @@ export function ThaiTypingApp() {
             const nc=el>0?Math.round(np/el):0;
             if (np<targetChars.length) {
               fbUpdatePlayer(rcRef.current,myRoomName.current||snRef.current||'ผู้เล่น1',
-                {pos:np,cpm:Math.min(3000,nc),wpm:Math.min(600,Math.round(nc/5)),status:'racing',
+                {pos:np,cpm:Math.min(3000,nc),wpm:Math.min(600,Math.round(nc/5)),
+                 // eliminated players keep practising but must not come back to life
+                 status:(rtRef.current==='royale'&&plRef.current<=0)?'eliminated':'racing',
                  ...(rtRef.current==='1v1'?{score:scoreRef.current}:{})});
             }
           }
@@ -888,7 +1118,7 @@ export function ThaiTypingApp() {
           )}
           {/* Back to lessons */}
           {screen!=='lessons'&&screen!=='spam'&&(
-            <button onClick={()=>setScreen('lessons')} style={{background:'transparent',
+            <button onClick={()=>roomCode?requestLeave():setScreen('lessons')} style={{background:'transparent',
               border:'1.5px solid #CBD5E1',borderRadius:8,padding:'6px 12px',cursor:'pointer',
               fontSize:11,color:'var(--c-t2)',fontWeight:600,
               fontFamily:"'Sarabun','Noto Sans Thai',sans-serif"}}>← บทเรียน</button>
@@ -918,6 +1148,22 @@ export function ThaiTypingApp() {
       <div style={{width:'100%',maxWidth:860,background:'var(--c-card)',borderRadius:20,
         boxShadow:'0 4px 24px rgba(0,0,0,.12)',padding:'30px 26px'}}>
 
+        {notice&&(
+          <div style={{display:'flex',alignItems:'center',gap:10,background:'#EFF6FF',border:'1.5px solid #BFDBFE',
+            borderRadius:12,padding:'10px 14px',marginBottom:14,fontSize:14,fontWeight:700,color:'#1E3A8A',
+            fontFamily:"'Sarabun','Noto Sans Thai',sans-serif"}}>
+            <span style={{flex:1}}>ℹ️ {notice}</span>
+            <button onClick={()=>setNotice('')} aria-label="ปิด"
+              style={{background:'none',border:'none',cursor:'pointer',color:'#1E3A8A',fontSize:15}}>✕</button>
+          </div>
+        )}
+        {rejoinOffer&&!roomCode&&['google-login','class-picker','lessons'].includes(screen)&&(
+          <RejoinBanner offer={rejoinOffer} busy={rejoinBusy} onRejoin={doRejoin} onDismiss={dismissRejoin}/>
+        )}
+        {leaveAsk&&(
+          <LeaveConfirm roomType={roomType} onStay={()=>setLeaveAsk(false)}
+            onLeave={()=>{ setLeaveAsk(false); handleLeaveRoom(); }}/>
+        )}
         {screen==='google-login' && (
           <GoogleSignInScreen
             onSignIn={(profile, credential) => {
@@ -926,7 +1172,7 @@ export function ThaiTypingApp() {
               setGoogleUser(profile);
               setScreen('class-picker');
             }}
-            onSolo={async() => { auth.idToken=''; auth.subject=''; auth.fbSubject=''; if(typeof firebase!=='undefined'&&firebase.apps.length)await firebase.auth().signOut().catch(()=>{}); setGoogleUser(null); setStudentName(''); setScreen('lessons'); }}
+            onSolo={async() => { auth.idToken=''; auth.subject=''; auth.fbSubject=''; if(typeof firebase!=='undefined'&&firebase.apps.length&&firebase.auth().currentUser&&!firebase.auth().currentUser.isAnonymous)await firebase.auth().signOut().catch(()=>{}); setGoogleUser(null); setStudentName(''); setScreen('lessons'); }}
           />
         )}
         {screen==='class-picker' && googleUser && (
@@ -990,7 +1236,8 @@ export function ThaiTypingApp() {
             {isEliminated&&(
               <DeadScreen
                 standings={roomPlayers||{}}
-                onLeave={()=>handleLeaveRoom&&handleLeaveRoom()}
+                onLeave={requestLeave}
+                onSpectate={()=>setScreen('host-dashboard')}
               />
             )}
 
@@ -1104,6 +1351,14 @@ export function ThaiTypingApp() {
               </div>
             )}
 
+            {/* 1v1 — opponent dropped out: they have a few seconds to come back */}
+            {rivalDcSecs>0&&pressureSecs<=0&&(
+              <div style={{background:'#FFFBEB',border:'2px solid #F59E0B',borderRadius:12,padding:'10px 16px',
+                marginBottom:12,fontFamily:"'Sarabun','Noto Sans Thai',sans-serif",fontSize:14,fontWeight:800,color:'#92400E'}}>
+                📶 คู่แข่งหลุดการเชื่อมต่อ — รออีก {rivalDcSecs} วินาที ถ้าไม่กลับมา คุณชนะ
+              </div>
+            )}
+
             {/* 1v1 pressure timer — opponent already finished */}
             {pressureSecs>0&&(
               <div style={{background:'#FEF2F2',border:'2px solid #EF4444',borderRadius:12,
@@ -1142,6 +1397,7 @@ export function ThaiTypingApp() {
             onStart={handleStartRace} onLeave={handleLeaveRoom}
             onStartSpectator={async()=>{
               setIsHostSpectator(true);
+              try { fbDisarm(rcRef.current); } catch {}   // watching host: never delete the running race
               handleStartRace();
               // Remove host from players list so they don't show as competitor
               const huid=currentFirebaseUid();
@@ -1150,11 +1406,12 @@ export function ThaiTypingApp() {
             }}/>
         )}
         {screen==='host-dashboard'&&(
-          roomType==='royale'&&roomInfo?.status==='done' ? (
+          roomType==='royale'&&brOver ? (
             <BattleRoyaleResults
               roomCode={roomCode}
               roomPlayers={roomPlayers}
-              onBack={()=>setSpectatingPlayer(null)}
+              sOffset={serverTimeOffset}
+              onBack={handleLeaveRoom}
             />
           ) : spectatingPlayer ? (
             <SpectatorView
@@ -1171,6 +1428,8 @@ export function ThaiTypingApp() {
               zoneWpm={zoneWpm}
               zonePos={zonePos}
               onSpectate={name=>{setSpectatingPlayer(name);}}
+              sOffset={serverTimeOffset}
+              watcherNote={isHostSpectator?'':'คุณตกรอบแล้ว · กำลังดูการแข่งขันต่อ'}
               onBack={()=>{handleLeaveRoom();}}
             />
           )
@@ -1199,6 +1458,7 @@ export function ThaiTypingApp() {
             testBoard={testBoard}
             prevBest={prevBest}
             myCfg={myCfg}
+            sOffset={serverTimeOffset}
             onRestart={()=>{
               if(rcRef.current){handleLeaveRoom();}
               else if(testRef.current) startWeeklyTest();

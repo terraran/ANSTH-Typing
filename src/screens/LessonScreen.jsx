@@ -5,9 +5,9 @@ import { ROOM_CODE_LEN } from '../firebase';
 
 const { useEffect, useRef, useState } = React;
 
-export // LESSON SELECTOR
+// LESSON SELECTOR
 
-function LessonScreen({ studentName, classCode, onSelect, onOpenSetup, onJoin, joinCode, setJoinCode, joinError, mpBusy, storyPath, storyPower, onViewStats, onLogin, weekly, onOpenWeekly, highScores, character, onOpenCharacter }) {
+export function LessonScreen({ studentName, classCode, onSelect, onOpenSetup, onJoin, joinCode, setJoinCode, joinError, mpBusy, storyPath, storyPower, onViewStats, onLogin, weekly, onOpenWeekly, highScores, character, onOpenCharacter }) {
   const savedCh=(()=>{try{return Math.min(parseInt(localStorage.getItem('lastChapter')||'0')||0,CHAPTERS.length-1);}catch{return 0;}})();
   const getExercises=(lesson)=>{
     if(!lesson.story) return lesson.exercises||[];

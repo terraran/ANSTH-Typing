@@ -1,17 +1,18 @@
 import { ZONE_GAP, ZONE_GRACE, ZONE_TICK_SECS, currentFirebaseUid } from '../firebase';
 import { comboMultiplier, fmtScore } from '../engine/scoring';
+import { brOrder, isAliveState, playerState } from './presence';
 
 const { useEffect, useState } = React;
 
-export // Phase 2 — runners for CharKit.RaceTrack: me first, then the nearest rivals.
-function raceRunners(roomPlayers, o={}) {
+// Phase 2 — runners for CharKit.RaceTrack: me first, then the nearest rivals.
+export function raceRunners(roomPlayers, o={}) {
   if (!window.CharKit) return [];
   const uid=currentFirebaseUid(), total=Math.max(1,o.totalChars||1), myPos=o.myPos||0;
   const others=Object.entries(roomPlayers||{})
     .filter(([k,p])=>p&&!p.isSpectator&&k!==uid&&p.uid!==uid)
     .map(([k,p])=>({id:k,label:p.name||'ผู้เล่น',cfg:CharKit.fromPlayer(p),
       pct:Math.min(1,(Number(p.pos)||0)/total),kpm:Number(p.cpm)||0,
-      finished:p.status==='done',out:p.status==='eliminated'}))
+      finished:p.status==='done',out:['eliminated','left','disconnected'].includes(p.status)}))
     .sort((a,b)=>Math.abs(a.pct*total-myPos)-Math.abs(b.pct*total-myPos))
     .slice(0,o.limit??5);
   const me={id:'me',me:true,label:o.myLabel||'คุณ',cfg:o.myCfg||CharKit.fromName(o.myLabel),
@@ -19,9 +20,9 @@ function raceRunners(roomPlayers, o={}) {
   return [me,...others];
 }
 
-export // 1v1 HUD — live score of both players (score decides the winner) + progress lanes
+// 1v1 HUD — live score of both players (score decides the winner) + progress lanes
 
-function OneVsOneHud({ roomCode, roomPlayers, myName, pos, totalChars, score, streak, myCfg, kpm }) {
+export function OneVsOneHud({ roomCode, roomPlayers, myName, pos, totalChars, score, streak, myCfg, kpm }) {
   const roster=Object.entries(roomPlayers||{}).filter(([,p])=>!p.isSpectator);
   const uid=currentFirebaseUid();
   const mine=roster.find(([key,p])=>key===uid||p.uid===uid)?.[1]||{};
@@ -90,7 +91,7 @@ export function BattleRoyaleHud({ roomCode, roomPlayers, myName, pos, totalChars
   const edge=totalChars?Math.max(0,Math.min(100,Math.round(zonePos/totalChars*100))):0;
   const drainIn=ZONE_TICK_SECS-Math.floor(elapsed%ZONE_TICK_SECS);
   const players=Object.entries(roomPlayers||{}).filter(([,p])=>!p.isSpectator);
-  const alive=players.filter(([,p])=>p.status!=='eliminated'&&p.status!=='done'&&(p.lives||0)>0).length;
+  const alive=players.filter(([,p])=>isAliveState(playerState(p,'royale',Date.now()))&&(p.lives||0)>0).length;
   const hearts=playerLives>6?`❤️×${playerLives}`:Array.from({length:Math.max(0,playerLives)},()=>"❤️").join(' ');
   const zone=outside
     ? {icon:'🌪️',text:`ตามหลังขอบวง ${outsideBy} ตัว · ❤️ ลดใน ${drainIn}s`,bg:'#FFF4E7',fg:'#A85411'}
@@ -128,14 +129,10 @@ export function BattleRoyaleHud({ roomCode, roomPlayers, myName, pos, totalChars
   );
 }
 
-export // DEAD SCREEN — shown to eliminated BR players
-function DeadScreen({ standings, onLeave }) {
+// DEAD SCREEN — shown to eliminated BR players
+export function DeadScreen({ standings, onLeave, onSpectate }) {
   const tf = "'Sarabun','Noto Sans Thai',sans-serif";
-  const [live, setLive] = useState(standings||{});
-  useEffect(()=>{ setLive(standings||{}); }, [standings]);
-  const sorted = Object.entries(live)
-    .filter(([,p])=>!p.isSpectator)
-    .sort((a,b)=>(b[1].wpm||0)-(a[1].wpm||0));
+  const sorted = brOrder(standings||{});
   return (
     <div style={{position:'absolute',inset:0,background:'rgba(15,23,42,.92)',
       display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',
@@ -144,25 +141,34 @@ function DeadScreen({ standings, onLeave }) {
       <div style={{fontSize:22,fontWeight:800,color:'#fff',marginBottom:4}}>
         คุณถูกคัดออก</div>
       <div style={{fontSize:13,color:'rgba(255,255,255,.6)',marginBottom:20}}>
-        คุณสามารถดูผลแบบ real-time ได้</div>
+        ดูการแข่งขันต่อได้จนจบ</div>
       <div style={{width:'100%',maxWidth:340}}>
         {sorted.slice(0,8).map(([uid,p],i)=>(
           <div key={uid} style={{display:'flex',alignItems:'center',gap:10,
             padding:'8px 12px',marginBottom:6,borderRadius:8,
-            background:(p.lives??0)>0?'rgba(5,150,105,.2)':'rgba(255,255,255,.06)'}}>
+            background:isAliveState(playerState(p,'royale',Date.now()))&&(p.lives??0)>0?'rgba(5,150,105,.2)':'rgba(255,255,255,.06)'}}>
             <div style={{fontSize:14,fontWeight:800,color:'rgba(255,255,255,.4)',width:20}}>{i+1}</div>
             <div style={{fontSize:14,fontWeight:700,color:'#fff',flex:1}}>{p.name||'ผู้เล่น'}</div>
             <div style={{fontSize:13,color:(p.lives??0)>0?'#34D399':'rgba(255,255,255,.4)'}}>
-              {(p.lives??0)>0?`${p.wpm||0} WPM`:'💀'}</div>
+              {p.status==='done'?'🏁':p.status==='left'||p.status==='disconnected'?'🚪':(p.lives??0)>0?`${p.wpm||0} WPM`:'💀'}</div>
           </div>
         ))}
       </div>
-      <button onClick={onLeave}
-        style={{marginTop:16,background:'rgba(255,255,255,.1)',border:'1.5px solid rgba(255,255,255,.2)',
-          color:'#fff',borderRadius:8,padding:'10px 24px',cursor:'pointer',
-          fontSize:13,fontWeight:700,fontFamily:tf}}>
-        ออกจากห้อง
-      </button>
+      <div style={{display:'flex',gap:10,marginTop:16}}>
+        {onSpectate&&(
+          <button onClick={onSpectate}
+            style={{background:'#7C3AED',border:'none',color:'#fff',borderRadius:8,padding:'10px 20px',
+              cursor:'pointer',fontSize:13,fontWeight:800,fontFamily:tf}}>
+            👀 ดูการแข่งขันต่อ
+          </button>
+        )}
+        <button onClick={onLeave}
+          style={{background:'rgba(255,255,255,.1)',border:'1.5px solid rgba(255,255,255,.2)',
+            color:'#fff',borderRadius:8,padding:'10px 20px',cursor:'pointer',
+            fontSize:13,fontWeight:700,fontFamily:tf}}>
+          ออกจากห้อง
+        </button>
+      </div>
     </div>
   );
 }

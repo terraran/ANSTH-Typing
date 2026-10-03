@@ -1,6 +1,6 @@
-export // PHASE 0 ENGINE  (source: KBDTH0.DLL / TIS 820-2538)
+// PHASE 0 ENGINE  (source: KBDTH0.DLL / TIS 820-2538)
 
-const KEYMAP = {
+export const KEYMAP = {
   Backquote:['_','%'],   Digit1:['ๅ','+'],  Digit2:['/','๑'],   Digit3:['-','๒'],
   Digit4:['ภ','๓'],      Digit5:['ถ','๔'],  Digit6:['ุ','ู'],   Digit7:['ึ','฿'],
   Digit8:['ค','๕'],      Digit9:['ต','๖'],  Digit0:['จ','๗'],   Minus:['ข','๘'],
@@ -83,13 +83,13 @@ export function findKeyForChar(char) {
   return null;
 }
 
-export // TEXT DISPLAY
+// TEXT DISPLAY
 
-const COMBINING_CLS = new Set(['AV','BV','BD','TONE','AD']);
+export const COMBINING_CLS = new Set(['AV','BV','BD','TONE','AD']);
 
-export // MAIN APP
+// MAIN APP
 
-const CLASS_NAMES = {
+export const CLASS_NAMES = {
   LV:'สระหน้า',CONS:'พยัญชนะ',FV:'สระหลัง',AV:'สระบน',
   BV:'สระล่าง',BD:'จุดล่าง',TONE:'วรรณยุกต์',AD:'ทัณฑฆาต',NON:'อื่นๆ',
 };

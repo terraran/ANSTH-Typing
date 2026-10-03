@@ -62,9 +62,9 @@ export function TextDisplay({ displayChars, displayPos, compact }) {
   );
 }
 
-export // STAT PILL
+// STAT PILL
 
-function StatPill({ label, value, color }) {
+export function StatPill({ label, value, color }) {
   return (
     <div style={{background:'var(--c-surf)',border:'1.5px solid var(--c-border)',
       borderRadius:12,padding:'8px 16px',textAlign:'center',minWidth:80}}>
@@ -75,9 +75,9 @@ function StatPill({ label, value, color }) {
   );
 }
 
-export // SPAM SCREEN
+// SPAM SCREEN
 
-function PenaltyScreen({ countdown }) {
+export function PenaltyScreen({ countdown }) {
   return (
     <div style={{position:'fixed',inset:0,background:'rgba(185,28,28,.96)',
       display:'flex',flexDirection:'column',alignItems:'center',
@@ -104,9 +104,9 @@ function PenaltyScreen({ countdown }) {
   );
 }
 
-export // WEEKLY TEST CLOCK — ring shrinks with the time left; green → yellow (30 s) → red (10 s)
+// WEEKLY TEST CLOCK — ring shrinks with the time left; green → yellow (30 s) → red (10 s)
 
-function TestTimer({ startTime, now, endTime }) {
+export function TestTimer({ startTime, now, endTime }) {
   const total = TEST_SECS * 1000;
   const used = startTime ? Math.min(total, Math.max(0, (endTime ?? now) - startTime)) : 0;
   const leftMs = total - used;

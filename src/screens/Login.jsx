@@ -4,9 +4,9 @@ import { GOOGLE_CLIENT_ID } from '../config';
 
 const { useEffect, useState } = React;
 
-export // CLASS PICKER — auto-lookup by email, fallback to manual entry
+// CLASS PICKER — auto-lookup by email, fallback to manual entry
 
-function ClassPickerScreen({ googleUser, onSelect, onBack }) {
+export function ClassPickerScreen({ googleUser, onSelect, onBack }) {
   const [status, setStatus] = useState('looking'); // looking|found|notfound|error
   const [result, setResult] = useState(null); // {classCode, studentName}
   const [errMsg, setErrMsg] = useState('');
@@ -96,9 +96,9 @@ function ClassPickerScreen({ googleUser, onSelect, onBack }) {
   );
 }
 
-export // GOOGLE SIGN-IN SCREEN
+// GOOGLE SIGN-IN SCREEN
 
-function GoogleSignInScreen({ onSignIn, onSolo }) {
+export function GoogleSignInScreen({ onSignIn, onSolo }) {
   const tf = "'Sarabun','Noto Sans Thai',sans-serif";
 
   useEffect(() => {

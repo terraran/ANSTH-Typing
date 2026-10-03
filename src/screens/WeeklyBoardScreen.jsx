@@ -4,9 +4,9 @@ import { fmtScore, fmtTimeLeft, fmtWeekRange, pctOf, starsFor } from '../engine/
 
 const { useEffect, useState } = React;
 
-export // WEEKLY TEST BOARD — opens straight onto the grade leaderboard, with the start button
+// WEEKLY TEST BOARD — opens straight onto the grade leaderboard, with the start button
 
-function WeeklyBoardScreen({ data, status, onRefresh, onStart, onBack }) {
+export function WeeklyBoardScreen({ data, status, onRefresh, onStart, onBack }) {
   const tf = "'Sarabun','Noto Sans Thai',sans-serif";
   const [, setTick] = useState(0);
   useEffect(()=>{ const id=setInterval(()=>setTick(t=>t+1),30000); return ()=>clearInterval(id); },[]);

@@ -1,21 +1,24 @@
 import { currentFirebaseUid } from '../firebase';
 import { PRESSURE_SECS, fmtScore, pctOf, starsFor } from '../engine/scoring';
 import { Stars, StatPill } from '../ui/common';
+import { brOrder, isOutState, playerState } from '../race/presence';
 
-const { useEffect, useState } = React;
+const { useEffect, useRef, useState } = React;
 
-export // 1v1 RESULT — decided by score; equal score → whoever finished the text first
+// 1v1 RESULT — decided by score; equal score → whoever finished the text first
 
-function duelOutcome(roomPlayers, myScore, waited) {
+export function duelOutcome(roomPlayers, myScore, waited, sNow=Date.now()) {
   const uid=currentFirebaseUid();
   const racers=Object.entries(roomPlayers||{}).filter(([,p])=>!p.isSpectator);
   const me=racers.find(([k,p])=>k===uid||p.uid===uid)?.[1]||{};
   const rv=racers.find(([k,p])=>k!==uid&&p.uid!==uid)?.[1]||null;
   const rvScore=Number(rv?.score)||0;
-  const settled=!rv || rv.status==='done' || waited;
+  // The opponent left on purpose, or dropped and did not come back in time → I win.
+  const rvOut=!!rv && isOutState(playerState(rv,'1v1',sNow));
+  const settled=!rv || rvOut || rv.status==='done' || waited;
   let outcome='wait';
   if (settled) {
-    if (!rv) outcome='win';
+    if (!rv || rvOut) outcome='win';
     else if (myScore!==rvScore) outcome=myScore>rvScore?'win':'lose';
     else {
       // finishedAt > 0 means that player typed the whole text
@@ -26,21 +29,10 @@ function duelOutcome(roomPlayers, myScore, waited) {
       else outcome='draw';
     }
   }
-  return {outcome,rvName:rv?.name||'คู่แข่ง',rvScore,tie:settled&&!!rv&&myScore===rvScore};
+  return {outcome,rvName:rv?.name||'คู่แข่ง',rvScore,rvLeft:rvOut,tie:settled&&!!rv&&!rvOut&&myScore===rvScore};
 }
 
-export // RESULT STAGE — who stands on the podium and in which pose (Phase 3)
-// Battle Royale order, same rule as the standings list.
-function brOrder(roomPlayers) {
-  const tier=p=>p.status==='done'?0:p.status==='eliminated'?2:1;
-  return Object.entries(roomPlayers||{}).filter(([,p])=>!p.isSpectator).sort(([,ap],[,bp])=>{
-    const ta=tier(ap), tb=tier(bp);
-    if (ta!==tb) return ta-tb;
-    if (ta===0 && ap.finishedAt && bp.finishedAt) return ap.finishedAt-bp.finishedAt;
-    if ((bp.pos||0)!==(ap.pos||0)) return (bp.pos||0)-(ap.pos||0);
-    return (bp.cpm||0)-(ap.cpm||0);
-  });
-}
+// RESULT STAGE — who stands on the podium and in which pose (Phase 3)
 
 export function resultStage({ roomType, roomCode, roomPlayers, myCfg, myName, duel, soloBest }) {
   if (!window.CharKit || !myCfg) return null;
@@ -70,9 +62,9 @@ export function resultStage({ roomType, roomCode, roomPlayers, myCfg, myName, du
     label:soloBest?'🏆 สถิติใหม่!':'คุณ',color:soloBest?undefined:'#347ED0'}]};
 }
 
-export // RESULTS SCREEN
+// RESULTS SCREEN
 
-function ResultsScreen({ cpm, accuracy, errors, totalChars, lesson, saveStatus, saveError, studentName, ghostData, newRecord, roomCode, roomType, roomPlayers, myName, myCfg, bestCombo, score, maxScore, isTest, testBoard, prevBest, onRestart, onBack }) {
+export function ResultsScreen({ cpm, accuracy, errors, totalChars, lesson, saveStatus, saveError, studentName, ghostData, newRecord, roomCode, roomType, roomPlayers, myName, myCfg, bestCombo, score, maxScore, isTest, testBoard, prevBest, sOffset=0, onRestart, onBack }) {
   const tf="'Sarabun','Noto Sans Thai',sans-serif";
   const isDuel = roomType==='1v1' && !!roomCode;
   const [waited, setWaited] = useState(false);
@@ -82,7 +74,14 @@ function ResultsScreen({ cpm, accuracy, errors, totalChars, lesson, saveStatus, 
     const t=setTimeout(()=>setWaited(true),(PRESSURE_SECS+6)*1000);
     return ()=>clearTimeout(t);
   },[isDuel]);
-  const duel = isDuel ? duelOutcome(roomPlayers, score, waited) : null;
+  // Once the winner is decided it is locked: players leaving the room afterwards
+  // cannot change it.
+  const lockedDuel = useRef(null);
+  let duel = null;
+  if (isDuel) {
+    duel = lockedDuel.current || duelOutcome(roomPlayers, score, waited, Date.now()+sOffset);
+    if (!lockedDuel.current && duel.outcome!=='wait') lockedDuel.current = duel;
+  }
 
   const grade =
     accuracy>=98&&cpm>=40 ? {label:'ยอดเยี่ยม 🏆',color:'#D97706'} :
@@ -136,6 +135,9 @@ function ResultsScreen({ cpm, accuracy, errors, totalChars, lesson, saveStatus, 
               <span style={{fontSize:14,fontWeight:800,color:'#64748B'}}>vs</span>
               {box(duel.rvName,duel.rvScore,settled&&duel.outcome==='lose','#E79035')}
             </div>
+            {duel.rvLeft && (
+              <div style={{fontSize:12,color:tone.fg,marginTop:6}}>🚪 คู่แข่งออกจากการแข่งขัน</div>
+            )}
             {duel.tie && duel.outcome!=='draw' && (
               <div style={{fontSize:12,color:tone.fg,marginTop:6}}>คะแนนเท่ากัน — คนที่พิมพ์จบก่อนชนะ</div>
             )}
@@ -220,18 +222,7 @@ function ResultsScreen({ cpm, accuracy, errors, totalChars, lesson, saveStatus, 
           padding:'14px 16px',marginBottom:20,textAlign:'left'}}>
           <div style={{fontSize:13,fontWeight:800,marginBottom:10,fontFamily:tf}}>
             🏆 Battle Royale — ผลการแข่ง</div>
-          {Object.entries(roomPlayers)
-            .filter(([,p])=>!p.isSpectator)
-            .sort((a,b)=>{
-              const [,ap]=a, [,bp]=b;
-              // Tier: finished (0) > still racing (1) > eliminated (2)
-              const tier=p=>p.status==='done'?0:p.status==='eliminated'?2:1;
-              const ta=tier(ap), tb=tier(bp);
-              if (ta!==tb) return ta-tb;
-              if (ta===0 && ap.finishedAt && bp.finishedAt) return ap.finishedAt-bp.finishedAt;
-              if ((bp.pos||0)!==(ap.pos||0)) return (bp.pos||0)-(ap.pos||0);
-              return (bp.cpm||0)-(ap.cpm||0);
-            })
+          {brOrder(roomPlayers, Date.now()+sOffset)
             .map(([key,p],i)=>(
               <div key={key} style={{display:'flex',alignItems:'center',gap:10,
                 padding:'8px 0',borderBottom:'1px solid var(--c-border)'}}>
@@ -241,6 +232,7 @@ function ResultsScreen({ cpm, accuracy, errors, totalChars, lesson, saveStatus, 
                   {p.name||key}
                   {p.status==='done'&&' 🏁'}
                   {p.status==='eliminated'&&' 💀'}
+                  {(p.status==='left'||p.status==='disconnected')&&' 🚪'}
                 </span>
                 <span style={{fontSize:13,color:'var(--c-t2)'}}>{p.cpm||0} KPM</span>
               </div>

@@ -89,8 +89,12 @@ export function generateTimedText(words, minChars, rng) {
 // the selected lesson's bank, so later keyboard rows cannot leak into its text.
 export const UNSUITABLE_WORDS = ['เด้า','ฆ่า','ฆาตกรรม','เฆี่ยน','ห่า','ด่า'];
 
+// % and _ live on the ` key, which switches the input language on many Windows
+// machines — never put them in race / test text.
+export const BLOCKED_CHARS = /[%_]/;
+
 export function cleanTypingWords(words) {
-  return [...new Set((words||[]).filter(word=>word && !UNSUITABLE_WORDS.includes(word)))];
+  return [...new Set((words||[]).filter(word=>word && !UNSUITABLE_WORDS.includes(word) && !BLOCKED_CHARS.test(word)))];
 }
 
 export function buildLessonWordList(lesson) {

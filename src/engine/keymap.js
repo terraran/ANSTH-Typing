@@ -56,10 +56,59 @@ export const FINGER_COLORS = {
   RI:'#10B981',RM:'#3B82F6',RR:'#F59E0B',RP:'#8B5CF6',TH:'#64748B',
 };
 
-export function mapKey(e) {
+// US-QWERTY layout, used only when the browser gives no usable e.code (fallback).
+const US_LAYOUT = {
+  Backquote:['`','~'],Digit1:['1','!'],Digit2:['2','@'],Digit3:['3','#'],Digit4:['4','$'],
+  Digit5:['5','%'],Digit6:['6','^'],Digit7:['7','&'],Digit8:['8','*'],Digit9:['9','('],
+  Digit0:['0',')'],Minus:['-','_'],Equal:['=','+'],
+  KeyQ:['q','Q'],KeyW:['w','W'],KeyE:['e','E'],KeyR:['r','R'],KeyT:['t','T'],KeyY:['y','Y'],
+  KeyU:['u','U'],KeyI:['i','I'],KeyO:['o','O'],KeyP:['p','P'],BracketLeft:['[','{'],
+  BracketRight:[']','}'],Backslash:['\\','|'],
+  KeyA:['a','A'],KeyS:['s','S'],KeyD:['d','D'],KeyF:['f','F'],KeyG:['g','G'],KeyH:['h','H'],
+  KeyJ:['j','J'],KeyK:['k','K'],KeyL:['l','L'],Semicolon:[';',':'],Quote:["'",'"'],
+  KeyZ:['z','Z'],KeyX:['x','X'],KeyC:['c','C'],KeyV:['v','V'],KeyB:['b','B'],KeyN:['n','N'],
+  KeyM:['m','M'],Comma:[',','<'],Period:['.','>'],Slash:['/','?'],
+};
+function charIndex(layout) {
+  const idx = {};
+  for (const [code, [u, sh]] of Object.entries(layout)) {
+    if (u && !idx[u]) idx[u] = { code, shift:false };
+    if (sh && !idx[sh]) idx[sh] = { code, shift:true };
+  }
+  return idx;
+}
+const TH_INDEX = charIndex(KEYMAP), US_INDEX = charIndex(US_LAYOUT);
+const isThaiChar = c => c >= '\u0E00' && c <= '\u0E7F';
+// Which OS layout the student seems to be on — only decides ambiguous ASCII
+// symbols ( / - , . " ( ) ? ) in the fallback path.
+let lastLayout = 'us';
+
+// Returns {code, char, via} — via: 'code' (normal) | 'th' / 'us' (fallback from e.key).
+// Some machines report an unknown / empty e.code for a key (seen with ช = Equal),
+// so when e.code is not in KEYMAP we read e.key instead.
+export function resolveKey(e) {
   if (e.ctrlKey || e.altKey || e.metaKey) return null;
+  const k = e.key || '';
+  if (k.length === 1) {
+    if (isThaiChar(k)) lastLayout = 'th';
+    else if (/[a-z]/i.test(k)) lastLayout = 'us';
+  }
   const entry = KEYMAP[e.code];
-  return entry ? (entry[e.shiftKey ? 1 : 0] ?? null) : null;
+  if (entry) return { code:e.code, char:entry[e.shiftKey ? 1 : 0] ?? null, via:'code' };
+  if ([...k].length !== 1) return null;                 // Enter, Tab, Unidentified, ...
+  if (isThaiChar(k) || (lastLayout === 'th' && TH_INDEX[k] && !/[a-z]/i.test(k))) {
+    const hit = TH_INDEX[k];
+    return hit ? { code:hit.code, char:k, via:'th' } : null;
+  }
+  const hit = US_INDEX[k];
+  if (!hit) return null;
+  // Letters: trust Shift, not the letter's case (Caps Lock gives 'Q' without Shift)
+  const shift = /[a-z]/i.test(k) ? e.shiftKey : hit.shift;
+  return { code:hit.code, char:KEYMAP[hit.code]?.[shift ? 1 : 0] ?? null, via:'us' };
+}
+
+export function mapKey(e) {
+  return resolveKey(e)?.char ?? null;
 }
 
 export function validateInput(expected, typed) {

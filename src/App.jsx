@@ -1,8 +1,9 @@
 import { SCRIPT_URL } from './config';
-import { buildChunks, generateBRText, generateStoryText, generateText, generateTimedText, seededRng } from './engine/text';
-import { CHAR_CLASS, CLASS_NAMES, KEY_META, findKeyForChar, mapKey, validateInput } from './engine/keymap';
+import { buildChunks, cleanTypingWords, generateBRText, generateStoryText, generateText, generateTimedText, seededRng } from './engine/text';
+import { CHAR_CLASS, CLASS_NAMES, KEY_META, findKeyForChar, resolveKey, validateInput } from './engine/keymap';
+import { KEYS_ON, KeyTester } from './ui/KeyTester';
 import { ERROR_BURST, ERROR_WINDOW_MS, PRESSURE_SECS, SPAM_PENALTY, SPAM_WINDOW_KEYS, SPAM_WRONG_SHARE, SPEED_CPM, TEST_MIN_CHARS, TEST_SECS, charBasePoints, comboMultiplier, fmtScore, hsKey, readGuestHighScores, speedMultiplier, testTargetScore, writeGuestHighScores } from './engine/scoring';
-import { ROOM_CODE_LEN, ROOM_CODE_RE, ZONE_GAP, ZONE_TICK, currentFirebaseUid, ensureFirebaseUser, fbArmLobby, fbArmRace, fbClearActiveRoom, fbCreate, fbDisarm, fbGet, fbGetActiveRoom, fbJoin, fbListen, fbRemove, fbServerOffset, fbSetActiveRoom, fbSetChar, fbSetStatus, fbUpdatePlayer, getDB, getZonePos, getZoneSpeed, makeFreeCode, zonePosAt } from './firebase';
+import { ROOM_CODE_LEN, ROOM_CODE_RE, ZONE_GAP, ZONE_GRACE, ZONE_TICK, currentFirebaseUid, ensureFirebaseUser, fbArmLobby, fbArmRace, fbClearActiveRoom, fbCreate, fbDisarm, fbGet, fbGetActiveRoom, fbJoin, fbListen, fbRemove, fbServerOffset, fbSetActiveRoom, fbSetChar, fbSetStatus, fbUpdatePlayer, getDB, getZonePos, getZoneSpeed, makeFreeCode, zonePosAt } from './firebase';
 import { brOrder, brRaceOver, dcLeftMs, graceMs, isOutState, playerState } from './race/presence';
 import { LeaveConfirm, RejoinBanner } from './race/PresenceUI';
 import { apiGetStudentStats, apiGetWeeklyBoard, apiRequest, apiSaveMatch, apiSubmitWeekly, describeApiError, saveSession } from './api';
@@ -20,6 +21,10 @@ import { CountdownScreen, LobbyScreen, MPSetupScreen } from './race/Setup';
 import { BattleRoyaleResults, HostDashboard, SpectatorView } from './race/Host';
 import { ResultsScreen } from './screens/ResultsScreen';
 import { PERF_ON, PerfMeter, perf } from './ui/PerfMeter';
+
+// BR anti-AFK: after the zone starts moving, no correct key for AFK_FIRST_MS → lose 1 life,
+// then 1 more every AFK_REPEAT_MS. Spam-penalty freezes and connection drops don't count.
+const AFK_FIRST_MS = 15000, AFK_REPEAT_MS = 5000, AFK_WARN_MS = 8000;
 
 const { useCallback, useEffect, useMemo, useRef, useState } = React;
 
@@ -98,6 +103,10 @@ export function ThaiTypingApp() {
   const lastZoneCalcRef = useRef(0);    // timestamp of last zone calc
   const serverTimeOffsetRef = useRef(0);
   const lastZoneDrainTickRef = useRef(0);
+  const afkBaseRef    = useRef(0);       // BR: time of last correct key (or forgiven pause)
+  const afkHitsRef    = useRef(0);       // BR: AFK lives lost since then
+  const offlineRef    = useRef(false);   // Firebase connection currently down
+  const [afkLeft, setAfkLeft] = useState(null);   // BR: seconds until the next AFK life loss (warning)
   // Theme: 'light' | 'dark' | 'auto'
   const [themeMode, setThemeMode] = useState(()=>{ try{return localStorage.getItem('theme')||'light';}catch{return 'light';} });
   const isDark = themeMode==='dark';
@@ -247,6 +256,7 @@ export function ThaiTypingApp() {
         frozenRef.current=false;
         keystrokeTimes.current=[]; errorTimes.current=[];
         lastCorrectTime.current=null;   // don't count frozen time as a keystroke gap
+        afkBaseRef.current=Date.now(); afkHitsRef.current=0;   // frozen time is not AFK
       }
     },1000);
     return ()=>clearTimeout(t);
@@ -394,7 +404,8 @@ export function ThaiTypingApp() {
     const db = getDB(); if (!db) return;
     const ref = db.ref('.info/connected');
     const onConn = snap => {
-      if (snap.val()!==true) return;
+      if (snap.val()!==true) { offlineRef.current=true; return; }
+      if (offlineRef.current) { offlineRef.current=false; afkBaseRef.current=Date.now(); afkHitsRef.current=0; }
       const code = rcRef.current;
       if (!code || raceEndedRef.current || stateRef.current.endTime) return;
       if (rtRef.current==='royale' && plRef.current<=0) return;
@@ -493,6 +504,37 @@ export function ThaiTypingApp() {
       if (newLives===0) fbUpdatePlayer(rcRef.current,myRoomName.current||snRef.current||'Player',{status:'eliminated'});
     },250);
     return () => clearInterval(id);
+  }, [screen, roomType, startTime]);
+
+  // BR anti-AFK — runs on this client only; see AFK_* constants.
+  useEffect(() => {
+    if (screen !== 'practice' || roomType !== 'royale' || !startTime) return;
+    afkBaseRef.current=Date.now(); afkHitsRef.current=0;
+    const id = setInterval(() => {
+      const t = Date.now();
+      if (frozenRef.current || offlineRef.current) {        // spam freeze / no connection: not AFK
+        afkBaseRef.current=t; afkHitsRef.current=0; setAfkLeft(null); return;
+      }
+      if (stateRef.current.endTime || raceEndedRef.current || plRef.current<=0) { setAfkLeft(null); return; }
+      const base = Math.max(afkBaseRef.current, startTime+ZONE_GRACE*1000);
+      const idle = t-base;
+      if (idle < AFK_WARN_MS) { setAfkLeft(null); return; }
+      const due = idle < AFK_FIRST_MS ? 0 : 1+Math.floor((idle-AFK_FIRST_MS)/AFK_REPEAT_MS);
+      if (due > afkHitsRef.current) {
+        afkHitsRef.current = due;
+        const newLives = Math.max(0,plRef.current-1);
+        setPlayerLives(newLives); plRef.current=newLives;
+        fbUpdatePlayer(rcRef.current,myRoomName.current||snRef.current||'Player',{lives:newLives});
+        if (newLives===0) {
+          fbUpdatePlayer(rcRef.current,myRoomName.current||snRef.current||'Player',{status:'eliminated'});
+          setAfkLeft(null); return;
+        }
+      }
+      const nextAt = base+AFK_FIRST_MS+afkHitsRef.current*AFK_REPEAT_MS;
+      const left = Math.max(0,Math.ceil((nextAt-t)/1000));
+      setAfkLeft(v => v===left ? v : left);
+    },250);
+    return () => { clearInterval(id); setAfkLeft(null); };
   }, [screen, roomType, startTime]);
 
   // (The ghost runner now moves inside CharKit.RaceTrack — no page re-render per frame.)
@@ -695,7 +737,7 @@ export function ThaiTypingApp() {
   const handleCreate1v1 = useCallback(async (les) => {
     setMpBusy(true); setJoinError('');
     // Combine all words from the lesson's word bank for the race
-    const allWords = [...new Set(les.exercises.flatMap(ex=>ex.words))];
+    const allWords = cleanTypingWords(les.exercises.flatMap(ex=>ex.words));
     const text = generateText(allWords, 200);
     try {
       await ensureFirebaseUser();
@@ -967,6 +1009,7 @@ export function ThaiTypingApp() {
         lives=Math.max(0,lives-missed);
       }
       lastZoneDrainTickRef.current=Math.max(0,nowTick);
+      afkBaseRef.current=Date.now(); afkHitsRef.current=0;   // time away is not AFK
       const les=LESSONS.find(l=>l.id===Number(info.lessonId))||LESSONS[0];
       myRoomName.current=me.name||snRef.current||'ผู้เล่น';
       setRoomCode(code); rcRef.current=code; setRoomType(type); rtRef.current=type;
@@ -1039,7 +1082,8 @@ export function ThaiTypingApp() {
         }
         setHint(null); return;
       }
-      const char=mapKey(e);
+      const rk=resolveKey(e);           // falls back to e.key when e.code is unusable
+      const char=rk?.char;
       if (!char) return;
 
       // Compute needsShift from current position (stateRef) for KPM counting
@@ -1095,6 +1139,7 @@ export function ThaiTypingApp() {
           currentTimings.current.push(nowForGhost - lastCorrectTime.current);
         }
         lastCorrectTime.current = nowForGhost;
+        afkBaseRef.current = nowForGhost; afkHitsRef.current = 0;   // BR anti-AFK
         setPos(p=>{
           const next=p+1;
           if (next>=targetChars.length){
@@ -1133,7 +1178,7 @@ export function ThaiTypingApp() {
         if (pos<targetChars.length) missedIdx.current.add(pos);
         if (result.costsLife) {
           setErrors(er=>er+1);
-          setFlashCode(e.code);
+          setFlashCode(rk.code);
           setTimeout(()=>setFlashCode(null),400);
           // Battle Royale lives
           if (rcRef.current && rtRef.current==='royale') {
@@ -1163,6 +1208,8 @@ export function ThaiTypingApp() {
     window.addEventListener('keyup',handleKeyUp);
     return ()=>{ window.removeEventListener('keydown',handleKeyDown); window.removeEventListener('keyup',handleKeyUp); };
   },[screen]);
+
+  if (KEYS_ON) return <KeyTester/>;   // ?keys=1 keyboard tester
 
   return (
     <div style={{minHeight:'100vh',background:'var(--c-bg)',fontFamily:'system-ui,sans-serif',
@@ -1352,6 +1399,7 @@ export function ThaiTypingApp() {
                 totalChars={totalChars}
                 zonePos={zonePos}
                 playerLives={playerLives}
+                afkLeft={afkLeft}
                 myCfg={myCfg} kpm={kpm}
                 startTime={startTime}
               />

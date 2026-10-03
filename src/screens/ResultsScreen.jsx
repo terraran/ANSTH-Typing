@@ -189,28 +189,28 @@ export function ResultsScreen({ cpm, accuracy, errors, totalChars, lesson, saveS
           )}
         </div>
       )}
-      {/* Ghost comparison */}
-      {(ghostData || newRecord) && (
+      {/* Ghost comparison — by score (same rule as High Score) */}
+      {(ghostData || newRecord) && (()=>{
+        const gs = ghostData ? (ghostData.score||0) : 0;
+        const tone = !ghostData ? ['#EDE9FE','#8B5CF6']
+          : score > gs ? ['#D1FAE5','#059669']
+          : score === gs ? ['#EFF6FF','#2563EB']
+          : ['#EDE9FE','#8B5CF6'];
+        return (
         <div style={{marginBottom:22,padding:'12px 20px',borderRadius:12,
-          background: !ghostData ? '#EDE9FE'
-            : cpm > ghostData.cpm ? '#D1FAE5'
-            : cpm === ghostData.cpm ? '#EFF6FF'
-            : '#EDE9FE',
-          border:`1.5px solid ${!ghostData ? '#8B5CF6'
-            : cpm > ghostData.cpm ? '#059669'
-            : cpm === ghostData.cpm ? '#2563EB'
-            : '#8B5CF6'}`,
+          background:tone[0], border:`1.5px solid ${tone[1]}`,
           fontFamily:tf, fontSize:15, fontWeight:700, color:'#0F172A',
         }}>
           {!ghostData
-            ? `👻 บันทึก Ghost แล้ว! (${cpm} KPM) — ลองแข่งรอบหน้า`
-            : cpm > ghostData.cpm
-            ? `🏆 ชนะ Ghost! ${cpm} vs ${ghostData.cpm} KPM${newRecord ? ' — สถิติใหม่! 🎉' : ''}`
-            : cpm === ghostData.cpm
-            ? `🤝 เสมอกับ Ghost! (${cpm} KPM)`
-            : `👻 Ghost ชนะ — ${ghostData.cpm} vs ${cpm} KPM — สู้ต่อไป!`}
+            ? `👻 บันทึก Ghost แล้ว! (${fmtScore(score)} คะแนน) — ลองแข่งรอบหน้า`
+            : score > gs
+            ? `🏆 ชนะ Ghost! ${fmtScore(score)} vs ${fmtScore(gs)} คะแนน${newRecord ? ' — สถิติใหม่! 🎉' : ''}`
+            : score === gs
+            ? `🤝 เสมอกับ Ghost! (${fmtScore(score)} คะแนน)`
+            : `👻 Ghost ชนะ — ${fmtScore(gs)} vs ${fmtScore(score)} คะแนน — สู้ต่อไป!`}
         </div>
-      )}
+        );
+      })()}
       <div style={{display:'flex',gap:14,justifyContent:'center',marginBottom:24,flexWrap:'wrap'}}>
         <StatPill label="KPM"       value={cpm}              color={cpm>=30?'#059669':'#D97706'}/>
         <StatPill label="WPM"       value={Math.round(cpm/5)} color="#2563EB"/>

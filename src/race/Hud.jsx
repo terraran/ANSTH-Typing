@@ -4,6 +4,20 @@ import { brOrder, isAliveState, playerState } from './presence';
 
 const { useEffect, useState } = React;
 
+// Battle Royale lane: only me — plus the leader once the zone starts moving.
+// If I am leading, I get the crown and the closest chaser (2nd place) is shown instead.
+export function brTrackRunners(roomPlayers, o) {
+  const all=raceRunners(roomPlayers,{...o,myLabel:'คุณ',limit:99});
+  if (!all.length) return all;
+  const me=all[0], rivals=all.slice(1).filter(r=>!r.out);
+  if (!o.showLeader || !rivals.length) return [me];
+  const top=rivals.reduce((a,b)=>b.pct>a.pct?b:a);
+  if (!me.out && me.pct>=top.pct) {
+    return [{...me,label:'👑 คุณ'},{...top,label:'อันดับ 2 · '+top.label,tag:true,alpha:.7,color:'#7C3AED'}];
+  }
+  return [me,{...top,label:'👑 '+top.label,tag:true,alpha:.75,color:'#B45309'}];
+}
+
 // Phase 2 — runners for CharKit.RaceTrack: me first, then the nearest rivals.
 export function raceRunners(roomPlayers, o={}) {
   if (!window.CharKit) return [];
@@ -113,8 +127,8 @@ export function BattleRoyaleHud({ roomCode, roomPlayers, myName, pos, totalChars
       {window.CharKit ? (
         <CharKit.RaceTrack mode="royale" zonePct={totalChars?zonePos/totalChars:0}
           info={`คุณ ${progress}% · ขอบวง ${edge}% · ${pos} / ${totalChars} ตัว`}
-          runners={raceRunners(roomPlayers,{myCfg,myLabel:'คุณ',myPos:pos,myKpm:kpm,
-            totalChars,limit:5,myOut:playerLives<=0})}/>
+          runners={brTrackRunners(roomPlayers,{myCfg,myPos:pos,myKpm:kpm,totalChars,myOut:playerLives<=0,
+            showLeader:elapsed>=ZONE_GRACE})}/>
       ) : (
         <div style={{padding:'10px 16px 8px',background:'#fff'}}>
           <div style={{height:12,position:'relative',borderRadius:20,background:'#E8EEF4'}}>

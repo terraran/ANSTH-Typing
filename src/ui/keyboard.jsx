@@ -25,13 +25,11 @@ export const KB_ROWS = [
 
 // KEY component
 
-export function Key({ kdef, nextCode, needsShift, flashCode, shiftHeld, correctShiftCode }) {
+// Props are per-key booleans, so React.memo skips every key whose look did not change
+// (before: all 60 keys re-rendered on every keystroke).
+export const Key = React.memo(function Key({ kdef, active, isFlash, shiftHeld }) {
   const { c, lbl, w=1, sp=false } = kdef;
   const meta=KEY_META[c], chars=KEYMAP[c];
-  const isNext=(nextCode===c);
-  const isShift=(c==='ShiftLeft'||c==='ShiftRight')&&needsShift&&
-    (correctShiftCode ? c===correctShiftCode : true);
-  const isFlash=flashCode===c, active=isNext||isShift;
   const shifted   = shiftHeld && chars && chars.length>1 && chars[1]!==chars[0];
   const mainChar  = chars ? (shifted ? chars[1] : chars[0]) : '';
   const smallChar = chars ? (shifted ? chars[0] : chars[1]) : '';
@@ -60,18 +58,18 @@ export function Key({ kdef, nextCode, needsShift, flashCode, shiftHeld, correctS
       ) : null}
     </div>
   );
-}
+});
 
 // ON-SCREEN KEYBOARD
 
-export function OnScreenKeyboard({ nextCode, needsShift, flashCode, shiftHeld, correctShiftCode }) {
+export const OnScreenKeyboard = React.memo(function OnScreenKeyboard({ nextCode, needsShift, flashCode, shiftHeld, correctShiftCode }) {
+  const isActive = c => nextCode===c || ((c==='ShiftLeft'||c==='ShiftRight') && needsShift && (correctShiftCode ? c===correctShiftCode : true));
   return (
     <div style={{display:'flex',flexDirection:'column',gap:3,width:'100%'}}>
       {KB_ROWS.map((row,ri)=>(
         <div key={ri} style={{display:'flex',gap:3}}>
-          {row.map(kdef=><Key key={kdef.c} kdef={kdef} nextCode={nextCode}
-            needsShift={needsShift} flashCode={flashCode}
-            shiftHeld={shiftHeld} correctShiftCode={correctShiftCode}/>)}
+          {row.map(kdef=><Key key={kdef.c} kdef={kdef} active={isActive(kdef.c)}
+            isFlash={flashCode===kdef.c} shiftHeld={shiftHeld}/>)}
         </div>
       ))}
       <div style={{display:'flex',gap:10,marginTop:6,flexWrap:'wrap',justifyContent:'center'}}>
@@ -87,4 +85,4 @@ export function OnScreenKeyboard({ nextCode, needsShift, flashCode, shiftHeld, c
       </div>
     </div>
   );
-}
+});

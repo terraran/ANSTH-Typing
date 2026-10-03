@@ -19,10 +19,12 @@ import { OnScreenKeyboard } from './ui/keyboard';
 import { CountdownScreen, LobbyScreen, MPSetupScreen } from './race/Setup';
 import { BattleRoyaleResults, HostDashboard, SpectatorView } from './race/Host';
 import { ResultsScreen } from './screens/ResultsScreen';
+import { PERF_ON, PerfMeter, perf } from './ui/PerfMeter';
 
-const { useCallback, useEffect, useRef, useState } = React;
+const { useCallback, useEffect, useMemo, useRef, useState } = React;
 
 export function ThaiTypingApp() {
+  if (PERF_ON) perf.renders++;
   const [screen,        setScreen]        = useState(SCRIPT_URL ? 'google-login' : 'lessons');
   const [classCode,     setClassCode]     = useState('');
   const [studentName,   setStudentName]   = useState('');
@@ -71,7 +73,6 @@ export function ThaiTypingApp() {
   const [serverTimeOffset, setServerTimeOffset] = useState(0);
   const [serverTimeReady, setServerTimeReady] = useState(false);
   const [ghostData,     setGhostData]     = useState(null);  // best previous run {timings,cpm,accuracy}
-  const [ghostPos,      setGhostPos]      = useState(0);     // ghost's current character position
   const [ghostKey,      setGhostKey]      = useState('');    // localStorage key for this exercise
   const [newRecord,     setNewRecord]     = useState(false); // did this run set a new ghost record?
   const [adventureName, setAdventureName] = useState(()=>{ try{return localStorage.getItem('adventureName')||'';}catch(e){return '';} });
@@ -147,20 +148,23 @@ export function ThaiTypingApp() {
   const hsDone        = useRef(false);
 
   // ── Derived values — declared early so all effects can reference them ──
-  const targetChars = target ? [...target] : [];
+  // Text, chunks and the visible chunk are memoised so memoised children (TextDisplay)
+  // only re-render when what they show actually changes.
+  const targetChars = useMemo(() => target ? [...target] : [], [target]);
   const totalChars  = targetChars.length;
   // Split target into ~2-line word-boundary chunks (see buildChunks above)
-  const chunks = buildChunks(targetChars);
+  const chunks = useMemo(() => buildChunks(targetChars), [targetChars]);
   // Derive chunkIdx from pos — always in sync, no stale-state lag
   const chunkIdx = (() => {
     for (let i=0; i<chunks.length; i++) { if (pos < chunks[i].end) return i; }
     return Math.max(0, chunks.length-1);
   })();
   const curChunk    = chunks[chunkIdx] || {start:0, end:totalChars};
-  const displayChars = targetChars.slice(curChunk.start, curChunk.end);
+  const displayChars = useMemo(() => targetChars.slice(curChunk.start, curChunk.end), [targetChars, curChunk.start, curChunk.end]);
   const displayPos   = Math.max(0, pos - curChunk.start);
 
-  const elapsed     = startTime ? ((endTime??now)-startTime)/60000 : 0;
+  // Live values are computed at render time (each keystroke renders), so no clock tick is needed.
+  const elapsed     = startTime ? ((endTime??Date.now())-startTime)/60000 : 0;
   const kpm         = elapsed>0 ? Math.round(pressCountRef.current/elapsed) : 0;
   const wpm         = elapsed>0 ? Math.round(pos/elapsed/5) : 0;
   const accuracy    = (pos+errors)>0 ? Math.round((pos/(pos+errors))*100) : 100;
@@ -194,6 +198,13 @@ export function ThaiTypingApp() {
     return ()=>cancelAnimationFrame(id);
   },[screen]);
 
+  // ?perf=1: time from key press to the next frame
+  useEffect(() => {
+    if (!PERF_ON || !perf.t0) return;
+    const t0=perf.t0; perf.t0=0;
+    requestAnimationFrame(()=>{ perf.lat.push(performance.now()-t0); if (perf.lat.length>100) perf.lat.shift(); });
+  }, [pos, errors, hint, flashCode]);
+
   // Hide loading screen after React's first render completes
   useEffect(() => {
     const el = document.getElementById('loading');
@@ -208,8 +219,8 @@ export function ThaiTypingApp() {
 
   // Clock tick while typing (faster during the weekly test so the ring moves smoothly)
   useEffect(() => {
-    if (screen!=='practice'||!startTime||endTime) return;
-    const id=setInterval(()=>setNow(Date.now()),activeTest?200:500);
+    if (screen!=='practice'||!startTime||endTime||!activeTest) return;   // only the weekly-test clock needs a tick
+    const id=setInterval(()=>setNow(Date.now()),200);
     return ()=>clearInterval(id);
   },[screen,startTime,endTime,activeTest]);
 
@@ -293,21 +304,32 @@ export function ThaiTypingApp() {
   useEffect(() => {
     if (!roomCode) return;
     if (screen!=='mp-lobby' && screen!=='countdown' && screen!=='practice' && screen!=='host-dashboard' && screen!=='results') return;
-    const unsub = fbListen(roomCode, (data) => {
-      if (!data) {
-        // The host closed the room before the race started.
-        if (screen==='mp-lobby' || screen==='countdown') { cleanupRoomLocal(); setNotice('เจ้าของห้องปิดห้องแล้ว'); }
-        return;
-      }
+    // Room updates arrive every time anyone types (30 players ≈ 90 per second).
+    // Apply at most 4 per second: first one at once, the rest batched to the latest.
+    let pending=null, timer=null, last=0;
+    const apply = data => {
       setRoomInfo(data.info);
       setRoomPlayers(data.players || {});
       if (data.zone?.cpm || data.zone?.wpm) { setZoneWpm(data.zone.cpm||data.zone.wpm); setZoneTs(data.zone.ts||Date.now()); }
       if (data.info?.maxLives) setMaxLives(data.info.maxLives);
       // ── Lobby/countdown: host manually triggers countdown ──
       if (data.info?.status==='countdown' && screen==='mp-lobby') setScreen('countdown');
+    };
+    const flush = () => { timer=null; last=Date.now(); const d=pending; pending=null; if (d) apply(d); };
+    const unsub = fbListen(roomCode, (data) => {
+      if (!data) {
+        clearTimeout(timer); timer=null; pending=null;
+        // The host closed the room before the race started.
+        if (screen==='mp-lobby' || screen==='countdown') { cleanupRoomLocal(); setNotice('เจ้าของห้องปิดห้องแล้ว'); }
+        return;
+      }
+      pending=data;
+      const wait=250-(Date.now()-last);
+      if (wait<=0) flush();
+      else if (!timer) timer=setTimeout(flush,wait);
     });
     fbUnsub.current = unsub;
-    return () => { unsub(); fbUnsub.current=null; };
+    return () => { clearTimeout(timer); unsub(); fbUnsub.current=null; };
   },[roomCode, screen, isHost]);
 
   // Presence clock: re-check grace periods once a second during a race.
@@ -414,7 +436,7 @@ export function ThaiTypingApp() {
       keystrokeTimes.current=[]; errorTimes.current=[];
       currentTimings.current=[]; lastCorrectTime.current=null;
       hasSaved.current=false; setSaveStatus('idle'); setSaveError('');
-      setNewRecord(false); setGhostPos(0);
+      setNewRecord(false);
       setPlayerLives(maxLives); plRef.current=maxLives;
       // Scoring starts fresh for every race (1v1 is decided by score)
       setScore(0); scoreRef.current=0; setScoreStreak(0); streakRef.current=0; setLastGain(null);
@@ -471,21 +493,7 @@ export function ThaiTypingApp() {
     return () => clearInterval(id);
   }, [screen, roomType, startTime]);
 
-  // Animate the ghost cursor during practice
-  useEffect(() => {
-    if (screen !== 'practice' || !ghostData || !startTime) return;
-    const id = setInterval(() => {
-      const elapsed = Date.now() - startTime;
-      let cum = 0, gp = 0;
-      for (const t of ghostData.timings) {
-        cum += t;
-        if (cum <= elapsed) gp++;
-        else break;
-      }
-      setGhostPos(Math.min(gp, ghostData.timings.length));
-    }, 60);
-    return () => clearInterval(id);
-  }, [screen, ghostData, startTime]);
+  // (The ghost runner now moves inside CharKit.RaceTrack — no page re-render per frame.)
 
   // Save ghost to localStorage when results screen appears
   useEffect(() => {
@@ -643,7 +651,6 @@ export function ThaiTypingApp() {
     setBestCombo(0);
     setSaveStatus('idle'); setSaveError('');
     setNewRecord(false);
-    setGhostPos(0);
     if (test) { setGhostKey(''); setGhostData(null); }   // no ghost during tests
     else {
       const gk = (les.story?'story_':'ghostv2_') + les.id + '_' + encodeURIComponent(ex.title);
@@ -958,7 +965,7 @@ export function ThaiTypingApp() {
       setHint(null); setFlashCode(null); setShiftHeld(false); setNow(Date.now());
       keystrokeTimes.current=[]; errorTimes.current=[]; currentTimings.current=[]; lastCorrectTime.current=null;
       hasSaved.current=false; setSaveStatus('idle'); setSaveError(''); setNewRecord(false);
-      setGhostPos(0); setGhostData(null); setGhostKey('');
+      setGhostData(null); setGhostKey('');
       setPlayerLives(lives); plRef.current=lives;
       const sc=Number(me.score)||0; setScore(sc); scoreRef.current=sc;
       setScoreStreak(0); streakRef.current=0; setLastGain(null);
@@ -999,6 +1006,7 @@ export function ThaiTypingApp() {
   useEffect(() => {
     if (screen!=='practice') return;
     const handleKeyDown=(e)=>{
+      if (PERF_ON) perf.t0=performance.now();
       if (e.key==='Shift') { setShiftHeld(true); return; }
       if (e.key==='CapsLock') { setCapsLockOn(e.getModifierState('CapsLock')); return; }
       if (e.ctrlKey||e.altKey||e.metaKey) return;
@@ -1149,6 +1157,7 @@ export function ThaiTypingApp() {
       display:'flex',flexDirection:'column',alignItems:'center',padding:'24px 16px 40px',background:'var(--c-bg)',color:'var(--c-t1)'}}>
       <style>{`@import url('https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600;700;800&display=swap');`}</style>
 
+      {PERF_ON && <PerfMeter/>}
       {penaltySecs>0 && <PenaltyScreen countdown={penaltySecs}/>}
       {timeUp && <TimeUpOverlay/>}
       {showNameModal && (
@@ -1336,6 +1345,16 @@ export function ThaiTypingApp() {
               />
             )}
 
+            {/* Solo practice: race your own best run (ghost) */}
+            {!roomCode&&!activeTest&&ghostData&&window.CharKit&&myCfg&&(
+              <div style={{marginBottom:8,border:'1px solid var(--c-border)',borderRadius:12,overflow:'hidden'}}>
+                <CharKit.RaceTrack mode="1v1" info={`${pos} / ${totalChars} ตัว`} runners={[
+                  {id:'me',me:true,label:'คุณ',cfg:myCfg,pct:totalChars?pos/totalChars:0,kpm,finished:pos>=totalChars,color:'#1D4ED8'},
+                  {id:'ghost',label:'👻 สถิติเดิม '+ghostData.cpm+' KPM',cfg:myCfg,alpha:.38,color:'#64748B',kpm:ghostData.cpm,
+                    track:{timings:ghostData.timings,start:startTime,total:totalChars}},
+                ]}/>
+              </div>
+            )}
             {!roomCode&&(
               <div style={{display:'flex',alignItems:'center',gap:12,marginBottom:10,
                 fontFamily:"'Sarabun','Noto Sans Thai',sans-serif"}}>

@@ -229,7 +229,7 @@ export function CountdownScreen({ num, roomCode, roomType, roomPlayers, myCfg, m
           <CharKit.RaceTrack mode={roomType==='royale'?'royale':'1v1'}
             runners={raceRunners(roomPlayers,{myCfg,
               myLabel:roomType==='royale'?'คุณ':(myName||'คุณ')+' (คุณ)',
-              limit:roomType==='royale'?5:1})
+              limit:roomType==='royale'?0:1})
               .map((r,i)=>({...r,color:i===0?'#347ED0':'#E79035'}))}/>
         </div>
       )}

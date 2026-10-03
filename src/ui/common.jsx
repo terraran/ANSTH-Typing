@@ -1,7 +1,8 @@
 import { CHAR_CLASS, COMBINING_CLS } from '../engine/keymap';
 import { SPAM_PENALTY, TEST_SECS } from '../engine/scoring';
 
-export function TextDisplay({ displayChars, displayPos, compact }) {
+// Memoised: only re-renders when the visible text chunk, the cursor or `compact` changes.
+export const TextDisplay = React.memo(function TextDisplay({ displayChars, displayPos, compact }) {
   const tokens = [];
   let wordBuf=[], wordStart=0;
   displayChars.forEach((ch,i) => {
@@ -60,7 +61,7 @@ export function TextDisplay({ displayChars, displayPos, compact }) {
       })}
     </div>
   );
-}
+});
 
 // STAT PILL
 

@@ -10,7 +10,7 @@
 <script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
 <script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.10/babel.min.js"></script>
-<script src="char.js?v=4"></script>
+<script src="char.js?v=5"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600;700;800&display=swap" rel="stylesheet">
@@ -1579,9 +1579,49 @@ function duelOutcome(roomPlayers, myScore, waited) {
   return {outcome,rvName:rv?.name||'คู่แข่ง',rvScore,tie:settled&&!!rv&&myScore===rvScore};
 }
 
+// RESULT STAGE — who stands on the podium and in which pose (Phase 3)
+// Battle Royale order, same rule as the standings list.
+function brOrder(roomPlayers) {
+  const tier=p=>p.status==='done'?0:p.status==='eliminated'?2:1;
+  return Object.entries(roomPlayers||{}).filter(([,p])=>!p.isSpectator).sort(([,ap],[,bp])=>{
+    const ta=tier(ap), tb=tier(bp);
+    if (ta!==tb) return ta-tb;
+    if (ta===0 && ap.finishedAt && bp.finishedAt) return ap.finishedAt-bp.finishedAt;
+    if ((bp.pos||0)!==(ap.pos||0)) return (bp.pos||0)-(ap.pos||0);
+    return (bp.cpm||0)-(ap.cpm||0);
+  });
+}
+function resultStage({ roomType, roomCode, roomPlayers, myCfg, myName, duel, soloBest }) {
+  if (!window.CharKit || !myCfg) return null;
+  const uid=currentFirebaseUid();
+  const me={id:'me',cfg:myCfg,label:'คุณ',me:true};
+  const KEEP='💪 สู้ใหม่!';
+  if (duel) {
+    const rv=Object.entries(roomPlayers||{}).find(([k,p])=>!p.isSpectator&&k!==uid&&p.uid!==uid);
+    const rival={id:rv?.[0]||'rival',cfg:rv?CharKit.fromPlayer(rv[1]):CharKit.fromName(duel.rvName),label:duel.rvName};
+    const o=duel.outcome;
+    if (o==='win')  return {confetti:true, actors:[{...me,pose:'cheer',level:2},{...rival,pose:'sad',level:1,color:'#E79035'}]};
+    if (o==='lose') return {confetti:false,actors:[{...me,pose:'sad',level:1,color:'#347ED0',note:KEEP},{...rival,pose:'cheer',level:2}]};
+    if (o==='draw') return {confetti:true, actors:[{...me,pose:'cheer',level:2},{...rival,pose:'cheer',level:2}]};
+    return {confetti:false,actors:[{...me,pose:'idle',level:1,color:'#347ED0'},{...rival,pose:'idle',level:1,color:'#E79035'}]};
+  }
+  if (roomCode && roomType==='royale') {
+    const order=brOrder(roomPlayers);
+    const myRank=order.findIndex(([k,p])=>k===uid||p.uid===uid)+1;
+    if (myRank===1) return {confetti:true,actors:[{...me,pose:'cheer',level:2,label:'🥇 คุณ'}]};
+    const top=order[0];
+    const winner=top?{id:top[0],cfg:CharKit.fromPlayer(top[1]),label:'🥇 '+(top[1].name||'ผู้ชนะ'),pose:'cheer',level:2}:null;
+    const mine={...me,pose:'sad',level:1,label:myRank>0?`อันดับ ${myRank}`:'คุณ',note:KEEP,color:'#64748B'};
+    return {confetti:false,actors:winner?[winner,mine]:[mine]};
+  }
+  // Solo practice / weekly test: no "losing" alone — cheer on a personal best, otherwise idle.
+  return {confetti:!!soloBest,actors:[{...me,pose:soloBest?'cheer':'idle',level:soloBest?2:1,
+    label:soloBest?'🏆 สถิติใหม่!':'คุณ',color:soloBest?undefined:'#347ED0'}]};
+}
+
 // RESULTS SCREEN
 
-function ResultsScreen({ cpm, accuracy, errors, totalChars, lesson, saveStatus, saveError, studentName, ghostData, newRecord, roomCode, roomType, roomPlayers, myName, bestCombo, score, maxScore, isTest, testBoard, prevBest, onRestart, onBack }) {
+function ResultsScreen({ cpm, accuracy, errors, totalChars, lesson, saveStatus, saveError, studentName, ghostData, newRecord, roomCode, roomType, roomPlayers, myName, myCfg, bestCombo, score, maxScore, isTest, testBoard, prevBest, onRestart, onBack }) {
   const tf="'Sarabun','Noto Sans Thai',sans-serif";
   const isDuel = roomType==='1v1' && !!roomCode;
   const [waited, setWaited] = useState(false);
@@ -1599,11 +1639,20 @@ function ResultsScreen({ cpm, accuracy, errors, totalChars, lesson, saveStatus, 
     accuracy>=90           ? {label:'ดี 👍',         color:'#059669'} :
                              {label:'ฝึกต่อ 💪',    color:'#7C3AED'};
   const headline = isTest ? 'หมดเวลาแล้ว!' : 'เสร็จแล้ว!';
+  // Personal best: practice → beat the previous high score; weekly test → this attempt is my best.
+  const soloBest = !roomCode && (isTest
+    ? (saveStatus==='saved' && !!testBoard?.me && score>0 && score>=testBoard.me.score)
+    : (score>0 && score>prevBest));
+  const stage = resultStage({ roomType, roomCode, roomPlayers, myCfg, myName, duel, soloBest });
   return (
     <div style={{textAlign:'center',fontFamily:tf}}>
+      {stage ? (
+        <CharKit.ResultStage actors={stage.actors} confetti={stage.confetti} style={{marginBottom:6}}/>
+      ) : (
       <div style={{fontSize:52,marginBottom:8}}>
         {duel ? (duel.outcome==='win'?'🏆':duel.outcome==='lose'?'💪':duel.outcome==='draw'?'🤝':'⏳')
           : accuracy>=95?'🎉':accuracy>=85?'👏':'💪'}</div>
+      )}
       <h2 style={{fontSize:26,fontWeight:800,color:'var(--c-t1)',marginBottom:4}}>{headline}</h2>
       <div style={{color:grade.color,fontWeight:800,fontSize:18,marginBottom:12}}>
         {grade.label}
@@ -3874,6 +3923,7 @@ function ThaiTypingApp() {
             score={score} maxScore={maxScore} isTest={!!activeTest}
             testBoard={testBoard}
             prevBest={prevBest}
+            myCfg={myCfg}
             onRestart={()=>{
               if(rcRef.current){handleLeaveRoom();}
               else if(testRef.current) startWeeklyTest();

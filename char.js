@@ -235,11 +235,23 @@
     return g;
   }
 
-  // Draws one frame. crop = part of the 64×64 frame to show.
+  // Animation steps: `seq` (column order, e.g. ping-pong) and `durations` (ms per step)
+  // are optional in char.json; without them every column plays once at frameMs.
+  function stepCol(a, k) {
+    const seq = a.seq && a.seq.length ? a.seq : null, n = seq ? seq.length : a.frames;
+    const i = ((k % n) + n) % n;
+    return seq ? seq[i] : i;
+  }
+  function stepMs(a, k) {
+    const d = a.durations, n = a.seq && a.seq.length ? a.seq.length : a.frames;
+    return (d && d.length ? d[((k % n) + n) % n % d.length] : a.frameMs) || 200;
+  }
+
+  // Draws one animation step. crop = part of the 64×64 frame to show.
   function drawFrame(ctx, sprite, anim, frame, dx, dy, scale, crop) {
     const a = sprite.anims[anim] || sprite.anims.idle, S = sprite.size;
     const c = crop || { x: 0, y: 0, w: S, h: S };
-    const f = ((frame % a.frames) + a.frames) % a.frames;
+    const f = stepCol(a, frame);
     ctx.imageSmoothingEnabled = false;
     ctx.drawImage(sprite.sheet, f * S + c.x, a.row * S + c.y, c.w, c.h, dx, dy, c.w * scale, c.h * scale);
   }
@@ -281,8 +293,8 @@
         if (s) {
           const a = s.anims[o.anim] || s.anims.idle;
           acc += (now - last) * Math.max(0, o.speed);
-          const step = a.frameMs || 200;
-          while (acc >= step) { acc -= step; frame++; }
+          let step;
+          while (acc >= (step = stepMs(a, frame))) { acc -= step; frame++; }
           if (frame !== shown) { drawNow(frame); shown = frame; }
         }
         last = now;
@@ -317,7 +329,7 @@
   //   mode '1v1'    → rival drawn solid, both get a name tag
   //   mode 'royale' → rivals faint, storm wall from the left (zonePct)
   // info: small text in the top-right corner (e.g. "43 / 199 ตัว")
-  const PAD_L = 30, PAD_R = 46, TRACK_H = 88, IDLE_AFTER = 1500, BEHIND = 7;
+  const PAD_L = 30, PAD_R = 46, TRACK_H = 100, IDLE_AFTER = 1500, BEHIND = 7;
   function RaceTrack(props) {
     const { mode = '1v1', runners = [], style } = props;
     const isDuel = mode !== 'royale';
@@ -373,10 +385,11 @@
         if (anim !== st.anim) { st.anim = anim; st.frame = 0; st.acc = 0; }
         if (!r.out) {
           const sp = spritesRef.current.get(r.id);
-          const fm = (sp && sp.anims[anim] && sp.anims[anim].frameMs) || 200;
+          const an = sp && sp.anims[anim];
           const speed = moving ? Math.max(0.6, Math.min(2.2, (Number(r.kpm) || 0) / 120)) : 1;
           st.acc += dt * speed;
-          while (st.acc >= fm) { st.acc -= fm; st.frame++; }
+          let fm;
+          while (st.acc >= (fm = an ? stepMs(an, st.frame) : 200)) { st.acc -= fm; st.frame++; }
         }
         return st;
       }
@@ -393,7 +406,7 @@
         ctx.restore();
       }
 
-      // Name tag: small pill beside the head, so it never covers the text area above.
+      // Name tag: small pill just above the head (never over the sprite).
       function drawTag(text, color, x, y) {
         ctx.font = font(800, 10);
         const w = Math.ceil(ctx.measureText(text).width) + 10;
@@ -451,12 +464,12 @@
         others.forEach(r => {
           const st = step(r, now, dt);
           drawRunner(r, st, feetY - BEHIND, isDuel ? (r.out ? .5 : 1) : (r.out ? .35 : .45));
-          if (isDuel) tags.push([r.label || '', r.color || '#E79035', xOf(st.x), feetY - BEHIND - FULL.h + 8]);
+          if (isDuel) tags.push([r.label || '', r.color || '#E79035', xOf(st.x), feetY - BEHIND - FULL.h - 4]);
         });
         if (me) {
           const st = step(me, now, dt);
           drawRunner(me, st, feetY, 1);
-          tags.push([(me.label || 'คุณ') + ' ▼', me.out ? '#64748B' : (me.color || '#1D4ED8'), xOf(st.x), feetY - FULL.h + 14]);
+          tags.push([(me.label || 'คุณ') + ' ▼', me.out ? '#64748B' : (me.color || '#1D4ED8'), xOf(st.x), feetY - FULL.h - 4]);
         }
         // Tags last so they sit on top; if two tags overlap, lift the rival's.
         tags.forEach((t, i) => {
@@ -480,6 +493,138 @@
 
     return h('div', { ref: wrapRef, style: Object.assign({ width: '100%', overflow: 'hidden' }, style) },
       h('canvas', { ref: cvRef, style: { width: (width || 0) + 'px', height: height + 'px', display: 'block', imageRendering: 'pixelated' } }));
+  }
+
+  // ── Phase 3: result stage (win / lose / draw) ───────────────
+  // actors: [{ id, cfg, label, pose: 'cheer'|'sad'|'idle', level: 0..2 (podium height),
+  //            me, note, color }]
+  // confetti: true → pixel confetti burst (restarts when it turns true again)
+  // Falls back to 'idle' when char.json has no cheer/sad rows.
+  const STAGE_SCALE = 2, BLOCK_W = 104, BLOCK_H = [14, 26, 40], STAGE_GAP = 22;
+  const CONFETTI_COLORS = ['#F59E0B', '#EF4444', '#3B82F6', '#10B981', '#8B5CF6', '#EC4899', '#FDE047'];
+  function ResultStage(props) {
+    const { actors = [], style } = props;
+    const height = 76 + FULL.h * STAGE_SCALE + 40;
+    const wrapRef = useRef(null), cvRef = useRef(null);
+    const optRef = useRef(props); optRef.current = props;
+    const spritesRef = useRef(new Map()), stateRef = useRef(new Map());
+    const confRef = useRef({ on: false, start: 0, bits: [] });
+    const [width, setWidth] = useState(0);
+    const keys = actors.map(a => a.id + '=' + keyOf(sanitize(a.cfg) || defaults('boy'))).join(',');
+
+    useEffect(() => {
+      let alive = true;
+      optRef.current.actors.forEach(a => {
+        buildSprite(a.cfg).then(s => { if (alive) spritesRef.current.set(a.id, s); }).catch(() => {});
+      });
+      return () => { alive = false; };
+    }, [keys]);
+
+    useEffect(() => {
+      const el = wrapRef.current; if (!el) return;
+      const upd = () => setWidth(Math.max(240, Math.floor(el.clientWidth)));
+      upd();
+      if (typeof ResizeObserver === 'undefined') {
+        window.addEventListener('resize', upd);
+        return () => window.removeEventListener('resize', upd);
+      }
+      const ro = new ResizeObserver(upd); ro.observe(el);
+      return () => ro.disconnect();
+    }, []);
+
+    useEffect(() => {
+      if (!width) return;
+      const cv = cvRef.current, dpr = Math.min(2, window.devicePixelRatio || 1);
+      cv.width = Math.round(width * dpr); cv.height = Math.round(height * dpr);
+      const ctx = cv.getContext('2d');
+      const font = (w, px) => w + ' ' + px + "px 'Sarabun','Noto Sans Thai',sans-serif";
+      const groundY = height - 6;
+
+      function spawnConfetti(now) {
+        const bits = [];
+        for (let i = 0; i < 90; i++) bits.push({
+          x: Math.random() * width, y: -10 - Math.random() * height * 0.8,
+          vy: 40 + Math.random() * 70, sway: 10 + Math.random() * 18, ph: Math.random() * 6.3,
+          s: 3 + Math.floor(Math.random() * 2), c: CONFETTI_COLORS[i % CONFETTI_COLORS.length],
+        });
+        confRef.current = { on: true, start: now, bits };
+      }
+
+      function paint(now, dt) {
+        const o = optRef.current, list = o.actors || [];
+        ctx.clearRect(0, 0, width, height);
+        ctx.imageSmoothingEnabled = false;
+        // confetti behind the characters
+        if (o.confetti && !confRef.current.on) spawnConfetti(now);
+        if (!o.confetti) confRef.current.on = false;
+        const cf = confRef.current;
+        if (cf.on) {
+          const t = (now - cf.start) / 1000, fade = Math.max(0, Math.min(1, (4.5 - t) / 1.2));
+          if (fade > 0) {
+            ctx.save(); ctx.globalAlpha = fade;
+            cf.bits.forEach(b => {
+              b.y += b.vy * dt / 1000;
+              const x = b.x + Math.sin(t * 3 + b.ph) * b.sway;
+              ctx.fillStyle = b.c; ctx.fillRect(Math.round(x), Math.round(b.y), b.s, b.s);
+            });
+            ctx.restore();
+          }
+        }
+        const n = list.length, span = n * BLOCK_W + (n - 1) * STAGE_GAP;
+        list.forEach((a, i) => {
+          const cx = Math.round((width - span) / 2 + i * (BLOCK_W + STAGE_GAP) + BLOCK_W / 2);
+          const bh = BLOCK_H[Math.max(0, Math.min(2, a.level | 0))];
+          const top = groundY - bh;
+          // podium block
+          ctx.fillStyle = a.color || (a.level >= 2 ? '#F59E0B' : '#94A3B8');
+          ctx.fillRect(cx - BLOCK_W / 2, top, BLOCK_W, bh);
+          ctx.fillStyle = 'rgba(255,255,255,.28)'; ctx.fillRect(cx - BLOCK_W / 2, top, BLOCK_W, 3);
+          if (bh >= 24) {
+            ctx.font = font(800, 12); ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+            ctx.fillStyle = '#FFFFFF'; ctx.fillText(a.label || '', cx, top + bh / 2 + 1, BLOCK_W - 8);
+          }
+          // character
+          const s = spritesRef.current.get(a.id);
+          let st = stateRef.current.get(a.id);
+          if (!st) { st = { pose: '', k: 0, acc: 0 }; stateRef.current.set(a.id, st); }
+          if (s) {
+            const pose = s.anims[a.pose] ? a.pose : 'idle';
+            if (pose !== st.pose) { st.pose = pose; st.k = 0; st.acc = 0; }
+            const an = s.anims[pose];
+            st.acc += dt;
+            let ms; while (st.acc >= (ms = stepMs(an, st.k))) { st.acc -= ms; st.k++; }
+            ctx.fillStyle = 'rgba(15,23,42,.18)';
+            ctx.beginPath(); ctx.ellipse(cx, top, 26, 4, 0, 0, Math.PI * 2); ctx.fill();
+            drawFrame(ctx, s, pose, st.k, cx - FULL.w * STAGE_SCALE / 2, top - FULL.h * STAGE_SCALE + 2, STAGE_SCALE, FULL);
+          }
+          if (bh < 24 && a.label) {          // short block: name above the head
+            ctx.font = font(800, 12); ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
+            ctx.fillStyle = a.me ? '#1D4ED8' : '#475569';
+            ctx.fillText(a.label, cx, top - FULL.h * STAGE_SCALE - 2, BLOCK_W + 10);
+          }
+          if (a.note) {
+            ctx.font = font(800, 13); ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
+            const w = Math.min(BLOCK_W + 30, ctx.measureText(a.note).width + 16);
+            const y = top - FULL.h * STAGE_SCALE - (bh < 24 ? 22 : 6);
+            ctx.fillStyle = 'rgba(255,255,255,.92)'; ctx.fillRect(cx - w / 2, y - 15, w, 20);
+            ctx.fillStyle = a.noteColor || '#B45309'; ctx.fillText(a.note, cx, y);
+          }
+        });
+      }
+
+      let raf = 0, last = performance.now();
+      const tick = now => {
+        const dt = Math.min(100, now - last); last = now;
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        paint(now, dt);
+        raf = requestAnimationFrame(tick);
+      };
+      raf = requestAnimationFrame(tick);
+      return () => cancelAnimationFrame(raf);
+    }, [width, height]);
+
+    return h('div', { ref: wrapRef, style: Object.assign({ width: '100%' }, style) },
+      h('canvas', { ref: cvRef, style: { width: (width || 0) + 'px', height: height + 'px', display: 'block', imageRendering: 'pixelated', margin: '0 auto' } }));
   }
 
   // ── React: character creator screen ─────────────────────────
@@ -613,7 +758,7 @@
   window.CharKit = {
     OPTIONS, defaults, sanitize, randomize, loadLocal, saveLocal,
     load, buildSprite, drawFrame, CharCanvas, Avatar, CreatorScreen,
-    fromName, fromPlayer, toWire, grayOf, RaceTrack,
+    fromName, fromPlayer, toWire, grayOf, RaceTrack, ResultStage,
     CROP: { FULL, HEAD },
   };
 })();

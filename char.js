@@ -330,6 +330,7 @@
   //   mode 'royale' → rivals faint, storm wall from the left (zonePct)
   //   r.alpha overrides the opacity, r.tag shows a name tag in royale mode,
   //   r.track = { timings, start, total } makes a ghost replay its own position
+  // hitAt: Date.now() of the last life lost → short red flash (royale)
   // info: small text in the top-right corner (e.g. "43 / 199 ตัว")
   const PAD_L = 30, PAD_R = 46, TRACK_H = 100, IDLE_AFTER = 1500, BEHIND = 7;
   function RaceTrack(props) {
@@ -406,10 +407,10 @@
         return st;
       }
 
-      function drawRunner(r, st, fy, alpha) {
+      function drawRunner(r, st, fy, alpha, dx = 0) {
         const s0 = spritesRef.current.get(r.id); if (!s0) return;
         const s = r.out ? grayOf(s0) : s0;
-        const x = Math.round(xOf(st.x));
+        const x = Math.round(xOf(st.x) + dx);
         ctx.save();
         ctx.globalAlpha = alpha;
         ctx.fillStyle = 'rgba(15,23,42,.16)';
@@ -419,10 +420,13 @@
       }
 
       // Name tag: small pill just above the head (never over the sprite).
-      function drawTag(text, color, x, y) {
+      // anchor: 'center' (x = middle), 'right' (x = right edge), 'left' (x = left edge)
+      function tagWidth(text) { ctx.font = font(800, 10); return Math.ceil(ctx.measureText(text).width) + 10; }
+      function drawTag(text, color, x, y, anchor = 'center') {
         ctx.font = font(800, 10);
-        const w = Math.ceil(ctx.measureText(text).width) + 10;
-        const left = Math.max(2, Math.min(width - PAD_R - w, x - w / 2));
+        const w = tagWidth(text);
+        const want = anchor === 'right' ? x - w : anchor === 'left' ? x : x - w / 2;
+        const left = Math.max(2, Math.min(width - PAD_R - w, want));
         ctx.fillStyle = 'rgba(255,255,255,.88)';
         ctx.fillRect(left, y - 11, w, 14);
         ctx.fillStyle = color; ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
@@ -455,6 +459,20 @@
           g.addColorStop(0, 'rgba(76,29,149,.62)');
           g.addColorStop(1, 'rgba(124,58,237,.30)');
           ctx.fillStyle = g; ctx.fillRect(0, 0, zx, height);
+          // Storm rain: slanted streaks drifting right, drawn from time only (no state)
+          ctx.save();
+          ctx.beginPath(); ctx.rect(0, 0, zx, height); ctx.clip();
+          ctx.strokeStyle = 'rgba(237,233,254,.45)'; ctx.lineWidth = 1.2;
+          const n = Math.max(4, Math.round(zx / 9));
+          ctx.beginPath();
+          for (let i = 0; i < n; i++) {
+            const sp = 0.09 + (i % 3) * 0.035;
+            const px = ((i * 47.3 + now * sp * 0.6) % (zx + 20)) - 10;
+            const py = ((i * 31.7 + now * sp) % (height + 20)) - 10;
+            ctx.moveTo(px, py); ctx.lineTo(px + 4, py + 9);
+          }
+          ctx.stroke();
+          ctx.restore();
           ctx.strokeStyle = '#7C3AED'; ctx.lineWidth = 2.5; ctx.beginPath();
           for (let y = 0; y <= height; y += 4) {
             const wx = zx + Math.sin(y / 7 + now / 140) * 3;
@@ -481,14 +499,37 @@
         });
         if (me) {
           const st = step(me, now, dt);
-          drawRunner(me, st, feetY, 1);
-          tags.push([(me.label || 'คุณ') + ' ▼', me.out ? '#64748B' : (me.color || '#1D4ED8'), xOf(st.x), feetY - FULL.h - 4]);
+          const danger = !isDuel && zonePct > 0 && !me.out && !me.finished && st.x < zonePct;
+          const dx = danger ? Math.round(Math.sin(now / 35) * 1.5) : 0;
+          if (danger) {                       // red pulse under the feet
+            const a = .22 + .18 * Math.sin(now / 120);
+            ctx.fillStyle = 'rgba(239,68,68,' + a.toFixed(3) + ')';
+            ctx.beginPath(); ctx.ellipse(xOf(st.x), feetY - 1, 22, 5, 0, 0, Math.PI * 2); ctx.fill();
+          }
+          drawRunner(me, st, feetY, 1, dx);
+          if (danger && Math.floor(now / 260) % 2 === 0) {   // flickering bolt beside the head
+            ctx.font = font(400, 13); ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
+            ctx.fillText('⚡', xOf(st.x) + FULL.w / 2 - 4, feetY - FULL.h + 16);
+          }
+          tags.push([(me.label || 'คุณ') + (danger ? ' ⚠️' : ' ▼'),
+            me.out ? '#64748B' : danger ? '#DC2626' : (me.color || '#1D4ED8'), xOf(st.x), feetY - FULL.h - 4]);
         }
-        // Tags last so they sit on top; if two tags overlap, lift the rival's.
-        tags.forEach((t, i) => {
-          const near = tags.length === 2 && Math.abs(tags[0][2] - tags[1][2]) < 70;
-          drawTag(t[0], t[1], near ? t[2] + (i === 0 ? -40 : 40) : t[2], t[3]);
-        });
+        // Tags last so they sit on top. If two tags would overlap, place them side by
+        // side meeting at the midpoint between the runners (back one left, front one right).
+        const near = tags.length === 2 &&
+          Math.abs(tags[0][2] - tags[1][2]) < (tagWidth(tags[0][0]) + tagWidth(tags[1][0])) / 2 + 4;
+        if (near) {
+          const [a, b] = tags[0][2] <= tags[1][2] ? [tags[0], tags[1]] : [tags[1], tags[0]];
+          const mid = (a[2] + b[2]) / 2;
+          drawTag(a[0], a[1], mid - 2, a[3], 'right');
+          drawTag(b[0], b[1], mid + 2, b[3], 'left');
+        } else tags.forEach(t => drawTag(t[0], t[1], t[2], t[3]));
+        // Life lost: quick red flash over the whole lane
+        const hitAge = o.hitAt ? Date.now() - o.hitAt : 1e9;
+        if (hitAge < 450) {
+          ctx.fillStyle = 'rgba(220,38,38,' + (0.32 * (1 - hitAge / 450)).toFixed(3) + ')';
+          ctx.fillRect(0, 0, width, height);
+        }
       }
 
       let raf = 0, last = performance.now();

@@ -42,7 +42,9 @@ export const TextDisplay = React.memo(function TextDisplay({ displayChars, displ
           );
         }
         return (
-          <span key={ti} style={{display:'inline-block',whiteSpace:'nowrap'}}>
+          // Thai has no spaces inside a phrase, so stage-9 sentences can be one very long "word":
+          // let those wrap (the browser breaks Thai at word boundaries) instead of overflowing.
+          <span key={ti} style={tok.chars.length>16?{display:'inline'}:{display:'inline-block',whiteSpace:'nowrap'}}>
             {tok.chars.map(({ch,idx}) => {
               const done = idx < displayPos;
               const cur  = idx === displayPos;
@@ -107,8 +109,8 @@ export function PenaltyScreen({ countdown }) {
 
 // WEEKLY TEST CLOCK — ring shrinks with the time left; green → yellow (30 s) → red (10 s)
 
-export function TestTimer({ startTime, now, endTime }) {
-  const total = TEST_SECS * 1000;
+export function TestTimer({ startTime, now, endTime, total: totalSecs = TEST_SECS }) {
+  const total = totalSecs * 1000;
   const used = startTime ? Math.min(total, Math.max(0, (endTime ?? now) - startTime)) : 0;
   const leftMs = total - used;
   const left = Math.ceil(leftMs / 1000);
@@ -137,7 +139,7 @@ export function TestTimer({ startTime, now, endTime }) {
       {!startTime && (
         <span style={{fontSize:12,color:'var(--c-t2)',fontWeight:700,lineHeight:1.4,
           fontFamily:"'Sarabun','Noto Sans Thai',sans-serif"}}>
-          2 นาที<br/>เริ่มนับเมื่อกดปุ่มแรก
+          {totalSecs % 60 ? `${totalSecs} วินาที` : `${totalSecs / 60} นาที`}<br/>เริ่มนับเมื่อกดปุ่มแรก
         </span>
       )}
     </div>

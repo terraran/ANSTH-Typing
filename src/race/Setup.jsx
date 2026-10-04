@@ -99,12 +99,12 @@ export function MPSetupScreen({ mode, onSelect, onBack, busy }) {
                   onMouseLeave={e=>{e.currentTarget.style.background='#fff';e.currentTarget.style.transform='none';}}>
                   <div style={{display:'flex',alignItems:'center',gap:6,marginBottom:4}}>
                     <span style={{background:lesson.al,color:lesson.accent,borderRadius:6,
-                      padding:'2px 7px',fontSize:9,fontWeight:800}}>บท {lesson.id}</span>
+                      padding:'2px 7px',fontSize:9,fontWeight:800}}>บท {lesson.num ?? lesson.id}</span>
                   </div>
                   <div style={{fontFamily:tf,fontSize:13,fontWeight:800,color:'var(--c-t1)',lineHeight:1.3}}>
                     {lesson.thaiName}</div>
                   <div style={{fontSize:10,color:'var(--c-t3)',marginTop:2}}>
-                    {busy?'⏳':'→'} {(lesson.exercises||lesson.exercisesA||[]).length} exercises</div>
+                    {busy?'⏳':'→'} {(lesson.exercises||lesson.exercisesA||[]).length} ขั้น</div>
                 </button>
               ))}
             </div>

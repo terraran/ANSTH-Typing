@@ -1,3 +1,4 @@
+import { CURRICULUM_LESSONS, CURRICULUM_CHAPTERS } from './curriculum.js';
 // 1v1: seconds the other player gets after one finishes
 
 // Battle Royale difficulty — host picks life count before creating the room
@@ -12,7 +13,9 @@ export function difficultyOf(lives){ return BR_DIFFICULTIES.find(d=>d.lives===li
 
 // LESSONS
 
-export const LESSONS = [
+// Old lessons 1–13: hidden from the menus but kept so old high scores, weekly tests,
+// ghosts and stats that refer to them still resolve.
+export const OLD_LESSONS = [
   {
     id:1, thaiName:'แถวกลาง', engName:'Home Row — กดสหว',
     desc:'ฝึกนิ้วบน Home Row ไม่ใช้แถวอื่นเลย', accent:'#059669', al:'#D1FAE5',
@@ -221,10 +224,17 @@ export const LESSONS = [
 
 ];
 
-// Chapter groupings for lesson selector
-export const CHAPTERS = [
+// Old chapter groupings (no longer shown)
+export const OLD_CHAPTERS = [
   { id:1, label:'Chapter 1', title:'แถวหลัก',   subtitle:'ไม่ต้องใช้ Shift',       icon:'🎹', from:'#1D4ED8', to:'#3B82F6', dot:'#1D4ED8', lessonIds:[1,2,3,4] },
   { id:2, label:'Chapter 2', title:'Shift ง่าย', subtitle:'ตัวอักษรที่ใช้บ่อย',    icon:'⇧',  from:'#059669', to:'#34D399', dot:'#059669', lessonIds:[5,6,7,8] },
   { id:3, label:'Chapter 3', title:'Shift ยาก',  subtitle:'ตัวอักษรหายาก',         icon:'⚡', from:'#DC2626', to:'#F87171', dot:'#DC2626', lessonIds:[9,10,11] },
   { id:4, label:'Chapter 4', title:'ตัวพิเศษ',  subtitle:'เลขไทยและเครื่องหมาย',  icon:'🔢', from:'#7C3AED', to:'#A78BFA', dot:'#7C3AED', lessonIds:[12,13] },
 ];
+
+// What the menus show: the new 9-stage curriculum (lesson ids 101–134).
+export const LESSONS = CURRICULUM_LESSONS;
+export const CHAPTERS = CURRICULUM_CHAPTERS;
+// For looking up any lesson by id (old weekly tests, rooms, rejoin).
+export const ALL_LESSONS = [...CURRICULUM_LESSONS, ...OLD_LESSONS];
+export const findLesson = id => ALL_LESSONS.find(l => l.id === Number(id)) || null;

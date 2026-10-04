@@ -2,13 +2,15 @@ import { SCRIPT_URL } from './config';
 import { buildChunks, cleanTypingWords, generateBRText, generateStoryText, generateText, generateTimedText, seededRng } from './engine/text';
 import { CHAR_CLASS, CLASS_NAMES, KEY_META, findKeyForChar, resolveKey, validateInput } from './engine/keymap';
 import { KEYS_ON, KeyTester } from './ui/KeyTester';
-import { ERROR_BURST, ERROR_WINDOW_MS, PRESSURE_SECS, SPAM_PENALTY, SPAM_WINDOW_KEYS, SPAM_WRONG_SHARE, SPEED_CPM, TEST_MIN_CHARS, TEST_SECS, charBasePoints, comboMultiplier, fmtScore, hsKey, readGuestHighScores, speedMultiplier, testTargetScore, writeGuestHighScores } from './engine/scoring';
+import { ERROR_BURST, ERROR_WINDOW_MS, PRESSURE_SECS, SPAM_PENALTY, SPAM_WINDOW_KEYS, SPAM_WRONG_SHARE, SPEED_CPM, TEST_MIN_CHARS, TEST_SECS, charBasePoints, comboMultiplier, fmtScore, hsKey, lessonStars, netThaiWpmOf, readCurStars, readGuestHighScores, stageTarget, thaiWpmOf, writeCurStars, speedMultiplier, testTargetScore, writeGuestHighScores } from './engine/scoring';
 import { ROOM_CODE_LEN, ROOM_CODE_RE, ZONE_GAP, ZONE_GRACE, ZONE_TICK, currentFirebaseUid, ensureFirebaseUser, fbArmLobby, fbArmRace, fbClearActiveRoom, fbCreate, fbDisarm, fbGet, fbGetActiveRoom, fbJoin, fbListen, fbRemove, fbServerOffset, fbSetActiveRoom, fbSetChar, fbSetStatus, fbUpdatePlayer, getDB, getZonePos, getZoneSpeed, makeFreeCode, zonePosAt } from './firebase';
 import { brOrder, brRaceOver, dcLeftMs, graceMs, isOutState, playerState } from './race/presence';
 import { LeaveConfirm, RejoinBanner } from './race/PresenceUI';
 import { apiGetStudentStats, apiGetWeeklyBoard, apiRequest, apiSaveMatch, apiSubmitWeekly, describeApiError, saveSession } from './api';
 import { auth } from './auth';
-import { LESSONS } from './data/lessons';
+import { LESSONS, findLesson } from './data/lessons';
+import { stageOf } from './data/curriculum.js';
+import { curriculumText } from './engine/curriculumText.js';
 import { PenaltyScreen, TestTimer, TextDisplay, TimeUpOverlay } from './ui/common';
 import { NameModal, StoryChoiceScreen } from './screens/Story';
 import { ClassPickerScreen, GoogleSignInScreen } from './screens/Login';
@@ -153,6 +155,8 @@ export function ThaiTypingApp() {
   const [maxScore,    setMaxScore]    = useState(0);    // weekly test: target score (100%)
   const [highScores,  setHighScores]  = useState({});   // practice best per exercise
   const [prevBest,    setPrevBest]    = useState(0);    // high score before this run
+  const [curStars,    setCurStars]    = useState(()=>readCurStars());   // curriculum: best ⭐ per step ("101|1.1")
+  const [curResult,   setCurResult]   = useState(null);  // curriculum: {stars, prevStars, wpm, target, net} of the last run
   const testRef       = useRef(null);
   const hsDone        = useRef(false);
   const highScoresRef = useRef({});   // latest highScores for callbacks with [] deps (ghost score fallback)
@@ -183,6 +187,8 @@ export function ThaiTypingApp() {
   // A race I am still in: leaving it now needs confirmation and counts as a forfeit.
   const raceRunning = !!roomCode && (screen==='countdown' || (screen==='practice' && !endTime && !isEliminated));
   const nextChar    = pos<targetChars.length ? targetChars[pos] : null;
+  // Timed run: weekly test (2 min) or a timed curriculum step (exercise.secs). 0 = untimed.
+  const timeLimit   = activeTest ? TEST_SECS : (!roomCode && exercise?.secs) || 0;
   const nextKey     = nextChar ? findKeyForChar(nextChar) : null;
   const nextCode    = nextKey?.code ?? null;
   const needsShift  = nextKey?.needsShift ?? false;
@@ -230,21 +236,21 @@ export function ThaiTypingApp() {
 
   // Clock tick while typing (faster during the weekly test so the ring moves smoothly)
   useEffect(() => {
-    if (screen!=='practice'||!startTime||endTime||!activeTest) return;   // only the weekly-test clock needs a tick
+    if (screen!=='practice'||!startTime||endTime||!timeLimit) return;   // only timed runs need a clock tick
     const id=setInterval(()=>setNow(Date.now()),200);
     return ()=>clearInterval(id);
-  },[screen,startTime,endTime,activeTest]);
+  },[screen,startTime,endTime,timeLimit]);
 
   // Weekly test: 2 minutes from the first keypress, then "⏰ หมดเวลา!" → results.
   // The clock keeps running during a spam penalty (that is part of the penalty).
   useEffect(() => {
-    if (screen!=='practice'||!activeTest||!startTime||endTime) return;
-    if (now-startTime < TEST_SECS*1000) return;
-    setEndTime(startTime+TEST_SECS*1000);
+    if (screen!=='practice'||!timeLimit||!startTime||endTime) return;
+    if (now-startTime < timeLimit*1000) return;
+    setEndTime(startTime+timeLimit*1000);
     frozenRef.current=false; setPenaltySecs(0);
     setTimeUp(true);
     setTimeout(()=>{ setTimeUp(false); setScreen(s=>s==='practice'?'results':s); },1400);
-  },[now,screen,activeTest,startTime,endTime]);
+  },[now,screen,timeLimit,startTime,endTime]);
 
   // Spam penalty freeze — 5s, then resume the SAME race at the same position
   useEffect(() => {
@@ -583,6 +589,17 @@ export function ThaiTypingApp() {
         setHighScores(next);
         if (!studentName || !SCRIPT_URL) writeGuestHighScores(next);
       }
+      if (lesson.curriculum) {
+        const mins = startTime && endTime ? (endTime - startTime) / 60000 : 0;
+        const acc = (pos + errors) > 0 ? Math.round(pos / (pos + errors) * 100) : 100;
+        const net = exercise.kind === 'long' || exercise.kind === 'longtimed';
+        const wpm = net ? netThaiWpmOf(pressCountRef.current, errors, mins) : thaiWpmOf(pressCountRef.current, mins);
+        const target = stageTarget(lesson.stage);
+        const stars = lessonStars(wpm, acc, target);
+        const prevStars = curStars[k] || 0;
+        setCurResult({ stars, prevStars, wpm: Math.round(wpm * 10) / 10, target, net, accuracy: acc });
+        if (stars > prevStars) { const m = {...curStars, [k]: stars}; setCurStars(m); writeCurStars(m); }
+      } else setCurResult(null);
     }
     if (!studentName || !SCRIPT_URL) return;
     if (rcRef.current) return;            // races are saved to the Matches sheet (recordMatch), not Sessions
@@ -669,6 +686,15 @@ export function ThaiTypingApp() {
     }
   },[googleUser, studentName, classCode]);
 
+  // Curriculum: the step after this one (next step of the lesson, else step 1 of the next lesson)
+  const nextStepOf = (les, ex) => {
+    if (!les?.curriculum || !ex) return null;
+    const i = les.exercises.indexOf(ex);
+    if (i >= 0 && i < les.exercises.length - 1) return { lesson: les, exercise: les.exercises[i + 1] };
+    const nl = LESSONS.find(l => l.num === les.num + 1);
+    return nl ? { lesson: nl, exercise: nl.exercises[0] } : null;
+  };
+
   const startExercise = useCallback((les,ex,opts={}) => {
     if (les.story && les.id===14) {
       const nm=(()=>{try{return localStorage.getItem('adventureName')||'';}catch(e){return '';}})();
@@ -680,7 +706,7 @@ export function ThaiTypingApp() {
       const nm=(()=>{try{return localStorage.getItem('adventureName')||'นักผจญภัย';}catch(e){return 'นักผจญภัย';}})();
       text = generateStoryText(ex.words, nm);
     } else {
-      text = opts.text || generateText(ex.words,ex.minChars);
+      text = opts.text || (les.curriculum ? curriculumText(les, ex) : generateText(ex.words,ex.minChars));
     }
     setTarget(text);
     const test = opts.test || null;
@@ -690,7 +716,7 @@ export function ThaiTypingApp() {
     setScore(0); scoreRef.current=0; setScoreStreak(0); streakRef.current=0; setLastGain(null);
     scoredIdx.current=new Set(); missedIdx.current=new Set();
     speedBuf.current=[]; lastScoreTime.current=null; lessonIdRef.current=les.id;
-    hsDone.current=false; setPrevBest(0);
+    hsDone.current=false; setPrevBest(0); setCurResult(null);
     setPos(0); setErrors(0); setStartTime(null); setEndTime(null);
     setHint(null); setFlashCode(null); setShiftHeld(false); setNow(Date.now());
     keystrokeTimes.current=[]; errorTimes.current=[];
@@ -721,13 +747,15 @@ export function ThaiTypingApp() {
   const startWeeklyTest = useCallback(() => {
     const t = weekly?.test;
     if (!t) return;
-    const les = LESSONS.find(l=>l.id===Number(t.lessonId));
+    const les = findLesson(t.lessonId);
     const exs = les ? (les.exercises || []) : [];
     const num = s => (String(s||'').match(/^(\d+\.\d+)/)||[])[1];
     const ex = exs.find(e=>e.title===t.exerciseTitle)
       || exs.find(e=>num(e.title) && num(e.title)===num(t.exerciseTitle));
     if (!les || !ex) { alert('ไม่พบแบบฝึก "'+t.exerciseTitle+'" ในแอป — แจ้งครูให้ตั้งแบบทดสอบใหม่'); return; }
-    const text = generateTimedText(ex.words, TEST_MIN_CHARS, seededRng(t.testId));
+    const text = les.curriculum
+      ? curriculumText(les, ex, seededRng(t.testId), {minChars:TEST_MIN_CHARS})
+      : generateTimedText(ex.words, TEST_MIN_CHARS, seededRng(t.testId));
     startExercise(les, ex, {test:t, text});
   },[weekly, startExercise]);
 
@@ -803,7 +831,7 @@ export function ThaiTypingApp() {
       setMaxLives(rl); setPlayerLives(rl); plRef.current=rl;
       await fbJoin(roomId, name, rl, ccRef.current);
       if (charRef.current) fbSetChar(roomId, charRef.current);
-      const les = LESSONS.find(l=>l.id===data.info.lessonId)||null;
+      const les = findLesson(data.info.lessonId);
       setRoomCode(roomId); rcRef.current=roomId;
       setRoomType(data.info.type); rtRef.current=data.info.type;
       setIsHost(false);
@@ -1010,7 +1038,7 @@ export function ThaiTypingApp() {
       }
       lastZoneDrainTickRef.current=Math.max(0,nowTick);
       afkBaseRef.current=Date.now(); afkHitsRef.current=0;   // time away is not AFK
-      const les=LESSONS.find(l=>l.id===Number(info.lessonId))||LESSONS[0];
+      const les=findLesson(info.lessonId)||LESSONS[0];
       myRoomName.current=me.name||snRef.current||'ผู้เล่น';
       setRoomCode(code); rcRef.current=code; setRoomType(type); rtRef.current=type;
       setIsHost(info.hostUid===uid); setRoomInfo(info); setRoomPlayers(data.players||{});
@@ -1343,7 +1371,7 @@ export function ThaiTypingApp() {
             onSave={saveCharacter} onBack={()=>setScreen('lessons')}/>
         )}
         {screen==='lessons' && (
-          <LessonScreen onSelect={startExercise}
+          <LessonScreen onSelect={startExercise} curStars={curStars}
             onOpenSetup={(mode)=>{ setMpSetupMode(mode); setScreen('mp-setup'); }}
             onJoin={handleJoin}
             joinCode={joinCode} setJoinCode={setJoinCode}
@@ -1418,11 +1446,15 @@ export function ThaiTypingApp() {
             {!roomCode&&(
               <div style={{display:'flex',alignItems:'center',gap:12,marginBottom:10,
                 fontFamily:"'Sarabun','Noto Sans Thai',sans-serif"}}>
-                {activeTest&&<TestTimer startTime={startTime} now={now} endTime={endTime}/>}
+                {timeLimit>0&&<TestTimer startTime={startTime} now={now} endTime={endTime} total={timeLimit}/>}
                 <div style={{display:'flex',flexDirection:'column',gap:2}}>
                   {activeTest&&(
                     <span style={{alignSelf:'flex-start',background:'#EDE9FE',color:'#6D28D9',borderRadius:8,
                       padding:'3px 10px',fontSize:12,fontWeight:800}}>📝 แบบทดสอบประจำสัปดาห์ · {activeTest.exerciseTitle}</span>
+                  )}
+                  {!activeTest&&lesson?.curriculum&&exercise&&(
+                    <span style={{alignSelf:'flex-start',background:lesson.al,color:lesson.accent,borderRadius:8,
+                      padding:'3px 10px',fontSize:12,fontWeight:800}}>ด่าน {lesson.stage} · บท {lesson.num} · {exercise.title}</span>
                   )}
                   <div style={{display:'flex',alignItems:'center',gap:10}}>
                     <span style={{fontSize:22,fontWeight:800,color:'var(--c-t1)'}}>⭐ {fmtScore(score)}</span>
@@ -1605,6 +1637,9 @@ export function ThaiTypingApp() {
             score={score} maxScore={maxScore} isTest={!!activeTest}
             testBoard={testBoard}
             prevBest={prevBest}
+            curResult={!roomCode&&!activeTest?curResult:null}
+            nextStep={!roomCode&&!activeTest?nextStepOf(lesson,exercise):null}
+            onNext={()=>{ const n=nextStepOf(lesson,exercise); if(n) startExercise(n.lesson,n.exercise); }}
             myCfg={myCfg}
             sOffset={serverTimeOffset}
             brFinal={brFinal}

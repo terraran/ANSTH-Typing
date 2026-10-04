@@ -1,4 +1,4 @@
-import { LESSONS } from '../data/lessons';
+import { ALL_LESSONS } from '../data/lessons';
 
 // ── SAFE ZONE CONFIG ──────────────────────────────────────────────────
 // Zone starts 30s into the race, advances at ZONE_CPM chars/min.
@@ -102,7 +102,7 @@ export function buildLessonWordList(lesson) {
   return cleanTypingWords(exercises.flatMap(ex=>ex.words||[]));
 }
 
-export const LESSON_WORDLISTS=Object.fromEntries(LESSONS.map(lesson=>[lesson.id,buildLessonWordList(lesson)]));
+export const LESSON_WORDLISTS=Object.fromEntries(ALL_LESSONS.map(lesson=>[lesson.id,buildLessonWordList(lesson)]));
 
 export function generateBRText(startLesson, startExercise, minLength) {
   const wordPool=LESSON_WORDLISTS[startLesson.id]||buildLessonWordList(startLesson);

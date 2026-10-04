@@ -64,7 +64,7 @@ export function resultStage({ roomType, roomCode, roomPlayers, myCfg, myName, du
 
 // RESULTS SCREEN
 
-export function ResultsScreen({ cpm, accuracy, errors, totalChars, lesson, saveStatus, saveError, studentName, ghostData, newRecord, roomCode, roomType, roomPlayers, myName, myCfg, bestCombo, score, maxScore, isTest, testBoard, prevBest, sOffset=0, brFinal, onDuelSettled, onRestart, onBack }) {
+export function ResultsScreen({ cpm, accuracy, errors, totalChars, lesson, saveStatus, saveError, studentName, ghostData, newRecord, roomCode, roomType, roomPlayers, myName, myCfg, bestCombo, score, maxScore, isTest, testBoard, prevBest, sOffset=0, brFinal, onDuelSettled, onRestart, onBack, curResult, nextStep, onNext }) {
   const tf="'Sarabun','Noto Sans Thai',sans-serif";
   const isDuel = roomType==='1v1' && !!roomCode;
   const [waited, setWaited] = useState(false);
@@ -189,6 +189,27 @@ export function ResultsScreen({ cpm, accuracy, errors, totalChars, lesson, saveS
           )}
         </div>
       )}
+      {/* Curriculum step: stars from accuracy + speed vs the stage target (Thai words/min) */}
+      {curResult && (()=>{
+        const { stars, prevStars, wpm, target, net, accuracy:acc } = curResult;
+        const tip = stars===0 ? `ต้องแม่นยำอย่างน้อย 90% จึงได้ ⭐ (รอบนี้ ${acc}%) — ค่อย ๆ พิมพ์ให้ถูกก่อน`
+          : stars===1 ? `อีกนิด! พิมพ์ให้ได้ ${target} คำ/นาที เพื่อรับ ⭐⭐`
+          : stars===2 ? `เก่งมาก! ${Math.round(target*1.5*10)/10} คำ/นาที และแม่นยำ 95% ขึ้นไป = ⭐⭐⭐`
+          : 'สุดยอด! ได้ครบ 3 ดาว';
+        return (
+          <div style={{marginBottom:18,padding:'14px 18px',borderRadius:14,background:'#F0FDF4',
+            border:'1.5px solid #22C55E',fontFamily:tf}}>
+            <div style={{fontSize:34,letterSpacing:4,lineHeight:1.1}}>
+              {[0,1,2].map(i=><span key={i} style={{color:i<stars?'#F59E0B':'#CBD5E1'}}>★</span>)}
+            </div>
+            <div style={{fontSize:15,fontWeight:800,color:'#14532D',marginTop:4}}>
+              {net?'คำสุทธิ':'ความเร็ว'} {wpm} คำ/นาที · เป้าด่านนี้ {target} คำ/นาที</div>
+            <div style={{fontSize:12,color:'#166534',marginTop:2}}>{tip}</div>
+            {stars>prevStars&&prevStars>0&&<div style={{fontSize:12,fontWeight:800,color:'#B45309',marginTop:4}}>🎉 ดาวเพิ่มจาก {prevStars} เป็น {stars}</div>}
+            {net&&<div style={{fontSize:11,color:'var(--c-t3)',marginTop:4}}>คำสุทธิ = (จำนวนครั้งที่กดแป้น ÷ 4 − จำนวนครั้งที่ผิด) ÷ นาที</div>}
+          </div>
+        );
+      })()}
       {/* Ghost comparison — by score (same rule as High Score) */}
       {(ghostData || newRecord) && (()=>{
         const gs = ghostData ? (ghostData.score||0) : 0;
@@ -213,7 +234,9 @@ export function ResultsScreen({ cpm, accuracy, errors, totalChars, lesson, saveS
       })()}
       <div style={{display:'flex',gap:14,justifyContent:'center',marginBottom:24,flexWrap:'wrap'}}>
         <StatPill label="KPM"       value={cpm}              color={cpm>=30?'#059669':'#D97706'}/>
-        <StatPill label="WPM"       value={Math.round(cpm/5)} color="#2563EB"/>
+        {lesson?.curriculum
+          ? <StatPill label="คำ/นาที (ไทย)" value={Math.round(cpm/4)} color="#2563EB"/>
+          : <StatPill label="WPM"       value={Math.round(cpm/5)} color="#2563EB"/>}
         <StatPill label="ความแม่น" value={`${accuracy}%`}   color={accuracy>=95?'#059669':'#D97706'}/>
         <StatPill label="ผิด"       value={errors}           color={errors===0?'#059669':'#EF4444'}/>
         <StatPill label="ตัวอักษร" value={totalChars}/>
@@ -248,6 +271,12 @@ export function ResultsScreen({ cpm, accuracy, errors, totalChars, lesson, saveS
         </div>
       )}
       <div style={{display:'flex',gap:12,justifyContent:'center',flexWrap:'wrap'}}>
+        {nextStep&&(
+          <button onClick={onNext} style={{background:'#15803D',color:'#fff',border:'none',
+            borderRadius:10,padding:'11px 22px',cursor:'pointer',fontSize:14,fontWeight:800,fontFamily:tf}}>
+            ขั้นต่อไป: {nextStep.lesson.num!==lesson?.num?`บท ${nextStep.lesson.num} · `:''}{nextStep.exercise.title} ▶
+          </button>
+        )}
         <button onClick={onRestart} style={{background:'#0F172A',color:'#fff',border:'none',
           borderRadius:10,padding:'11px 26px',cursor:'pointer',fontSize:14,fontWeight:700,fontFamily:tf}}>
           {isTest?'↻ ทำแบบทดสอบอีกครั้ง':roomCode?'ออกจากห้อง':'สุ่มคำใหม่ / ลองอีกครั้ง'}

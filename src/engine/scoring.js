@@ -1,4 +1,5 @@
 import { findKeyForChar } from './keymap';
+import { LESSON_DEFS, STAGES } from '../data/stages.js';
 
 // ═══════════════════════════════════════════════════════════════
 // SCORING  (Kahoot-style) — points = letter × speed × combo
@@ -22,7 +23,12 @@ export function charBasePoints(ch) {
 }
 
 // Target speed rises gently through the lessons (keystrokes per minute).
-export function lessonTargetKpm(lessonId) { return Math.min(160, 60 + (Math.max(1, Number(lessonId)||1) - 1) * 8); }
+// Curriculum lessons (ids 101–134): 60 KPM in stage 1, +10 per stage (stage 9 → 140).
+export function lessonTargetKpm(lessonId) {
+  const id = Number(lessonId) || 1;
+  if (id > 100) { const st = LESSON_DEFS.find(d => d.n === id - 100)?.stage || 1; return 60 + (st - 1) * 10; }
+  return Math.min(160, 60 + (Math.max(1, id) - 1) * 8);
+}
 
 // ×1.0 at or above target speed, down to ×0.5 at half speed (average of last 5 keys).
 export function speedMultiplier(intervals, lessonId) {
@@ -120,3 +126,24 @@ export const SPAM_PENALTY    = 5;
 
 // seconds frozen after spam detection (no longer a kick)
 export const PRESSURE_SECS   = 10;
+
+// ═══════════════════════════════════════════════════════════════
+// CURRICULUM STARS — ⭐ accuracy ≥ 90% · ⭐⭐ + stage speed target · ⭐⭐⭐ 1.5× target and ≥ 95%
+// Speed is in Thai words/minute = keystrokes ÷ 4 (the Thai typing-class standard).
+// Stage 9 uses net words: each wrong key press takes off NET_ERROR_WORDS words.
+// (Thai typing exams take off 10 words per wrong word, but here every wrong key press
+//  is counted and must be fixed on the spot, so 10 would push most children below zero.)
+// ═══════════════════════════════════════════════════════════════
+export const NET_ERROR_WORDS = 1;
+export const thaiWpmOf = (keys, minutes) => minutes > 0 ? keys / 4 / minutes : 0;
+export const netThaiWpmOf = (keys, errors, minutes) =>
+  minutes > 0 ? Math.max(0, (keys / 4 - errors * NET_ERROR_WORDS) / minutes) : 0;
+export function stageTarget(stageId) { return STAGES[(stageId || 1) - 1]?.target || 5; }
+export function lessonStars(wpm, accuracy, target) {
+  if (accuracy < 90) return 0;
+  if (wpm >= target * 1.5 && accuracy >= 95) return 3;
+  return wpm >= target ? 2 : 1;
+}
+const CUR_STARS_KEY = 'curStars_v1';
+export function readCurStars() { try { return JSON.parse(localStorage.getItem(CUR_STARS_KEY) || '{}') || {}; } catch { return {}; } }
+export function writeCurStars(map) { try { localStorage.setItem(CUR_STARS_KEY, JSON.stringify(map)); } catch {} }

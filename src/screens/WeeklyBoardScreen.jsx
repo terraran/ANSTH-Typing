@@ -1,4 +1,4 @@
-import { LESSONS } from '../data/lessons';
+import { findLesson } from '../data/lessons';
 import { Stars } from '../ui/common';
 import { fmtScore, fmtTimeLeft, fmtWeekRange, pctOf, starsFor } from '../engine/scoring';
 
@@ -32,7 +32,7 @@ export function WeeklyBoardScreen({ data, status, onRefresh, onStart, onBack }) 
   );
 
   const t = data.test;
-  const les = t && LESSONS.find(l=>l.id===Number(t.lessonId));
+  const les = t && findLesson(t.lessonId);
   const me = data.me;
   const medal = r => r===1?'🥇':r===2?'🥈':r===3?'🥉':r;
   const row = (e, key) => (
@@ -70,7 +70,7 @@ export function WeeklyBoardScreen({ data, status, onRefresh, onStart, onBack }) 
           <>
             <div style={{fontSize:26,fontWeight:800,margin:'6px 0 2px'}}>{t.exerciseTitle}</div>
             <div style={{fontSize:12,opacity:.85}}>
-              บท {t.lessonId}{les?` ${les.thaiName}`:''} · ⏱ 2 นาที · {t.showHints?'มีไฮไลต์ปุ่มถัดไป':'🙈 ไม่มีไฮไลต์ปุ่ม'} · {fmtTimeLeft(data.weekEndsAt-Date.now())}
+              บท {les?.num ?? t.lessonId}{les?` ${les.thaiName}`:''} · ⏱ 2 นาที · {t.showHints?'มีไฮไลต์ปุ่มถัดไป':'🙈 ไม่มีไฮไลต์ปุ่ม'} · {fmtTimeLeft(data.weekEndsAt-Date.now())}
             </div>
             <button onClick={onStart}
               style={{marginTop:14,width:'100%',background:'#fff',color:'#4C1D95',border:'none',

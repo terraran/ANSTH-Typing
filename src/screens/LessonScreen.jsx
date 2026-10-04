@@ -7,7 +7,7 @@ const { useEffect, useRef, useState } = React;
 
 // LESSON SELECTOR
 
-export function LessonScreen({ studentName, classCode, onSelect, onOpenSetup, onJoin, joinCode, setJoinCode, joinError, mpBusy, storyPath, storyPower, onViewStats, onLogin, weekly, onOpenWeekly, highScores, character, onOpenCharacter }) {
+export function LessonScreen({ studentName, classCode, onSelect, onOpenSetup, onJoin, joinCode, setJoinCode, joinError, mpBusy, storyPath, storyPower, onViewStats, onLogin, weekly, onOpenWeekly, highScores, character, onOpenCharacter, curStars={} }) {
   const savedCh=(()=>{try{return Math.min(parseInt(localStorage.getItem('lastChapter')||'0')||0,CHAPTERS.length-1);}catch{return 0;}})();
   const getExercises=(lesson)=>{
     if(!lesson.story) return lesson.exercises||[];
@@ -126,7 +126,7 @@ export function LessonScreen({ studentName, classCode, onSelect, onOpenSetup, on
       {/* ── Chapter carousel ── */}
       <div style={{marginBottom:20}}>
         <div style={{fontSize:11,fontWeight:800,color:'var(--c-t3)',letterSpacing:1,
-          marginBottom:12,textAlign:'center'}}>🎮 เลือก CHAPTER</div>
+          marginBottom:12,textAlign:'center'}}>🗺️ เลือกด่าน</div>
 
         <div style={{display:'flex',alignItems:'center',gap:8}}>
           {/* Prev */}
@@ -154,7 +154,7 @@ export function LessonScreen({ studentName, classCode, onSelect, onOpenSetup, on
                         borderRadius:'50%',background:'rgba(255,255,255,.08)'}}/>
                       <div style={{fontSize:30,marginBottom:6}}>{ch.icon}</div>
                       <div style={{fontSize:10,fontWeight:800,color:'rgba(255,255,255,.65)',
-                        letterSpacing:1,marginBottom:3}}>{ch.label.toUpperCase()}</div>
+                        letterSpacing:1,marginBottom:3}}>{ch.label}</div>
                       <div style={{fontSize:19,fontWeight:800,color:'#fff',marginBottom:4,
                         fontFamily:tf}}>{ch.title}</div>
                       <div style={{fontSize:11,color:'rgba(255,255,255,.75)'}}>
@@ -195,15 +195,19 @@ export function LessonScreen({ studentName, classCode, onSelect, onOpenSetup, on
         return (
           <div style={{marginBottom:20}}>
             <div style={{fontSize:11,fontWeight:800,color:'var(--c-t3)',letterSpacing:1,marginBottom:10}}>
-              บทเรียนใน {ch.label.toUpperCase()}
+              บทเรียนใน{ch.label} · {ch.title}
             </div>
             <div style={{display:'flex',flexDirection:'column',gap:8}}>
               {chLessons.map((lesson)=>{
                 const ghostKey=ex=>'ghostv2_'+lesson.id+'_'+encodeURIComponent(ex.title);
                 const exHasGhost=ex=>{try{return !!localStorage.getItem(ghostKey(ex));}catch{return false;}};
                 const lessonExs=getExercises(lesson);
-                const allDone=lessonExs.every(exHasGhost);
+                // Curriculum: a step is done once it has ⭐ (accuracy ≥ 90%); old lessons: has a ghost
+                const starsOf=ex=>curStars[hsKey(lesson.id,ex.title)]||0;
+                const exDone=ex=>lesson.curriculum?starsOf(ex)>0:exHasGhost(ex);
+                const allDone=lessonExs.every(exDone);
                 const hasGhost=lessonExs.some(exHasGhost);
+                const starTotal=lessonExs.reduce((a,ex)=>a+starsOf(ex),0);
                 const isOpen=openLesson===lesson.id;
                 const cardBg=allDone?lesson.accent:'var(--c-card)';
                 const cardBorder=allDone?`2px solid ${lesson.accent}`:`1.5px solid var(--c-border)`;
@@ -224,12 +228,14 @@ export function LessonScreen({ studentName, classCode, onSelect, onOpenSetup, on
                       <div style={{width:36,height:36,borderRadius:10,background:numBg,
                         display:'flex',alignItems:'center',justifyContent:'center',
                         fontSize:13,fontWeight:800,color:numColor,flexShrink:0}}>
-                        {lesson.id}
+                        {lesson.num ?? lesson.id}
                       </div>
                       <div style={{flex:1}}>
                         <div style={{fontSize:14,fontWeight:800,color:titleColor}}>{lesson.thaiName}</div>
                         <div style={{fontSize:11,color:subColor,marginTop:1}}>
-                          {getExercises(lesson).length} exercises{hasGhost?' · 👻':''}
+                          {lesson.curriculum
+                            ? `${lessonExs.length} ขั้น · ⭐ ${starTotal}/${lessonExs.length*3}`
+                            : `${lessonExs.length} exercises`}{hasGhost?' · 👻':''}
                         </div>
                       </div>
                       <span style={{color:arrowColor,fontSize:16,flexShrink:0}}>{isOpen?'▲':'▼'}</span>
@@ -238,7 +244,8 @@ export function LessonScreen({ studentName, classCode, onSelect, onOpenSetup, on
                       <div style={{border:cardBorder,borderTop:'none',
                         borderRadius:'0 0 12px 12px',background:'var(--c-card)',padding:'8px 10px'}}>
                         {lessonExs.map((ex,i)=>{
-                          const hasEx=exHasGhost(ex);
+                          const hasEx=exDone(ex);
+                          const st=starsOf(ex);
                           return (
                             <button key={i} onClick={()=>onSelect(lesson,ex)}
                               style={{width:'100%',display:'flex',justifyContent:'space-between',
@@ -253,13 +260,15 @@ export function LessonScreen({ studentName, classCode, onSelect, onOpenSetup, on
                               <span style={{fontSize:12,fontWeight:700,
                                 color:hasEx?'#fff':lesson.accent}}>{ex.title}</span>
                               <span style={{display:'flex',alignItems:'center',gap:5,flexShrink:0}}>
-                                {hasEx&&<span style={{fontSize:10}}>👻</span>}
+                                {lesson.curriculum
+                                  ? <span style={{fontSize:11,letterSpacing:1,color:hasEx?'#FDE68A':'var(--c-t3)'}}>{'★'.repeat(st)+'☆'.repeat(3-st)}</span>
+                                  : hasEx&&<span style={{fontSize:10}}>👻</span>}
                                 {(highScores||{})[hsKey(lesson.id,ex.title)]>0&&(
                                   <span style={{fontSize:10,fontWeight:800,
                                     color:hasEx?'#fff':'#D97706'}}>🏆 {fmtScore(highScores[hsKey(lesson.id,ex.title)])}</span>
                                 )}
                                 <span style={{fontSize:10,
-                                  color:hasEx?'rgba(255,255,255,.7)':'var(--c-t3)'}}>~{ex.minChars}ตัว</span>
+                                  color:hasEx?'rgba(255,255,255,.7)':'var(--c-t3)'}}>{ex.secs?`⏱ ${ex.secs/60} นาที`:ex.minChars?`~${ex.minChars}ตัว`:'ข้อความยาว'}</span>
                                 <span style={{color:hasEx?'rgba(255,255,255,.8)':lesson.accent,fontSize:12}}>→</span>
                               </span>
                             </button>

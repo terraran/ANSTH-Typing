@@ -6,6 +6,7 @@
     "build": "node scripts/build.mjs"
   },
   "devDependencies": {
-    "esbuild": "0.23.1"
+    "esbuild": "0.23.1",
+    "xlsx": "0.18.5"
   }
 }

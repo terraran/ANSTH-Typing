@@ -3,6 +3,7 @@
 // rng is injectable so the weekly test can use a seeded generator (same text for the whole grade).
 import { CHAR_CLASS } from './keymap.js';
 import { LESSON_DEFS } from '../data/stages.js';
+import { CURRICULUM_LESSONS } from '../data/curriculum.js';
 
 const pick = (a, rng) => a[Math.floor(rng() * a.length)];
 const len = s => [...s].length;
@@ -153,4 +154,17 @@ export function curriculumText(les, ex, rng = Math.random, opts = {}) {
     case 'longtimed': return passagesText(les, rng, opts.minChars || ex.secs * 6);
   }
   return fill(word, minChars, rng);
+}
+
+// Weekly test chosen by stage (teacher picks ด่าน 1–7): about 70% words from that stage's
+// lessons, 30% review words from earlier stages; 60% single words, 40% phrases.
+// rng = seededRng(testId) → the whole grade gets the same text.
+export function stageTestText(stage, rng, minChars) {
+  const wordsOf = test => [...new Set(CURRICULUM_LESSONS
+    .filter(l => l.type === 'new' && test(l.stage)).flatMap(l => l.pool.main))];
+  let main = wordsOf(s => s === stage);
+  const review = wordsOf(s => s < stage);
+  if (!main.length) main = review;
+  const word = r => (!review.length || r() < 0.7) ? pick(main, r) : pick(review, r);
+  return fill(r => r() < 0.6 ? word(r) : phrase(word)(r), minChars, rng);
 }

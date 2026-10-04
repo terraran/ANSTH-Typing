@@ -6,10 +6,22 @@ const { useEffect, useState } = React;
 
 // WEEKLY TEST BOARD — opens straight onto the grade leaderboard, with the start button
 
-export function WeeklyBoardScreen({ data, status, onRefresh, onStart, onBack }) {
+export function WeeklyBoardScreen({ data, status, onRefresh, onStart, onLoadPast, onBack }) {
   const tf = "'Sarabun','Noto Sans Thai',sans-serif";
   const [, setTick] = useState(0);
   useEffect(()=>{ const id=setInterval(()=>setTick(t=>t+1),30000); return ()=>clearInterval(id); },[]);
+  // Earlier weeks' boards: picked from data.past, loaded on demand and kept for this visit
+  const [pastId, setPastId] = useState('');
+  const [pastBoards, setPastBoards] = useState({});
+  const [pastStatus, setPastStatus] = useState('idle');   // idle|loading|error
+  const pickPast = id => {
+    setPastId(id);
+    if (!id || pastBoards[id] || !onLoadPast) return;
+    setPastStatus('loading');
+    onLoadPast(id)
+      .then(d => { setPastBoards(b => ({...b, [id]:d})); setPastStatus('idle'); })
+      .catch(() => setPastStatus('error'));
+  };
   const loading = status==='loading';
   const back = (
     <button onClick={onBack}
@@ -70,7 +82,7 @@ export function WeeklyBoardScreen({ data, status, onRefresh, onStart, onBack }) 
           <>
             <div style={{fontSize:26,fontWeight:800,margin:'6px 0 2px'}}>{t.exerciseTitle}</div>
             <div style={{fontSize:12,opacity:.85}}>
-              บท {les?.num ?? t.lessonId}{les?` ${les.thaiName}`:''} · ⏱ 2 นาที · {t.showHints?'มีไฮไลต์ปุ่มถัดไป':'🙈 ไม่มีไฮไลต์ปุ่ม'} · {fmtTimeLeft(data.weekEndsAt-Date.now())}
+              {t.stage ? `คำจากด่าน ${t.stage} + ทบทวนด่านก่อนหน้า` : `บท ${les?.num ?? t.lessonId}${les?` ${les.thaiName}`:''}`} · ⏱ 2 นาที · {t.showHints?'มีไฮไลต์ปุ่มถัดไป':'🙈 ไม่มีไฮไลต์ปุ่ม'} · {fmtTimeLeft(data.weekEndsAt-Date.now())}
             </div>
             <button onClick={onStart}
               style={{marginTop:14,width:'100%',background:'#fff',color:'#4C1D95',border:'none',
@@ -78,7 +90,7 @@ export function WeeklyBoardScreen({ data, status, onRefresh, onStart, onBack }) 
               ▶ {me?'ทำแบบทดสอบอีกครั้ง':'เริ่มทดสอบประจำสัปดาห์'}
             </button>
             <div style={{fontSize:11,opacity:.75,marginTop:8,textAlign:'center'}}>
-              ทำได้หลายครั้ง ระบบนับครั้งที่ดีที่สุด · ทั้ง {data.grade} ได้ข้อความเดียวกัน · นาฬิกาเริ่มเมื่อกดปุ่มแรก
+              ทำได้หลายครั้ง ระบบนับครั้งที่ดีที่สุด · ทั้ง {data.grade} ได้ข้อความเดียวกัน · นาฬิกาเริ่มเมื่อกดปุ่มแรก · คะแนนเท่ากัน ใครแม่นกว่าได้อันดับดีกว่า
             </div>
           </>
         ) : (
@@ -136,6 +148,47 @@ export function WeeklyBoardScreen({ data, status, onRefresh, onStart, onBack }) 
           </div>
           <div style={{fontSize:11,color:'var(--c-t3)',marginTop:6,textAlign:'right'}}>
             อัปเดตอัตโนมัติทุก 1 นาที</div>
+        </div>
+      )}
+
+      {/* Earlier weeks' Top 10 */}
+      {data.past && data.past.length>0 && (
+        <div style={{marginBottom:16}}>
+          <div style={{fontSize:15,fontWeight:800,color:'var(--c-t1)',marginBottom:6}}>🗓 กระดานสัปดาห์ก่อน ๆ</div>
+          <select value={pastId} onChange={e=>pickPast(e.target.value)}
+            style={{width:'100%',padding:'10px 12px',borderRadius:10,border:'1.5px solid var(--c-border)',
+              background:'var(--c-card)',color:'var(--c-t1)',fontSize:14,fontWeight:700,fontFamily:tf,marginBottom:8}}>
+            <option value="">— เลือกสัปดาห์ —</option>
+            {data.past.map(p=>(
+              <option key={p.testId} value={p.testId}>{fmtWeekRange(p.weekStart)} · {p.exerciseTitle}</option>
+            ))}
+          </select>
+          {pastId && (()=>{
+            const b = pastBoards[pastId];
+            if (!b) return (
+              <div style={{textAlign:'center',padding:14,fontSize:13,color:pastStatus==='error'?'#DC2626':'var(--c-t3)'}}>
+                {pastStatus==='error'?'โหลดไม่ได้ — ลองเลือกใหม่อีกครั้ง':'กำลังโหลด...'}</div>
+            );
+            return (
+              <div style={{background:'var(--c-card)',border:'1.5px solid var(--c-border)',borderRadius:14,padding:6}}>
+                {b.top.length ? (
+                  <>
+                    {b.top.map((e,i)=>row(e,'p'+i))}
+                    {b.me && b.me.rank>10 && (
+                      <>
+                        <div style={{textAlign:'center',color:'var(--c-t3)',fontSize:12,lineHeight:1}}>⋮</div>
+                        {row({...b.me,me:true},'pme')}
+                      </>
+                    )}
+                    <div style={{fontSize:12,color:'var(--c-t2)',textAlign:'center',padding:'8px 0 4px'}}>
+                      {b.me ? `อันดับของฉัน: ${b.me.rank} จาก ${b.total} คน` : `ฉันไม่ได้ทำสัปดาห์นี้ · มี ${b.total} คนทำ`}</div>
+                  </>
+                ) : (
+                  <div style={{textAlign:'center',padding:20,fontSize:13,color:'var(--c-t3)'}}>ไม่มีใครทำแบบทดสอบสัปดาห์นี้</div>
+                )}
+              </div>
+            );
+          })()}
         </div>
       )}
 

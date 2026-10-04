@@ -261,8 +261,25 @@
 
     <div id="wm-note" class="modal-note" style="display:none"></div>
 
-    <label class="field-label" for="wm-exercise">แบบฝึก (1 อัน)</label>
-    <select id="wm-exercise" class="field-select"></select>
+    <label class="field-label">รูปแบบแบบทดสอบ</label>
+    <div style="display:flex;gap:16px;margin:0 0 12px;font-size:13px;font-weight:600;color:#334155">
+      <label style="display:flex;align-items:center;gap:6px;cursor:pointer">
+        <input type="radio" name="wm-mode" value="stage" checked onchange="updateModeUI()"> เลือกด่าน (ระบบสร้างข้อความ)</label>
+      <label style="display:flex;align-items:center;gap:6px;cursor:pointer">
+        <input type="radio" name="wm-mode" value="exercise" onchange="updateModeUI()"> เลือกแบบฝึกเอง</label>
+    </div>
+
+    <div id="wm-stage-box">
+      <label class="field-label" for="wm-stage">ด่าน</label>
+      <select id="wm-stage" class="field-select"></select>
+      <div style="font-size:12px;color:#64748B;margin:-4px 0 16px;line-height:1.5">
+        ข้อความ 2 นาที: คำจากด่านนี้ ~70% + ทบทวนด่านก่อนหน้า ~30% · ทั้งระดับชั้นได้ข้อความเดียวกัน</div>
+    </div>
+
+    <div id="wm-ex-box" style="display:none">
+      <label class="field-label" for="wm-exercise">แบบฝึก (1 อัน)</label>
+      <select id="wm-exercise" class="field-select"></select>
+    </div>
 
     <label style="display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600;
       color:#334155;margin:-4px 0 20px;cursor:pointer">
@@ -681,7 +698,7 @@ function renderWeeklyTests() {
         <div style="flex:1;min-width:0">
           <div style="font-size:14px;font-weight:800">${esc(t.exerciseTitle)}</div>
           <div style="font-size:11px;color:#64748B;margin:2px 0 6px">
-            ${esc(lessonName(t.lessonId))} · ${t.showHints?'มีไฮไลต์ปุ่ม':'🙈 ไม่มีไฮไลต์ปุ่ม'} · ▾ ดูอันดับ
+            ${t.stage?'ระบบสร้างข้อความจากด่าน '+t.stage:esc(lessonName(t.lessonId))} · ${t.showHints?'มีไฮไลต์ปุ่ม':'🙈 ไม่มีไฮไลต์ปุ่ม'} · ▾ ดูอันดับ
           </div>
           <div style="display:flex;align-items:center;gap:8px">
             <div class="wk-progress"><div class="wk-progress-fill" style="width:${pct}%"></div></div>
@@ -769,10 +786,19 @@ function openWeeklyModal(existing) {
     `<optgroup label="${esc(ch.title.split(' — ')[0]+' · '+les.name)}">${les.exs.map(ex=>
       `<option value="${esc(JSON.stringify({lessonId:les.id,exerciseTitle:ex}))}">${esc(ex)}</option>`).join('')}</optgroup>`
   ).join('')).join('');
+  // Weekly tests by stage: ด่าน 1–7 (8 = numbers/marks, 9 = long passages are left out).
+  // lessonId = the stage's last lesson (its boss) → keyboard and speed target for the test.
+  const sSel=document.getElementById('wm-stage');
+  sSel.innerHTML=(window.ANSTH_LESSON_INDEX||[]).filter(ch=>ch.ch<=7).map(ch=>{
+    const v={stage:ch.ch,lessonId:ch.lessons[ch.lessons.length-1].id,exerciseTitle:ch.title.replace(' — ',' · ')};
+    return `<option value="${esc(JSON.stringify(v))}">${esc(ch.title)}</option>`;
+  }).join('');
+  setMode(existing && !existing.stage ? 'exercise' : 'stage');
   if (existing) {
     gSel.value=existing.grade; wSel.value=existing.weekStart;
     const v=JSON.stringify({lessonId:existing.lessonId,exerciseTitle:existing.exerciseTitle});
     [...eSel.options].forEach(o=>{ if (o.value===v) o.selected=true; });
+    if (existing.stage) [...sSel.options].forEach(o=>{ if (JSON.parse(o.value).stage===existing.stage) o.selected=true; });
     document.getElementById('wm-hints').checked=existing.showHints!==false;
   } else {
     wSel.value=currentWeek||weeks[2];
@@ -781,6 +807,22 @@ function openWeeklyModal(existing) {
   document.getElementById('wm-err').style.display='none';
   updateModalNote();
   document.getElementById('weekly-modal').style.display='flex';
+}
+
+function modeOf() { return document.querySelector('input[name="wm-mode"]:checked')?.value||'stage'; }
+function setMode(m) {
+  document.querySelectorAll('input[name="wm-mode"]').forEach(r=>{ r.checked=r.value===m; });
+  updateModeUI();
+}
+function updateModeUI() {
+  const st=modeOf()==='stage';
+  document.getElementById('wm-stage-box').style.display=st?'block':'none';
+  document.getElementById('wm-ex-box').style.display=st?'none':'block';
+}
+// Same key = same text and same board (only the hints setting changed).
+function testKey(t) {
+  const num=s=>(String(s||'').match(/^(\d+\.\d+)/)||[])[1];
+  return t.stage ? 's'+t.stage : t.lessonId+'-'+num(t.exerciseTitle);
 }
 
 function findWeekly(grade, week) { return weeklyTests.find(t=>t.grade===grade&&t.weekStart===week)||null; }
@@ -800,21 +842,21 @@ function closeWeeklyModal() { document.getElementById('weekly-modal').style.disp
 async function submitWeeklyTest() {
   const grade=document.getElementById('wm-grade').value;
   const weekStart=document.getElementById('wm-week').value;
-  const exVal=document.getElementById('wm-exercise').value;
+  const stageMode=modeOf()==='stage';
+  const exVal=document.getElementById(stageMode?'wm-stage':'wm-exercise').value;
   const showHints=document.getElementById('wm-hints').checked?'1':'0';
   const err=document.getElementById('wm-err');
   const btn=document.getElementById('wm-submit');
-  if (!grade||!weekStart||!exVal) { err.textContent='เลือกระดับชั้น สัปดาห์ และแบบฝึกให้ครบ'; err.style.display='block'; return; }
-  const {lessonId,exerciseTitle}=JSON.parse(exVal);
+  if (!grade||!weekStart||!exVal) { err.textContent=stageMode?'เลือกระดับชั้น สัปดาห์ และด่านให้ครบ':'เลือกระดับชั้น สัปดาห์ และแบบฝึกให้ครบ'; err.style.display='block'; return; }
+  const {lessonId,exerciseTitle,stage=0}=JSON.parse(exVal);
   const old=findWeekly(grade,weekStart);
-  const num=s=>(String(s||'').match(/^(\d+\.\d+)/)||[])[1];
-  if (old && old.done>0 && (old.lessonId!==lessonId || num(old.exerciseTitle)!==num(exerciseTitle))) {
+  if (old && old.done>0 && testKey(old)!==testKey({lessonId,exerciseTitle,stage})) {
     if (!confirm(`มีนักเรียน ${old.done} คนทำ "${old.exerciseTitle}" ไปแล้ว\nถ้าเปลี่ยนเป็น "${exerciseTitle}" กระดานอันดับสัปดาห์นี้จะเริ่มนับใหม่ (ผลเดิมยังอยู่ในแท็บ Submissions)\n\nเปลี่ยนแบบฝึก?`)) return;
   }
   err.style.display='none';
   btn.disabled=true; btn.textContent='กำลังบันทึก...';
   try {
-    await teacherApi('setWeeklyTest',{grade,weekStart,lessonId,exerciseTitle,showHints});
+    await teacherApi('setWeeklyTest',{grade,weekStart,lessonId,exerciseTitle,showHints,stage});
     closeWeeklyModal();
     loadWeeklyTests();
   } catch(e) {

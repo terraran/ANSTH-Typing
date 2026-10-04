@@ -6,11 +6,11 @@ import { ERROR_BURST, ERROR_WINDOW_MS, PRESSURE_SECS, SPAM_PENALTY, SPAM_WINDOW_
 import { ROOM_CODE_LEN, ROOM_CODE_RE, ZONE_GAP, ZONE_GRACE, ZONE_TICK, currentFirebaseUid, ensureFirebaseUser, fbArmLobby, fbArmRace, fbClearActiveRoom, fbCreate, fbDisarm, fbGet, fbGetActiveRoom, fbJoin, fbListen, fbRemove, fbServerOffset, fbSetActiveRoom, fbSetChar, fbSetStatus, fbUpdatePlayer, getDB, getZonePos, getZoneSpeed, makeFreeCode, zonePosAt } from './firebase';
 import { brOrder, brRaceOver, dcLeftMs, graceMs, isOutState, playerState } from './race/presence';
 import { LeaveConfirm, RejoinBanner } from './race/PresenceUI';
-import { apiGetStudentStats, apiGetWeeklyBoard, apiRequest, apiSaveMatch, apiSubmitWeekly, describeApiError, saveSession } from './api';
+import { apiGetStudentStats, apiGetWeeklyBoard, apiGetWeeklyPast, apiRequest, apiSaveMatch, apiSubmitWeekly, describeApiError, saveSession } from './api';
 import { auth } from './auth';
 import { LESSONS, findLesson } from './data/lessons';
 import { stageOf } from './data/curriculum.js';
-import { curriculumText } from './engine/curriculumText.js';
+import { curriculumText, stageTestText } from './engine/curriculumText.js';
 import { RUSH_STARS, emptyProgress, readLocalProgress, stepKey, stepState, writeLocalProgress } from './engine/progress.js';
 import { PenaltyScreen, TestTimer, TextDisplay, TimeUpOverlay } from './ui/common';
 import { NameModal, StoryChoiceScreen } from './screens/Story';
@@ -771,6 +771,14 @@ export function ThaiTypingApp() {
     if (!t) return;
     const les = findLesson(t.lessonId);
     const exs = les ? (les.exercises || []) : [];
+    if (t.stage) {
+      // Test by stage: lessonId is that stage's boss lesson (keyboard + speed target);
+      // the text is generated from the whole stage.
+      const ex = exs[exs.length-1];
+      if (!les || !ex) { alert('ไม่พบด่าน '+t.stage+' ในแอป — แจ้งครูให้ตั้งแบบทดสอบใหม่'); return; }
+      startExercise(les, ex, {test:t, text:stageTestText(Number(t.stage), seededRng(t.testId), TEST_MIN_CHARS)});
+      return;
+    }
     const num = s => (String(s||'').match(/^(\d+\.\d+)/)||[])[1];
     const ex = exs.find(e=>e.title===t.exerciseTitle)
       || exs.find(e=>num(e.title) && num(e.title)===num(t.exerciseTitle));
@@ -1413,6 +1421,7 @@ export function ThaiTypingApp() {
         {screen==='weekly'&&(
           <WeeklyBoardScreen data={weekly} status={weeklyStatus}
             onRefresh={loadWeekly} onStart={startWeeklyTest}
+            onLoadPast={id=>apiGetWeeklyPast(classCode, studentName, id)}
             onBack={()=>setScreen('lessons')}/>
         )}
 

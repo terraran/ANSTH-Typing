@@ -37,6 +37,11 @@ export async function apiGetWeeklyBoard(classCode, studentName) {
   return apiRequest('getWeeklyBoard',{code:classCode,student:studentName});
 }
 
+// Top 10 + my rank for an earlier week's test (same grade only)
+export async function apiGetWeeklyPast(classCode, studentName, testId) {
+  return apiRequest('getWeeklyPast',{code:classCode,student:studentName,testId});
+}
+
 // Save one weekly test attempt — returns the updated board (with my new rank)
 export async function apiSubmitWeekly(data) {
   return apiRequest('submitWeeklyTest',{

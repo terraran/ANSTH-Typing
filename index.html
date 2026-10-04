@@ -13,23 +13,66 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600;700;800&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Pixelify+Sans:wght@500;600;700&display=swap" rel="stylesheet">
 <style>
 :root,[data-theme="light"]{
-  --c-bg:#F1F5F9;--c-card:#ffffff;--c-surf:#F8FAFC;
-  --c-border:#E2E8F0;--c-border2:#CBD5E1;
-  --c-t1:#0F172A;--c-t2:#64748B;--c-t3:#94A3B8;--c-t4:#475569;
-  --c-key-sp:#CBD5E1;--c-key-def:#E2E8F0;
-  --c-txt-future:#CBD5E1;--c-input-bg:#ffffff;
+  --c-bg:#9bd4ea;--c-card:#f3e2ae;--c-surf:#ead49a;
+  --c-border:#9a673d;--c-border2:#74472d;
+  --c-t1:#362718;--c-t2:#705337;--c-t3:#8e7757;--c-t4:#563b27;
+  --c-key-sp:#c99554;--c-key-def:#f3e2ae;
+  --c-txt-future:#b39c73;--c-input-bg:#fff4d2;
 }
 
 [data-theme="dark"]{
-  --c-bg:#0F172A;--c-card:#1E293B;--c-surf:#263248;
-  --c-border:#334155;--c-border2:#475569;
-  --c-t1:#F1F5F9;--c-t2:#94A3B8;--c-t3:#64748B;--c-t4:#94A3B8;
-  --c-key-sp:#334155;--c-key-def:#2D3F55;
-  --c-txt-future:#64748B;--c-input-bg:#1E293B;
+  --c-bg:#243d42;--c-card:#473b32;--c-surf:#594738;
+  --c-border:#b68750;--c-border2:#d2ac70;
+  --c-t1:#fff0c7;--c-t2:#dfc894;--c-t3:#b7a27a;--c-t4:#eed8a5;
+  --c-key-sp:#725c43;--c-key-def:#584a39;
+  --c-txt-future:#8d795b;--c-input-bg:#594738;
 }
 *{box-sizing:border-box;margin:0;padding:0}body{background:var(--c-bg);font-family:system-ui,sans-serif;color:var(--c-t1);transition:background .3s,color .3s;}
+body:before{content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;background-image:url('assets/pixel-ui/grass.png'),url('assets/pixel-ui/hills.png'),url('assets/pixel-ui/clouds.png'),url('assets/pixel-ui/sky.png');background-position:center bottom;background-size:100% 100%;image-rendering:pixelated;}
+#root{min-height:100vh}
+.game-shell{position:relative;isolation:isolate!important;background:transparent!important;padding:22px 18px 40px!important}
+.game-header{max-width:1020px!important;margin-bottom:16px!important;padding:10px 14px;background:rgba(67,105,73,.88);border:3px solid #6b482e;box-shadow:0 4px 0 #493323;color:#fff4d2}
+.game-header.is-title{display:none!important}
+.game-header *{color:inherit}
+.game-panel{max-width:1020px!important;background:var(--c-card)!important;border:5px solid #70492e;border-radius:5px!important;box-shadow:0 7px 0 #493323,0 14px 35px rgba(28,49,35,.35)!important;padding:26px!important;}
+.pixel-title{font-family:'Pixelify Sans',monospace!important;letter-spacing:1px;text-shadow:2px 2px #67442e}
+.game-shell button{border-radius:4px!important;image-rendering:pixelated;transition:transform .12s,filter .12s}
+.game-shell button:hover{filter:brightness(1.08);transform:translateY(-1px)}
+.game-shell button:active{transform:translateY(2px)}
+.game-shell input{border-radius:4px!important;background:var(--c-input-bg)!important;color:var(--c-t1)!important;border-color:var(--c-border)!important}
+.adventure-banner{position:relative;overflow:hidden;display:flex;align-items:center;justify-content:space-between;gap:18px;margin:-2px 0 22px;padding:18px 20px;background:linear-gradient(180deg,#7ebf75 0%,#69aa60 58%,#8b6037 59%,#76502f 100%);border:4px solid #68442c;box-shadow:0 5px 0 #493323;color:#fff5cf;}
+.adventure-banner:after{content:"✦   ✦      ✦";position:absolute;right:18px;top:8px;color:#fff2a6;opacity:.8;font-size:12px;letter-spacing:14px;pointer-events:none}
+.adventure-banner h1{font:700 clamp(22px,3vw,32px)/1.25 'Pixelify Sans','Sarabun',sans-serif;text-shadow:2px 3px #4d3928;margin-bottom:4px}
+.adventure-banner p{font:700 14px/1.5 'Sarabun',sans-serif;text-shadow:1px 2px #4d3928;max-width:540px}
+.adventure-banner .banner-mark{font-size:44px;filter:drop-shadow(3px 4px #4d3928);flex:none}
+.landing-panel{min-height:76vh;display:flex;align-items:center;justify-content:center;background:rgba(48,86,65,.18)!important;border-color:#795031;box-shadow:0 7px 0 #493323,0 14px 35px rgba(28,49,35,.3)!important}
+.landing-screen{width:100%;min-height:70vh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:34px;text-align:center;color:#fff6d5}
+.landing-brand{display:flex;flex-direction:column;align-items:center}
+.landing-emblem{font-size:38px;line-height:1.3;filter:drop-shadow(3px 4px #493323)}
+.landing-title{font-size:clamp(30px,5vw,52px);color:#fff4cb}
+.landing-subtitle{margin-top:4px;font:700 16px/1 'Pixelify Sans',monospace;letter-spacing:4px;color:#f5df9f;text-shadow:2px 2px #513a27}
+.landing-prompt{display:flex;flex-direction:column;align-items:center;gap:9px}
+.landing-hint{font:700 21px 'Sarabun',sans-serif;text-shadow:2px 2px #493323}
+.landing-prompt form{display:flex;align-items:center;justify-content:center;gap:12px;flex-wrap:wrap}
+.game-shell .landing-word{width:190px;text-align:center;padding:4px 12px;border:0!important;border-bottom:4px solid #7c5836!important;border-radius:0!important;background:rgba(255,248,218,.94)!important;font:700 42px/1.5 'Sarabun',sans-serif!important;color:#3b2a1b!important;outline:none}
+.game-shell .landing-word::placeholder{color:#b8a078;opacity:1}
+.game-shell .landing-word.is-ready{border-bottom-color:#65b778!important;box-shadow:0 3px 0 #34533b}
+.game-shell .landing-start{padding:10px 17px;border:3px solid #396544;background:#61b982;color:#123b27;font:700 15px 'Sarabun',sans-serif;box-shadow:0 4px 0 #34533b;cursor:pointer}
+.game-shell .landing-start:disabled{opacity:.6;cursor:not-allowed;filter:grayscale(.45)}
+.landing-footnote{font:600 12px 'Sarabun',sans-serif;text-shadow:1px 2px #493323;opacity:.9}
+.landing-links{display:flex;justify-content:center;gap:30px}
+.game-shell .landing-links button{display:flex;flex-direction:column;align-items:center;gap:5px;border:0;background:transparent;color:#fff2ce;font-size:24px;text-shadow:2px 3px #493323;cursor:pointer}
+.landing-links span{font:700 14px 'Sarabun',sans-serif}
+.landing-school{font:700 11px 'Pixelify Sans',monospace;letter-spacing:2px;color:#e8f5d8;text-shadow:2px 2px #1f4a2a}
+.landing-modal-backdrop{position:fixed;inset:0;z-index:10000;display:grid;place-items:center;padding:20px;background:rgba(25,38,29,.62)}
+.landing-modal{position:relative;width:min(440px,100%);padding:28px 26px;background:#f3e2ae;color:#362718;border:5px solid #70492e;box-shadow:0 7px 0 #493323;text-align:left}
+.landing-modal h2{font-size:25px;margin-bottom:14px}
+.landing-modal ol{padding-left:24px;margin-bottom:22px;font:600 16px/1.9 'Sarabun',sans-serif}
+.game-shell .landing-close{position:absolute;top:7px;right:8px;border:2px solid #70492e;background:#ead49a;color:#362718;font-size:20px;line-height:1;padding:0 5px;cursor:pointer}
+@media(max-width:640px){.game-shell{padding:12px 9px 24px!important}.game-header{align-items:flex-start!important;gap:12px}.game-panel{padding:16px 12px!important}.adventure-banner{padding:14px 12px}.adventure-banner .banner-mark{font-size:34px}}
 #loading{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;
 flex-direction:column;gap:12px;font-family:'Sarabun',sans-serif;font-size:18px;color:#64748B;background:#F1F5F9;z-index:9999}
 #loading span{font-size:40px}

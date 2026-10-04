@@ -23,6 +23,7 @@ import { OnScreenKeyboard } from './ui/keyboard';
 import { CountdownScreen, LobbyScreen, MPSetupScreen } from './race/Setup';
 import { BattleRoyaleResults, HostDashboard, SpectatorView } from './race/Host';
 import { ResultsScreen } from './screens/ResultsScreen';
+import { LandingScreen } from './screens/Landing';
 import { PERF_ON, PerfMeter, perf } from './ui/PerfMeter';
 
 // BR anti-AFK: after the zone starts moving, no correct key for AFK_FIRST_MS → lose 1 life,
@@ -33,7 +34,7 @@ const { useCallback, useEffect, useMemo, useRef, useState } = React;
 
 export function ThaiTypingApp() {
   if (PERF_ON) perf.renders++;
-  const [screen,        setScreen]        = useState(SCRIPT_URL ? 'google-login' : 'lessons');
+  const [screen,        setScreen]        = useState(SCRIPT_URL ? 'google-login' : 'title');
   const [classCode,     setClassCode]     = useState('');
   const [studentName,   setStudentName]   = useState('');
   const [displayName,   setDisplayName]   = useState('');
@@ -1342,8 +1343,8 @@ export function ThaiTypingApp() {
   if (KEYS_ON) return <KeyTester/>;   // ?keys=1 keyboard tester
 
   return (
-    <div style={{minHeight:'100vh',background:'var(--c-bg)',fontFamily:'system-ui,sans-serif',
-      display:'flex',flexDirection:'column',alignItems:'center',padding:'24px 16px 40px',background:'var(--c-bg)',color:'var(--c-t1)'}}>
+    <div className="game-shell" style={{minHeight:'100vh',background:'transparent',fontFamily:'system-ui,sans-serif',
+      display:'flex',flexDirection:'column',alignItems:'center',padding:'24px 16px 40px',color:'var(--c-t1)'}}>
       <style>{`@import url('https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600;700;800&display=swap');`}</style>
 
       {PERF_ON && <PerfMeter/>}
@@ -1362,14 +1363,14 @@ export function ThaiTypingApp() {
       )}
 
       {/* Header */}
-      <div style={{width:'100%',maxWidth:860,display:'flex',
+      <div className={`game-header ${screen==='title'?'is-title':''}`} style={{width:'100%',maxWidth:860,display:'flex',
         justifyContent:'space-between',alignItems:'center',marginBottom:22}}>
         <div style={{display:'flex',alignItems:'center',gap:10}}>
           <span style={{fontSize:26}}>⌨️</span>
           <div>
-            <div style={{fontWeight:800,fontSize:15,color:'var(--c-t1)',
-              fontFamily:"'Sarabun','Noto Sans Thai',sans-serif"}}>แบบฝึกพิมพ์ภาษาไทย</div>
-            <div style={{fontSize:10,color:'var(--c-t3)'}}>Thai Typing Practice — Kedmanee (TIS 820-2538)</div>
+            <div className="pixel-title" style={{fontWeight:800,fontSize:15,color:'var(--c-t1)',
+              fontFamily:"'Sarabun','Noto Sans Thai',sans-serif"}}>แป้นพิมพ์ผจญภัย</div>
+            <div style={{fontSize:10,color:'var(--c-t3)'}}>ANSTH TYPING QUEST · Kedmanee</div>
           </div>
         </div>
         <div style={{display:'flex',gap:8,alignItems:'center'}}>
@@ -1382,7 +1383,7 @@ export function ThaiTypingApp() {
             </div>
           )}
           {/* Back to lessons */}
-          {screen!=='lessons'&&screen!=='spam'&&(
+          {screen!=='lessons'&&screen!=='title'&&screen!=='spam'&&(
             <button onClick={()=>roomCode?requestLeave():setScreen('lessons')} style={{background:'transparent',
               border:'1.5px solid #CBD5E1',borderRadius:8,padding:'6px 12px',cursor:'pointer',
               fontSize:11,color:'var(--c-t2)',fontWeight:600,
@@ -1410,7 +1411,7 @@ export function ThaiTypingApp() {
       </div>
 
       {/* Card */}
-      <div style={{width:'100%',maxWidth:860,background:'var(--c-card)',borderRadius:20,
+      <div className={`game-panel ${screen==='title'?'landing-panel':''}`} style={{width:'100%',maxWidth:860,background:'var(--c-card)',borderRadius:20,
         boxShadow:'0 4px 24px rgba(0,0,0,.12)',padding:'30px 26px'}}>
 
         {notice&&(
@@ -1471,6 +1472,9 @@ export function ThaiTypingApp() {
         {screen==='character' && window.CharKit && (
           <CharKit.CreatorScreen initial={character} signedIn={!!studentName}
             onSave={saveCharacter} onBack={()=>setScreen('lessons')}/>
+        )}
+        {screen==='title' && (
+          <LandingScreen onStart={()=>setScreen('lessons')} onLogin={()=>setScreen('google-login')}/>
         )}
         {screen==='lessons' && (
           <LessonScreen onSelect={startExercise} progress={progress}

@@ -34,6 +34,14 @@ export function LessonScreen({ studentName, classCode, onSelect, onOpenSetup, on
   return (
     <div style={{fontFamily:tf}}>
 
+      <section className="adventure-banner" aria-label="แป้นพิมพ์ผจญภัย">
+        <div>
+          <h1>แป้นพิมพ์ผจญภัย</h1>
+          <p>พิมพ์ให้คล่อง แล้วออกเดินทางผ่านบทเรียนและด่านต่าง ๆ</p>
+        </div>
+        <span className="banner-mark" aria-hidden="true">🌱</span>
+      </section>
+
       {/* ── Login prompt / Player badge — mutually exclusive ── */}
       {!studentName&&SCRIPT_URL&&(
         <div style={{background:'linear-gradient(135deg,#1D4ED8,#3B82F6)',borderRadius:14,

@@ -203,6 +203,10 @@ export function ThaiTypingApp() {
   // Correct shift hand: left-hand target → Right Shift; right-hand target → Left Shift
   const showHints   = !activeTest || activeTest.showHints !== false;
   // My look on the race track: saved character, else the stable one from my room name
+  useEffect(() => {
+    if (studentName && character && window.CharKit) CharKit.saveLocal('last', character);
+  }, [studentName, character]);
+
   const myCfg = window.CharKit
     ? (CharKit.sanitize(character) || CharKit.fromName(myRoomName.current||studentName||'ผู้เล่น1'))
     : null;
@@ -1341,6 +1345,19 @@ export function ThaiTypingApp() {
 
   if (KEYS_ON) return <KeyTester/>;   // ?keys=1 keyboard tester
 
+  // Title screen (before sign-in) is full-screen, outside the app frame.
+  if (screen==='google-login') return (
+    <GoogleSignInScreen
+      onSignIn={(profile, credential) => {
+        auth.idToken=credential||'';
+        auth.subject=profile?.sub||'';
+        setGoogleUser(profile);
+        setScreen('class-picker');
+      }}
+      onSolo={async() => { auth.idToken=''; auth.subject=''; auth.fbSubject=''; if(typeof firebase!=='undefined'&&firebase.apps.length&&firebase.auth().currentUser&&!firebase.auth().currentUser.isAnonymous)await firebase.auth().signOut().catch(()=>{}); setGoogleUser(null); setStudentName(''); setScreen('lessons'); }}
+    />
+  );
+
   return (
     <div style={{minHeight:'100vh',background:'var(--c-bg)',fontFamily:'system-ui,sans-serif',
       display:'flex',flexDirection:'column',alignItems:'center',padding:'24px 16px 40px',background:'var(--c-bg)',color:'var(--c-t1)'}}>
@@ -1428,17 +1445,6 @@ export function ThaiTypingApp() {
         {leaveAsk&&(
           <LeaveConfirm roomType={roomType} onStay={()=>setLeaveAsk(false)}
             onLeave={()=>{ setLeaveAsk(false); handleLeaveRoom(); }}/>
-        )}
-        {screen==='google-login' && (
-          <GoogleSignInScreen
-            onSignIn={(profile, credential) => {
-              auth.idToken=credential||'';
-              auth.subject=profile?.sub||'';
-              setGoogleUser(profile);
-              setScreen('class-picker');
-            }}
-            onSolo={async() => { auth.idToken=''; auth.subject=''; auth.fbSubject=''; if(typeof firebase!=='undefined'&&firebase.apps.length&&firebase.auth().currentUser&&!firebase.auth().currentUser.isAnonymous)await firebase.auth().signOut().catch(()=>{}); setGoogleUser(null); setStudentName(''); setScreen('lessons'); }}
-          />
         )}
         {screen==='class-picker' && googleUser && (
           <ClassPickerScreen

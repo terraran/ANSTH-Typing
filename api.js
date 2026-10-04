@@ -13,6 +13,19 @@ export async function apiRequest(action, values={}) {
   return data;
 }
 
+// Title screen: classmates' character looks (no names), no sign-in needed.
+// Never throws — the title screen falls back to random characters.
+export async function apiTitleRunners() {
+  try {
+    if (!SCRIPT_URL) return [];
+    const body = new URLSearchParams({ action: 'getTitleRunners' });
+    const r = await fetch(SCRIPT_URL, { method: 'POST', body, redirect: 'follow' });
+    if (!r.ok) return [];
+    const d = await r.json();
+    return Array.isArray(d?.characters) ? d.characters : [];
+  } catch { return []; }
+}
+
 // Turns backend error codes into a message the student/teacher can act on.
 export function describeApiError(err) {
   const m=String(err?.message||'');

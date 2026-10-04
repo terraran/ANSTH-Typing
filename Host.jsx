@@ -1,0 +1,165 @@
+import { ZONE_GAP } from '../firebase';
+import { brOrder, isAliveState, playerState, stateBadge } from './presence';
+import { buildChunks } from '../engine/text';
+import { TextDisplay } from '../ui/common';
+
+// HOST DASHBOARD — shown to host who chose "Watch" mode
+
+export function HostDashboard({ roomCode, roomPlayers, roomType, zoneWpm, zonePos, onSpectate, onBack, sOffset=0, watcherNote }) {
+  const tf = "'Sarabun','Noto Sans Thai',sans-serif";
+  const sNow = Date.now()+sOffset;
+  const players = Object.entries(roomPlayers || {}).filter(([,p])=>!p.isSpectator);
+  const stOf = p => playerState(p, 'royale', sNow);
+  const alive   = players.filter(([,p]) => isAliveState(stOf(p)) && (p.lives ?? 1) > 0);
+  // Out of the race: eliminated / left / dropped — the names stay, in finishing order.
+  const dead    = brOrder(roomPlayers, sNow).filter(([,p]) => !(isAliveState(stOf(p)) && (p.lives ?? 1) > 0));
+  const sorted  = [...alive].sort((a,b) => (b[1].pos||0) - (a[1].pos||0));
+
+  return (
+    <div style={{fontFamily:tf}}>
+      {/* Header */}
+      <div style={{background:'linear-gradient(135deg,#1C1917,#D97706)',borderRadius:16,
+        padding:'16px 20px',marginBottom:16,display:'flex',alignItems:'center',gap:12}}>
+        <div>
+          <div style={{fontSize:11,color:'rgba(255,255,255,.6)',fontWeight:700,letterSpacing:2}}>
+            🏆 BATTLE ROYALE · ห้อง {roomCode}</div>
+          <div style={{fontSize:20,fontWeight:800,color:'#fff',marginTop:2}}>
+            {alive.length} คนเหลือ · {dead.length} คนออก</div>
+          {watcherNote&&<div style={{fontSize:12,color:'rgba(255,255,255,.75)',marginTop:2}}>{watcherNote}</div>}
+        </div>
+        {zonePos > 0 && (
+          <div style={{marginLeft:'auto',textAlign:'right'}}>
+            <div style={{fontSize:10,color:'rgba(255,255,255,.6)',fontWeight:700}}>SAFE ZONE</div>
+            <div style={{fontSize:24,fontWeight:800,color:'#FCD34D'}}>{zoneWpm} ตัว/นาที</div>
+          </div>
+        )}
+      </div>
+
+      {/* Player table */}
+      <div style={{display:'flex',flexDirection:'column',gap:6}}>
+        {sorted.map(([uid, p], i) => {
+          const name=p.name||'ผู้เล่น';
+          const wpm    = Math.round((p.cpm||p.wpm||0)/5);  // support both cpm and wpm
+          const lives  = p.lives ?? 3;
+          const pct    = zonePos > 0 ? Math.max(0, Math.min(100, Math.round(((p.pos||0)-(zonePos-ZONE_GAP))/ZONE_GAP*100))) : 100;
+          const danger = zonePos > 0 && (p.pos||0) < zonePos-ZONE_GAP;
+          return (
+            <div key={uid} style={{background:'var(--c-card)',borderRadius:10,
+              padding:'10px 14px',border:`1.5px solid ${danger?'#FCA5A5':'var(--c-border)'}`,
+              display:'flex',alignItems:'center',gap:10}}>
+              <div style={{fontSize:16,fontWeight:800,color:'var(--c-t3)',width:24,
+                flexShrink:0,textAlign:'center'}}>{i+1}</div>
+              <div style={{flex:1,minWidth:0}}>
+                <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:4}}>
+                  <div style={{fontSize:14,fontWeight:800,color:'var(--c-t1)'}}>{name}
+                    {stOf(p)==='dc'&&<span style={{fontSize:11,color:'#B45309',marginLeft:6}}>{stateBadge('dc',p,'royale',sNow)}</span>}</div>
+                  <div style={{fontSize:12,color:danger?'#DC2626':'#059669',fontWeight:700}}>
+                    {wpm} WPM {danger?'⚠️':'✓'}</div>
+                  <div style={{fontSize:12,marginLeft:'auto',flexShrink:0}}>
+                    {lives > 0 ? '❤️'.repeat(Math.min(lives,5)) : '💀'}</div>
+                </div>
+                <div style={{background:'var(--c-surf)',borderRadius:4,height:6,overflow:'hidden'}}>
+                  <div style={{height:'100%',borderRadius:4,transition:'width .5s',
+                    width:pct+'%',background:danger?'#EF4444':'#059669'}}/>
+                </div>
+              </div>
+              <button onClick={()=>onSpectate&&onSpectate(uid)}
+                style={{background:'#EFF6FF',border:'1.5px solid #BFDBFE',color:'#2563EB',
+                  borderRadius:7,padding:'5px 10px',cursor:'pointer',fontSize:11,
+                  fontWeight:700,fontFamily:tf,flexShrink:0}}>
+                👁 ดู
+              </button>
+            </div>
+          );
+        })}
+        {dead.map(([uid,p]) => {
+          const st=stOf(p);
+          return (
+          <div key={uid} style={{background:'var(--c-surf)',borderRadius:10,
+            padding:'10px 14px',border:'1.5px solid var(--c-border)',
+            display:'flex',alignItems:'center',gap:10,opacity:.6}}>
+            <div style={{fontSize:14,fontWeight:700,color:'var(--c-t3)',flex:1}}>
+              {st==='done'?'🏁':st==='eliminated'?'💀':'🚪'} {p.name||'ผู้เล่น'}</div>
+            <div style={{fontSize:11,color:'var(--c-t3)'}}>
+              {st==='done'?'พิมพ์จบแล้ว':st==='eliminated'?'ตกรอบ':'ออกจากการแข่ง'} · {p.pos||0} ตัว</div>
+          </div>
+        );})}
+      </div>
+
+      <button onClick={onBack}
+        style={{marginTop:16,width:'100%',background:'transparent',
+          border:'1.5px solid var(--c-border)',color:'var(--c-t2)',
+          borderRadius:8,padding:'10px',cursor:'pointer',fontSize:13,fontFamily:tf}}>
+        ออกจากห้อง
+      </button>
+    </div>
+  );
+}
+
+// SPECTATOR VIEW — render the selected player's text, not the host's local chunk.
+export function SpectatorView({ playerName, targetChars, progress, onBack }) {
+  const tf = "'Sarabun','Noto Sans Thai',sans-serif";
+  // Apply same chunking logic as practice screen so page scrolls with player
+  const chunks = buildChunks(targetChars);
+  const pos    = progress || 0;
+  const chunkIdx = (() => {
+    for (let i=0; i<chunks.length; i++) { if (pos < chunks[i].end) return i; }
+    return Math.max(0, chunks.length-1);
+  })();
+  const curChunk   = chunks[chunkIdx] || {start:0, end:targetChars.length};
+  const chunkChars = targetChars.slice(curChunk.start, curChunk.end);
+  const chunkPos   = Math.max(0, pos - curChunk.start);
+
+  return (
+    <div style={{fontFamily:tf}}>
+      <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:12}}>
+        <button onClick={onBack}
+          style={{background:'var(--c-surf)',border:'1.5px solid var(--c-border)',
+            color:'var(--c-t2)',borderRadius:7,padding:'5px 10px',cursor:'pointer',
+            fontSize:12,fontFamily:tf}}>← กลับ</button>
+        <div style={{fontSize:14,fontWeight:800,color:'var(--c-t1)'}}>
+          👁 กำลังดู: {playerName}</div>
+        <div style={{marginLeft:'auto',fontSize:11,color:'var(--c-t3)'}}>
+          หน้า {chunkIdx+1}/{chunks.length}
+        </div>
+      </div>
+      <div style={{background:'var(--c-surf)',borderRadius:14,padding:'22px 18px',
+        border:'1.5px solid var(--c-border)',minHeight:96,
+        display:'flex',alignItems:'center',justifyContent:'center'}}>
+        <TextDisplay displayChars={chunkChars} displayPos={chunkPos}/>
+      </div>
+    </div>
+  );
+}
+
+export function BattleRoyaleResults({ roomCode, roomPlayers, rows: lockedRows, onBack, sOffset=0, backLabel='ออกจากห้อง' }) {
+  const tf = "'Sarabun','Noto Sans Thai',sans-serif";
+  const sNow = Date.now()+sOffset;
+  const rows = lockedRows || brOrder(roomPlayers, sNow);   // locked final order once available
+  const label = p => {
+    const st=playerState(p,'royale',sNow);
+    return st==='done'?'พิมพ์จบแล้ว':isAliveState(st)?'รอดจนจบ':st==='eliminated'?'ถูกคัดออก':'ออกจากการแข่ง';
+  };
+  return (
+    <div style={{fontFamily:tf}}>
+      <div style={{textAlign:'center',padding:'24px 12px 18px',background:'linear-gradient(135deg,#1C1917,#D97706)',borderRadius:16,color:'#fff',marginBottom:14}}>
+        <div style={{fontSize:42}}>🏆</div>
+        <div style={{fontSize:22,fontWeight:800}}>จบการแข่งขัน Battle Royale</div>
+        <div style={{fontSize:13,opacity:.8}}>ห้อง {roomCode} · สรุปผลผู้เล่น</div>
+      </div>
+      <div style={{display:'flex',flexDirection:'column',gap:8}}>
+        {rows.map(([uid,p],i)=>(
+          <div key={uid} style={{display:'flex',alignItems:'center',gap:12,padding:'12px 14px',borderRadius:12,border:'1.5px solid var(--c-border)',background:'var(--c-surf)'}}>
+            <div style={{fontSize:19,fontWeight:800,width:32,textAlign:'center',color:i===0?'#D97706':'var(--c-t3)'}}>{i===0?'🥇':i===1?'🥈':i===2?'🥉':i+1}</div>
+            <div style={{flex:1,minWidth:0}}>
+              <div style={{fontSize:14,fontWeight:800,color:'var(--c-t1)'}}>{p.name||'ผู้เล่น'}</div>
+              <div style={{fontSize:11,color:'var(--c-t2)'}}>{label(p)} · {p.pos||0} ตัวอักษร</div>
+            </div>
+            <div style={{fontSize:12,fontWeight:700,color:'var(--c-t2)'}}>{Math.round((p.cpm||p.wpm||0)/5)} WPM</div>
+          </div>
+        ))}
+      </div>
+      <button onClick={onBack} style={{marginTop:16,width:'100%',background:'transparent',border:'1.5px solid var(--c-border)',color:'var(--c-t2)',borderRadius:8,padding:10,cursor:'pointer',fontSize:13,fontFamily:tf}}>{backLabel}</button>
+    </div>
+  );
+}

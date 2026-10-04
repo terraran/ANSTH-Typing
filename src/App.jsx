@@ -1538,13 +1538,13 @@ export function ThaiTypingApp() {
               />
             )}
 
-            {/* Solo practice: race your own best run (ghost) */}
-            {!roomCode&&!activeTest&&ghostData&&window.CharKit&&myCfg&&(
+            {/* Solo practice (untimed only): my character runs as I type; races my best run (ghost) if there is one */}
+            {!roomCode&&!activeTest&&!activeHw&&!timeLimit&&window.CharKit&&myCfg&&(
               <div style={{marginBottom:8,border:'1px solid var(--c-border)',borderRadius:12,overflow:'hidden'}}>
                 <CharKit.RaceTrack mode="1v1" info={`${pos} / ${totalChars} ตัว`} runners={[
                   {id:'me',me:true,label:'คุณ',cfg:myCfg,pct:totalChars?pos/totalChars:0,kpm,finished:pos>=totalChars,color:'#1D4ED8'},
-                  {id:'ghost',label:'👻 สถิติ '+fmtScore(ghostData.score||0)+' คะแนน',cfg:myCfg,alpha:.38,color:'#64748B',kpm:ghostData.cpm,
-                    track:{timings:ghostData.timings,start:startTime,total:totalChars}},
+                  ...(ghostData?[{id:'ghost',label:'👻 สถิติ '+fmtScore(ghostData.score||0)+' คะแนน',cfg:myCfg,alpha:.38,color:'#64748B',kpm:ghostData.cpm,
+                    track:{timings:ghostData.timings,start:startTime,total:totalChars}}]:[]),
                 ]}/>
               </div>
             )}

@@ -191,7 +191,7 @@ export function ResultsScreen({ cpm, accuracy, errors, totalChars, lesson, saveS
       )}
       {/* Curriculum step: stars from accuracy + speed vs the stage target (Thai words/min) */}
       {curResult && (()=>{
-        const { stars, prevStars, wpm, target, net, accuracy:acc } = curResult;
+        const { stars, prevStars, wpm, target, net, accuracy:acc, rush, cleared } = curResult;
         const tip = stars===0 ? `ต้องแม่นยำอย่างน้อย 90% จึงได้ ⭐ (รอบนี้ ${acc}%) — ค่อย ๆ พิมพ์ให้ถูกก่อน`
           : stars===1 ? `อีกนิด! พิมพ์ให้ได้ ${target} คำ/นาที เพื่อรับ ⭐⭐`
           : stars===2 ? `เก่งมาก! ${Math.round(target*1.5*10)/10} คำ/นาที และแม่นยำ 95% ขึ้นไป = ⭐⭐⭐`
@@ -206,6 +206,8 @@ export function ResultsScreen({ cpm, accuracy, errors, totalChars, lesson, saveS
               {net?'คำสุทธิ':'ความเร็ว'} {wpm} คำ/นาที · เป้าด่านนี้ {target} คำ/นาที</div>
             <div style={{fontSize:12,color:'#166534',marginTop:2}}>{tip}</div>
             {stars>prevStars&&prevStars>0&&<div style={{fontSize:12,fontWeight:800,color:'#B45309',marginTop:4}}>🎉 ดาวเพิ่มจาก {prevStars} เป็น {stars}</div>}
+            {cleared&&<div style={{fontSize:14,fontWeight:800,color:'#B45309',marginTop:6}}>⚔️ Rush สำเร็จ! ผ่านบท {lesson?.num} ทั้งบท — ขั้นก่อนหน้าและบทถัดไปเปิดแล้ว</div>}
+            {rush&&!cleared&&<div style={{fontSize:12,fontWeight:700,color:'#B45309',marginTop:6}}>⚔️ Rush ต้องได้ ⭐⭐⭐ จึงจะข้ามทั้งบทได้ — หรือเล่นไล่จากขั้นแรกของบทก็ได้</div>}
             {net&&<div style={{fontSize:11,color:'var(--c-t3)',marginTop:4}}>คำสุทธิ = (จำนวนครั้งที่กดแป้น ÷ 4 − จำนวนครั้งที่ผิด) ÷ นาที</div>}
           </div>
         );

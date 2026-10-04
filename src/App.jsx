@@ -2,7 +2,7 @@ import { SCRIPT_URL } from './config';
 import { buildChunks, cleanTypingWords, generateBRText, generateStoryText, generateText, generateTimedText, seededRng } from './engine/text';
 import { CHAR_CLASS, CLASS_NAMES, KEY_META, findKeyForChar, resolveKey, validateInput } from './engine/keymap';
 import { KEYS_ON, KeyTester } from './ui/KeyTester';
-import { ERROR_BURST, ERROR_WINDOW_MS, PRESSURE_SECS, SPAM_PENALTY, SPAM_WINDOW_KEYS, SPAM_WRONG_SHARE, SPEED_CPM, TEST_MIN_CHARS, TEST_SECS, charBasePoints, comboMultiplier, fmtScore, hsKey, lessonStars, netThaiWpmOf, readCurStars, readGuestHighScores, stageTarget, thaiWpmOf, writeCurStars, speedMultiplier, testTargetScore, writeGuestHighScores } from './engine/scoring';
+import { ERROR_BURST, ERROR_WINDOW_MS, PRESSURE_SECS, SPAM_PENALTY, SPAM_WINDOW_KEYS, SPAM_WRONG_SHARE, SPEED_CPM, TEST_MIN_CHARS, TEST_SECS, charBasePoints, comboMultiplier, fmtScore, hsKey, lessonStars, netThaiWpmOf, readGuestHighScores, stageTarget, thaiWpmOf, speedMultiplier, testTargetScore, writeGuestHighScores } from './engine/scoring';
 import { ROOM_CODE_LEN, ROOM_CODE_RE, ZONE_GAP, ZONE_GRACE, ZONE_TICK, currentFirebaseUid, ensureFirebaseUser, fbArmLobby, fbArmRace, fbClearActiveRoom, fbCreate, fbDisarm, fbGet, fbGetActiveRoom, fbJoin, fbListen, fbRemove, fbServerOffset, fbSetActiveRoom, fbSetChar, fbSetStatus, fbUpdatePlayer, getDB, getZonePos, getZoneSpeed, makeFreeCode, zonePosAt } from './firebase';
 import { brOrder, brRaceOver, dcLeftMs, graceMs, isOutState, playerState } from './race/presence';
 import { LeaveConfirm, RejoinBanner } from './race/PresenceUI';
@@ -11,6 +11,7 @@ import { auth } from './auth';
 import { LESSONS, findLesson } from './data/lessons';
 import { stageOf } from './data/curriculum.js';
 import { curriculumText } from './engine/curriculumText.js';
+import { RUSH_STARS, emptyProgress, readLocalProgress, stepKey, stepState, writeLocalProgress } from './engine/progress.js';
 import { PenaltyScreen, TestTimer, TextDisplay, TimeUpOverlay } from './ui/common';
 import { NameModal, StoryChoiceScreen } from './screens/Story';
 import { ClassPickerScreen, GoogleSignInScreen } from './screens/Login';
@@ -155,7 +156,9 @@ export function ThaiTypingApp() {
   const [maxScore,    setMaxScore]    = useState(0);    // weekly test: target score (100%)
   const [highScores,  setHighScores]  = useState({});   // practice best per exercise
   const [prevBest,    setPrevBest]    = useState(0);    // high score before this run
-  const [curStars,    setCurStars]    = useState(()=>readCurStars());   // curriculum: best ⭐ per step ("101|1.1")
+  // Curriculum progress: best ⭐ per step, lessons cleared by a ⚔️ Rush, stage unlocked by the teacher.
+  // Signed in → from the Progress sheet (getStudentStats); guest → this device only.
+  const [progress,    setProgress]    = useState(()=>readLocalProgress());
   const [curResult,   setCurResult]   = useState(null);  // curriculum: {stars, prevStars, wpm, target, net} of the last run
   const testRef       = useRef(null);
   const hsDone        = useRef(false);
@@ -596,9 +599,20 @@ export function ThaiTypingApp() {
         const wpm = net ? netThaiWpmOf(pressCountRef.current, errors, mins) : thaiWpmOf(pressCountRef.current, mins);
         const target = stageTarget(lesson.stage);
         const stars = lessonStars(wpm, acc, target);
-        const prevStars = curStars[k] || 0;
-        setCurResult({ stars, prevStars, wpm: Math.round(wpm * 10) / 10, target, net, accuracy: acc });
-        if (stars > prevStars) { const m = {...curStars, [k]: stars}; setCurStars(m); writeCurStars(m); }
+        const prevStars = progress.stars[k] || 0;
+        const idx = lesson.exercises.indexOf(exercise);
+        const rush = stepState(progress, lesson, idx).rush;                 // played as a ⚔️ Rush?
+        const clears = idx === lesson.exercises.length - 1 && stars >= RUSH_STARS && !progress.cleared[lesson.id];
+        setCurResult({ stars, prevStars, wpm: Math.round(wpm * 10) / 10, target, net, accuracy: acc, rush, cleared: clears });
+        if (stars > prevStars || clears) {
+          const np = { ...progress, stars: { ...progress.stars, [k]: Math.max(stars, prevStars) },
+            cleared: clears ? { ...progress.cleared, [lesson.id]: true } : progress.cleared };
+          setProgress(np);
+          if (studentName && SCRIPT_URL) {
+            apiRequest('saveProgress', { code: classCode, student: studentName, key: k, stars: Math.max(stars, prevStars), cleared: clears ? lesson.id : '' })
+              .catch(() => {});
+          } else writeLocalProgress(np);
+        }
       } else setCurResult(null);
     }
     if (!studentName || !SCRIPT_URL) return;
@@ -640,10 +654,15 @@ export function ThaiTypingApp() {
   useEffect(() => {
     if (studentName && SCRIPT_URL) {
       apiGetStudentStats(classCode, studentName)
-        .then(d => setHighScores(d.highScores || {}))
+        .then(d => {
+          setHighScores(d.highScores || {});
+          // Backend without Progress.gs yet → keep this device's progress so nothing locks up
+          setProgress(d.progress ? { ...emptyProgress(), ...d.progress } : readLocalProgress());
+        })
         .catch(() => {});
     } else {
       setHighScores(readGuestHighScores());
+      setProgress(readLocalProgress());
     }
   }, [classCode, studentName]);
 
@@ -687,12 +706,15 @@ export function ThaiTypingApp() {
   },[googleUser, studentName, classCode]);
 
   // Curriculum: the step after this one (next step of the lesson, else step 1 of the next lesson)
+  // Only offered when that step is open (a failed Rush does not open the step before it).
   const nextStepOf = (les, ex) => {
     if (!les?.curriculum || !ex) return null;
     const i = les.exercises.indexOf(ex);
-    if (i >= 0 && i < les.exercises.length - 1) return { lesson: les, exercise: les.exercises[i + 1] };
-    const nl = LESSONS.find(l => l.num === les.num + 1);
-    return nl ? { lesson: nl, exercise: nl.exercises[0] } : null;
+    let n = null;
+    if (i >= 0 && i < les.exercises.length - 1) n = { lesson: les, exercise: les.exercises[i + 1] };
+    else { const nl = LESSONS.find(l => l.num === les.num + 1); if (nl) n = { lesson: nl, exercise: nl.exercises[0] }; }
+    if (n && !stepState(progress, n.lesson, n.lesson.exercises.indexOf(n.exercise)).open) return null;
+    return n;
   };
 
   const startExercise = useCallback((les,ex,opts={}) => {
@@ -1371,7 +1393,7 @@ export function ThaiTypingApp() {
             onSave={saveCharacter} onBack={()=>setScreen('lessons')}/>
         )}
         {screen==='lessons' && (
-          <LessonScreen onSelect={startExercise} curStars={curStars}
+          <LessonScreen onSelect={startExercise} progress={progress}
             onOpenSetup={(mode)=>{ setMpSetupMode(mode); setScreen('mp-setup'); }}
             onJoin={handleJoin}
             joinCode={joinCode} setJoinCode={setJoinCode}

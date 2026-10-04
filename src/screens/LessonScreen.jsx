@@ -1,13 +1,14 @@
 import { CHAPTERS, LESSONS } from '../data/lessons';
 import { SCRIPT_URL } from '../config';
 import { fmtScore, hsKey } from '../engine/scoring';
+import { emptyProgress, lessonAnyOpen, lessonComplete, stageDone, stageOpen, stageStars, starsOf as progStars, stepState } from '../engine/progress';
 import { ROOM_CODE_LEN } from '../firebase';
 
 const { useEffect, useRef, useState } = React;
 
 // LESSON SELECTOR
 
-export function LessonScreen({ studentName, classCode, onSelect, onOpenSetup, onJoin, joinCode, setJoinCode, joinError, mpBusy, storyPath, storyPower, onViewStats, onLogin, weekly, onOpenWeekly, highScores, character, onOpenCharacter, curStars={} }) {
+export function LessonScreen({ studentName, classCode, onSelect, onOpenSetup, onJoin, joinCode, setJoinCode, joinError, mpBusy, storyPath, storyPower, onViewStats, onLogin, weekly, onOpenWeekly, highScores, character, onOpenCharacter, progress=emptyProgress() }) {
   const savedCh=(()=>{try{return Math.min(parseInt(localStorage.getItem('lastChapter')||'0')||0,CHAPTERS.length-1);}catch{return 0;}})();
   const getExercises=(lesson)=>{
     if(!lesson.story) return lesson.exercises||[];
@@ -20,11 +21,8 @@ export function LessonScreen({ studentName, classCode, onSelect, onOpenSetup, on
   };
   const [chIdx,       setChIdx]       = useState(savedCh);
   const [openLesson,  setOpenLesson]  = useState(null);
-  const [cardW,       setCardW]       = useState(0);
-  const carouselRef = useRef(null);
   const tf = "'Sarabun','Noto Sans Thai',sans-serif";
 
-  useEffect(()=>{ if(carouselRef.current) setCardW(carouselRef.current.offsetWidth); },[]);
 
   const gotoChapter = (i) => {
     const c=Math.max(0,Math.min(i,CHAPTERS.length-1));
@@ -32,15 +30,6 @@ export function LessonScreen({ studentName, classCode, onSelect, onOpenSetup, on
     try{ localStorage.setItem('lastChapter',String(c)); }catch{}
   };
 
-  const PEEK=28, GAP=10;
-  const cw = cardW>0 ? cardW-PEEK : 0;
-  const stripTransform = cw>0
-    ? `translateX(-${chIdx*(cw+GAP)}px)`
-    : `translateX(-${chIdx*100}%)`;
-  const minCardW = cw>0 ? cw+'px' : '100%';
-
-  const atFirst = chIdx===0;
-  const atLast  = chIdx===CHAPTERS.length-1;
 
   return (
     <div style={{fontFamily:tf}}>
@@ -123,153 +112,97 @@ export function LessonScreen({ studentName, classCode, onSelect, onOpenSetup, on
         );
       })()}
 
-      {/* ── Chapter carousel ── */}
-      <div style={{marginBottom:20}}>
-        <div style={{fontSize:11,fontWeight:800,color:'var(--c-t3)',letterSpacing:1,
-          marginBottom:12,textAlign:'center'}}>🗺️ เลือกด่าน</div>
+      {/* ── Adventure map: a trail through the 9 stages ── */}
+      <AdventureMap progress={progress} selected={chIdx} onSelect={gotoChapter} character={character}/>
 
-        <div style={{display:'flex',alignItems:'center',gap:8}}>
-          {/* Prev */}
-          <button onClick={()=>gotoChapter(chIdx-1)} disabled={atFirst}
-            style={{width:36,height:36,borderRadius:'50%',border:'1.5px solid var(--c-border)',
-              background:'#fff',fontSize:20,flexShrink:0,fontWeight:700,
-              cursor:atFirst?'default':'pointer',
-              color:atFirst?'#CBD5E1':'#64748B',opacity:atFirst?0.35:1,
-              display:'flex',alignItems:'center',justifyContent:'center',transition:'opacity .2s'}}>
-            ‹
-          </button>
-
-          {/* Card strip */}
-          <div ref={carouselRef} style={{flex:1,overflow:'hidden'}}>
-            <div style={{display:'flex',gap:GAP+'px',transition:'transform .35s cubic-bezier(.4,0,.2,1)',
-              transform:stripTransform}}>
-              {CHAPTERS.map(ch=>{
-                const chLessons=LESSONS.filter(l=>ch.lessonIds.includes(l.id));
-                return (
-                  <div key={ch.id} style={{minWidth:minCardW,flexShrink:0}}>
-                    <div style={{background:`linear-gradient(135deg,${ch.from},${ch.to})`,
-                      borderRadius:18,padding:'22px 20px',textAlign:'center',
-                      position:'relative',overflow:'hidden'}}>
-                      <div style={{position:'absolute',top:-20,right:-20,width:80,height:80,
-                        borderRadius:'50%',background:'rgba(255,255,255,.08)'}}/>
-                      <div style={{fontSize:30,marginBottom:6}}>{ch.icon}</div>
-                      <div style={{fontSize:10,fontWeight:800,color:'rgba(255,255,255,.65)',
-                        letterSpacing:1,marginBottom:3}}>{ch.label}</div>
-                      <div style={{fontSize:19,fontWeight:800,color:'#fff',marginBottom:4,
-                        fontFamily:tf}}>{ch.title}</div>
-                      <div style={{fontSize:11,color:'rgba(255,255,255,.75)'}}>
-                        {chLessons.length} บทเรียน · {ch.subtitle}</div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* Next */}
-          <button onClick={()=>gotoChapter(chIdx+1)} disabled={atLast}
-            style={{width:36,height:36,borderRadius:'50%',border:'1.5px solid var(--c-border)',
-              background:'#fff',fontSize:20,flexShrink:0,fontWeight:700,
-              cursor:atLast?'default':'pointer',
-              color:atLast?'#CBD5E1':'#64748B',opacity:atLast?0.35:1,
-              display:'flex',alignItems:'center',justifyContent:'center',transition:'opacity .2s'}}>
-            ›
-          </button>
-        </div>
-
-        {/* Dots */}
-        <div style={{display:'flex',justifyContent:'center',gap:6,marginTop:10}}>
-          {CHAPTERS.map((_,ci)=>(
-            <div key={ci} onClick={()=>gotoChapter(ci)}
-              style={{width:chIdx===ci?20:6,height:6,borderRadius:99,cursor:'pointer',
-                background:chIdx===ci?(CHAPTERS[ci]?.dot||'#1D4ED8'):'#CBD5E1',
-                transition:'all .25s'}}/>
-          ))}
-        </div>
-      </div>
-
-      {/* ── Lesson list ── */}
+      {/* ── Lessons of the selected stage ── */}
       {(()=>{
         const ch=CHAPTERS[chIdx];
         const chLessons=LESSONS.filter(l=>ch.lessonIds.includes(l.id));
+        const open=stageOpen(progress,ch.id);
+        const prevBoss=chIdx>0?LESSONS.filter(l=>CHAPTERS[chIdx-1].lessonIds.includes(l.id)).slice(-1)[0]:null;
         return (
           <div style={{marginBottom:20}}>
-            <div style={{fontSize:11,fontWeight:800,color:'var(--c-t3)',letterSpacing:1,marginBottom:10}}>
-              บทเรียนใน{ch.label} · {ch.title}
+            <div style={{fontSize:13,fontWeight:800,color:'var(--c-t2)',marginBottom:10}}>
+              {ch.icon} {ch.label} · {ch.title}
+              <span style={{fontWeight:600,color:'var(--c-t3)'}}> — {ch.subtitle}</span>
             </div>
+            {!open&&prevBoss&&(
+              <div style={{background:'#F8FAFC',border:'1.5px dashed #CBD5E1',borderRadius:12,padding:'10px 14px',
+                marginBottom:10,fontSize:13,color:'#475569',lineHeight:1.6}}>
+                🔒 ด่านนี้ยังปิดอยู่ — ผ่าน <b>บท {prevBoss.num} {prevBoss.thaiName}</b> ของด่าน {chIdx} ก่อน
+                <br/>⚔️ ทางลัด: Rush ขั้นสุดท้ายของบทนั้นให้ได้ ⭐⭐⭐ (หรือให้ครูปลดล็อกให้)
+              </div>
+            )}
             <div style={{display:'flex',flexDirection:'column',gap:8}}>
               {chLessons.map((lesson)=>{
                 const ghostKey=ex=>'ghostv2_'+lesson.id+'_'+encodeURIComponent(ex.title);
                 const exHasGhost=ex=>{try{return !!localStorage.getItem(ghostKey(ex));}catch{return false;}};
                 const lessonExs=getExercises(lesson);
-                // Curriculum: a step is done once it has ⭐ (accuracy ≥ 90%); old lessons: has a ghost
-                const starsOf=ex=>curStars[hsKey(lesson.id,ex.title)]||0;
-                const exDone=ex=>lesson.curriculum?starsOf(ex)>0:exHasGhost(ex);
-                const allDone=lessonExs.every(exDone);
+                const starsOf=ex=>progStars(progress,lesson,ex);
+                const allDone=lessonComplete(progress,lesson);
+                const anyOpen=lessonAnyOpen(progress,lesson);
                 const hasGhost=lessonExs.some(exHasGhost);
                 const starTotal=lessonExs.reduce((a,ex)=>a+starsOf(ex),0);
+                const cleared=!!progress.cleared?.[lesson.id];
                 const isOpen=openLesson===lesson.id;
                 const cardBg=allDone?lesson.accent:'var(--c-card)';
                 const cardBorder=allDone?`2px solid ${lesson.accent}`:`1.5px solid var(--c-border)`;
-                const numBg=allDone?'rgba(255,255,255,.22)':lesson.al;
-                const numColor=allDone?'#fff':lesson.accent;
-                const titleColor=allDone?'#fff':'var(--c-t1)';
-                const subColor=allDone?'rgba(255,255,255,.7)':'var(--c-t3)';
-                const arrowColor=allDone?'rgba(255,255,255,.8)':'var(--c-t3)';
+                const numBg=allDone?'rgba(255,255,255,.22)':anyOpen?lesson.al:'#F1F5F9';
+                const numColor=allDone?'#fff':anyOpen?lesson.accent:'#94A3B8';
+                const titleColor=allDone?'#fff':anyOpen?'var(--c-t1)':'#94A3B8';
+                const subColor=allDone?'rgba(255,255,255,.75)':'var(--c-t3)';
                 return (
                   <div key={lesson.id}>
                     <div onClick={()=>setOpenLesson(o=>o===lesson.id?null:lesson.id)}
                       style={{background:cardBg,border:cardBorder,
                         borderRadius:isOpen?'12px 12px 0 0':12,
                         padding:'12px 16px',display:'flex',alignItems:'center',gap:12,
-                        cursor:'pointer',transition:'opacity .15s, border-radius .1s'}}
-                      onMouseEnter={e=>e.currentTarget.style.opacity='.88'}
-                      onMouseLeave={e=>e.currentTarget.style.opacity='1'}>
+                        cursor:'pointer',transition:'opacity .15s, border-radius .1s'}}>
                       <div style={{width:36,height:36,borderRadius:10,background:numBg,
                         display:'flex',alignItems:'center',justifyContent:'center',
                         fontSize:13,fontWeight:800,color:numColor,flexShrink:0}}>
-                        {lesson.num ?? lesson.id}
+                        {anyOpen?(lesson.num ?? lesson.id):'🔒'}
                       </div>
                       <div style={{flex:1}}>
-                        <div style={{fontSize:14,fontWeight:800,color:titleColor}}>{lesson.thaiName}</div>
+                        <div style={{fontSize:14,fontWeight:800,color:titleColor}}>
+                          {anyOpen?'':`บท ${lesson.num} · `}{lesson.thaiName}</div>
                         <div style={{fontSize:11,color:subColor,marginTop:1}}>
-                          {lesson.curriculum
-                            ? `${lessonExs.length} ขั้น · ⭐ ${starTotal}/${lessonExs.length*3}`
-                            : `${lessonExs.length} exercises`}{hasGhost?' · 👻':''}
+                          {`${lessonExs.length} ขั้น · ⭐ ${starTotal}/${lessonExs.length*3}`}
+                          {cleared&&' · ⚔️ ผ่านด้วย Rush'}{hasGhost?' · 👻':''}
                         </div>
                       </div>
-                      <span style={{color:arrowColor,fontSize:16,flexShrink:0}}>{isOpen?'▲':'▼'}</span>
+                      <span style={{color:allDone?'rgba(255,255,255,.8)':'var(--c-t3)',fontSize:16,flexShrink:0}}>{isOpen?'▲':'▼'}</span>
                     </div>
                     {isOpen&&(
                       <div style={{border:cardBorder,borderTop:'none',
                         borderRadius:'0 0 12px 12px',background:'var(--c-card)',padding:'8px 10px'}}>
                         {lessonExs.map((ex,i)=>{
-                          const hasEx=exDone(ex);
+                          const stt=stepState(progress,lesson,i);
                           const st=starsOf(ex);
+                          const hasEx=st>0;
+                          const hs=(highScores||{})[hsKey(lesson.id,ex.title)];
+                          const skipped=!hasEx&&cleared&&i<lessonExs.length-1;
                           return (
-                            <button key={i} onClick={()=>onSelect(lesson,ex)}
+                            <button key={i} disabled={!stt.open} onClick={()=>stt.open&&onSelect(lesson,ex)}
+                              title={stt.open?'':stt.reason}
                               style={{width:'100%',display:'flex',justifyContent:'space-between',
-                                alignItems:'center',
-                                background:hasEx?lesson.accent:'transparent',
-                                border:`1.5px solid ${lesson.accent}`,borderRadius:8,
-                                padding:'7px 10px',cursor:'pointer',fontFamily:tf,
-                                marginBottom:i<lessonExs.length-1?6:0,
-                                transition:'opacity .1s'}}
-                              onMouseEnter={e=>e.currentTarget.style.opacity='.8'}
-                              onMouseLeave={e=>e.currentTarget.style.opacity='1'}>
-                              <span style={{fontSize:12,fontWeight:700,
-                                color:hasEx?'#fff':lesson.accent}}>{ex.title}</span>
-                              <span style={{display:'flex',alignItems:'center',gap:5,flexShrink:0}}>
-                                {lesson.curriculum
-                                  ? <span style={{fontSize:11,letterSpacing:1,color:hasEx?'#FDE68A':'var(--c-t3)'}}>{'★'.repeat(st)+'☆'.repeat(3-st)}</span>
-                                  : hasEx&&<span style={{fontSize:10}}>👻</span>}
-                                {(highScores||{})[hsKey(lesson.id,ex.title)]>0&&(
-                                  <span style={{fontSize:10,fontWeight:800,
-                                    color:hasEx?'#fff':'#D97706'}}>🏆 {fmtScore(highScores[hsKey(lesson.id,ex.title)])}</span>
-                                )}
-                                <span style={{fontSize:10,
-                                  color:hasEx?'rgba(255,255,255,.7)':'var(--c-t3)'}}>{ex.secs?`⏱ ${ex.secs/60} นาที`:ex.minChars?`~${ex.minChars}ตัว`:'ข้อความยาว'}</span>
-                                <span style={{color:hasEx?'rgba(255,255,255,.8)':lesson.accent,fontSize:12}}>→</span>
+                                alignItems:'center',gap:8,
+                                background:hasEx?lesson.accent:stt.open?'transparent':'#F8FAFC',
+                                border:`1.5px ${stt.rush?'dashed':'solid'} ${stt.open?(stt.rush?'#D97706':lesson.accent):'#E2E8F0'}`,borderRadius:8,
+                                padding:'7px 10px',cursor:stt.open?'pointer':'not-allowed',fontFamily:tf,
+                                marginBottom:i<lessonExs.length-1?6:0}}>
+                              <span style={{fontSize:12,fontWeight:700,textAlign:'left',
+                                color:hasEx?'#fff':stt.open?(stt.rush?'#B45309':lesson.accent):'#94A3B8'}}>
+                                {stt.open?'':'🔒 '}{ex.title}{stt.rush?' · ⚔️ Rush (ต้อง ⭐⭐⭐ เพื่อข้ามทั้งบท)':''}
+                                {!stt.open&&<span style={{fontWeight:600}}> — {stt.reason}</span>}
+                              </span>
+                              <span style={{display:'flex',alignItems:'center',gap:6,flexShrink:0}}>
+                                {skipped&&<span style={{fontSize:10,fontWeight:700,color:'#B45309'}}>✓ ข้ามแล้ว</span>}
+                                <span style={{fontSize:11,letterSpacing:1,color:hasEx?'#FDE68A':'var(--c-t3)'}}>{'★'.repeat(st)+'☆'.repeat(3-st)}</span>
+                                {hs>0&&<span style={{fontSize:10,fontWeight:800,color:hasEx?'#fff':'#D97706'}}>🏆 {fmtScore(hs)}</span>}
+                                <span style={{fontSize:10,color:hasEx?'rgba(255,255,255,.75)':'var(--c-t3)'}}>
+                                  {ex.secs?`⏱ ${ex.secs/60} นาที`:ex.minChars?`~${ex.minChars}ตัว`:'ข้อความยาว'}</span>
                               </span>
                             </button>
                           );
@@ -325,6 +258,61 @@ export function LessonScreen({ studentName, classCode, onSelect, onOpenSetup, on
           </button>
         </div>
         {joinError&&<div style={{fontSize:12,color:'#DC2626',marginTop:6,fontFamily:tf}}>{joinError}</div>}
+      </div>
+    </div>
+  );
+}
+
+// ADVENTURE MAP — the 9 stages as stops on a winding trail. Locked stops are grey with 🔒,
+// cleared stops get a gold ring, and the student's character stands on the furthest open stop.
+const NODE_DX=118, NODE_Y=[58,128], MAP_H=200;
+export function AdventureMap({ progress, selected, onSelect, character }) {
+  const ref=useRef(null);
+  const n=CHAPTERS.length, W=60+(n-1)*NODE_DX+60;
+  const pts=CHAPTERS.map((_,i)=>({x:60+i*NODE_DX,y:NODE_Y[i%2]}));
+  const frontier=(()=>{ let f=0; CHAPTERS.forEach((c,i)=>{ if(stageOpen(progress,c.id)) f=i; }); return f; })();
+  useEffect(()=>{
+    const el=ref.current; if(!el) return;
+    el.scrollTo({left:Math.max(0,pts[selected].x-el.clientWidth/2),behavior:'smooth'});
+  },[selected]);
+  let d=`M ${pts[0].x} ${pts[0].y}`;
+  for (let i=1;i<n;i++){ const a=pts[i-1],b=pts[i],mx=(a.x+b.x)/2; d+=` C ${mx} ${a.y}, ${mx} ${b.y}, ${b.x} ${b.y}`; }
+  const tf="'Sarabun','Noto Sans Thai',sans-serif";
+  return (
+    <div style={{marginBottom:18}}>
+      <div style={{fontSize:13,fontWeight:800,color:'var(--c-t2)',marginBottom:8}}>🗺️ แผนที่ผจญภัย</div>
+      <div ref={ref} style={{overflowX:'auto',borderRadius:16,border:'1.5px solid var(--c-border)',
+        background:'linear-gradient(180deg,#E0F2FE 0%,#F0FDF4 55%,#ECFCCB 100%)'}}>
+        <div style={{position:'relative',width:W,height:MAP_H}}>
+          <svg width={W} height={MAP_H} style={{position:'absolute',inset:0}}>
+            <path d={d} fill="none" stroke="#D6C7A1" strokeWidth="14" strokeLinecap="round"/>
+            <path d={d} fill="none" stroke="#FFFBEB" strokeWidth="3" strokeDasharray="2 10" strokeLinecap="round"/>
+          </svg>
+          {CHAPTERS.map((c,i)=>{
+            const open=stageOpen(progress,c.id), done=stageDone(progress,c.id), sel=i===selected;
+            const {got,max}=stageStars(progress,c.id), p=pts[i];
+            return (
+              <button key={c.id} onClick={()=>onSelect(i)} aria-label={`ด่าน ${c.id} ${c.title}${open?'':' (ล็อก)'}`}
+                style={{position:'absolute',left:p.x-46,top:p.y-30,width:92,background:'none',border:'none',
+                  cursor:'pointer',padding:0,fontFamily:tf,textAlign:'center'}}>
+                {i===frontier&&window.CharKit&&character&&(
+                  <div style={{position:'absolute',left:58,top:-30,lineHeight:0}}><CharKit.Avatar config={character} size={30}/></div>
+                )}
+                <div style={{width:sel?60:52,height:sel?60:52,margin:'0 auto',borderRadius:'50%',
+                  display:'flex',alignItems:'center',justifyContent:'center',fontSize:sel?28:24,
+                  background:open?`linear-gradient(135deg,${c.from},${c.to})`:'#E2E8F0',
+                  border:done?'4px solid #F59E0B':sel?'3px solid #0F172A':'3px solid #fff',
+                  boxShadow:sel?'0 6px 16px rgba(15,23,42,.25)':'0 2px 6px rgba(15,23,42,.15)',
+                  filter:open?'none':'grayscale(1)',transition:'all .2s'}}>
+                  {open?c.icon:'🔒'}
+                </div>
+                <div style={{fontSize:11,fontWeight:800,color:open?'#0F172A':'#94A3B8',marginTop:3,whiteSpace:'nowrap'}}>
+                  {c.id}. {c.title}</div>
+                <div style={{fontSize:10,fontWeight:700,color:'#B45309'}}>{open||got?`★ ${got}/${max}`:''}</div>
+              </button>
+            );
+          })}
+        </div>
       </div>
     </div>
   );

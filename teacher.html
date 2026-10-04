@@ -157,6 +157,7 @@
     <button class="nav-btn" id="btn-back" onclick="showDash()" style="display:none">← กลับ</button>
     <a href="index.html" class="nav-btn" style="text-decoration:none">⌨️ นักเรียน</a>
     <button class="nav-btn" id="btn-weekly" onclick="showWeekly()" style="display:none">🏆 แบบทดสอบประจำสัปดาห์</button>
+    <button class="nav-btn" id="btn-unlock" onclick="showUnlock()" style="display:none">🔓 ปลดล็อกด่าน</button>
     <button class="nav-btn danger" onclick="logout()">ออกจากระบบ</button>
   </nav>
 
@@ -225,6 +226,25 @@
       </div>
       <div class="wk-sub">1 ระดับชั้นมี 1 แบบทดสอบต่อสัปดาห์ (จันทร์–อาทิตย์) · จับเวลา 2 นาที · ทุกห้องในระดับชั้นได้ข้อความเดียวกัน · นักเรียนทำซ้ำได้ ระบบนับครั้งที่ดีที่สุด</div>
       <div id="weekly-list"><div class="loading-msg">กำลังโหลด...</div></div>
+    </div>
+  </div>
+
+  <!-- STAGE UNLOCKS -->
+  <div class="screen" id="s-unlock">
+    <div class="wrap" style="max-width:900px;margin:0 auto;padding:24px">
+      <div class="wk-head">
+        <div class="wk-title">🔓 ปลดล็อกด่าน</div>
+        <button class="mini-btn" onclick="loadUnlocks()" title="โหลดใหม่" style="margin-left:4px">↻</button>
+      </div>
+      <div class="wk-sub">ปลดล็อกด่าน 1 ถึงด่านที่เลือก ให้ทั้งห้องหรือนักเรียนรายคน — ทุกบทในด่านที่ปลดล็อกจะเข้าได้ทันทีโดยไม่ต้องเล่นตามลำดับ · เลือก "ยกเลิก" เพื่อกลับไปใช้กติกาปกติ</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:14px 0">
+        <select id="ul-class" onchange="fillUnlockStudents()" style="padding:8px;border-radius:8px;border:1.5px solid #E2E8F0;font-family:inherit"></select>
+        <select id="ul-student" style="padding:8px;border-radius:8px;border:1.5px solid #E2E8F0;font-family:inherit"></select>
+        <select id="ul-stage" style="padding:8px;border-radius:8px;border:1.5px solid #E2E8F0;font-family:inherit"></select>
+        <button class="primary-small" onclick="saveUnlock()">บันทึก</button>
+      </div>
+      <div id="ul-err" class="error-msg" style="display:none"></div>
+      <div id="ul-list"><div class="loading-msg">กำลังโหลด...</div></div>
     </div>
   </div>
 
@@ -320,6 +340,7 @@ async function initDashboard() {
   document.getElementById('s-login').style.display = 'none';
   document.getElementById('navbar').classList.add('visible');
   document.getElementById('btn-weekly').style.display = 'inline-block';
+  document.getElementById('btn-unlock').style.display = 'inline-block';
   showDash();
   buildClassTabs();
   if (classes.length) loadClass(classes[0]);
@@ -446,6 +467,7 @@ function showStudentDetail(student) {
 }
 
 function showDash() {
+  document.getElementById('s-unlock').classList.remove('active');
   document.getElementById('s-detail').classList.remove('active');
   document.getElementById('s-weekly').classList.remove('active');
   document.getElementById('s-dash').classList.add('active');
@@ -458,6 +480,7 @@ function logout() {
   document.getElementById('s-dash').classList.remove('active');
   document.getElementById('s-detail').classList.remove('active');
   document.getElementById('s-weekly').classList.remove('active');
+  document.getElementById('s-unlock').classList.remove('active');
   document.getElementById('s-login').style.display = 'flex';
   document.getElementById('login-err').style.display = 'none';
   try { google.accounts.id.disableAutoSelect(); } catch(e) {}
@@ -558,7 +581,56 @@ function starsText(score, max) {
 }
 const fmtNum = n => Number(n||0).toLocaleString('en-US');
 
+// ── STAGE UNLOCKS ──
+let unlockData={unlocks:[],classes:{}};
+function stageLabel(n){ const ch=(window.ANSTH_LESSON_INDEX||[]).find(c=>c.ch===n); return ch?ch.title:('ด่าน '+n); }
+function showUnlock() {
+  ['s-dash','s-detail','s-weekly'].forEach(id=>document.getElementById(id).classList.remove('active'));
+  document.getElementById('s-unlock').classList.add('active');
+  document.getElementById('btn-back').style.display = 'inline-block';
+  const st=document.getElementById('ul-stage');
+  st.innerHTML='<option value="0">ยกเลิกการปลดล็อก</option>'+[1,2,3,4,5,6,7,8,9].map(n=>`<option value="${n}">ถึง ${esc(stageLabel(n))}</option>`).join('');
+  loadUnlocks();
+}
+async function loadUnlocks() {
+  const list=document.getElementById('ul-list');
+  list.innerHTML='<div class="loading-msg">กำลังโหลด...</div>';
+  try { unlockData=await teacherApi('getUnlocks'); renderUnlocks(); }
+  catch(e) { list.innerHTML='<div class="error-msg">โหลดไม่ได้ — ตรวจว่าเพิ่มไฟล์ Progress.gs และ Deploy แล้ว ('+esc(e.message||e)+')</div>'; }
+}
+function fillUnlockStudents() {
+  const cc=document.getElementById('ul-class').value;
+  document.getElementById('ul-student').innerHTML='<option value="">👥 ทั้งห้อง</option>'+
+    (unlockData.classes[cc]||[]).map(n=>`<option value="${esc(n)}">${esc(n)}</option>`).join('');
+}
+function renderUnlocks() {
+  const cs=document.getElementById('ul-class'), prev=cs.value;
+  const codes=Object.keys(unlockData.classes||{}).sort((a,b)=>a.localeCompare(b,undefined,{numeric:true}));
+  cs.innerHTML=codes.map(c=>`<option value="${esc(c)}">${esc(c)}</option>`).join('');
+  if (codes.includes(prev)) cs.value=prev;
+  fillUnlockStudents();
+  const rows=(unlockData.unlocks||[]).slice().sort((a,b)=>a.classCode.localeCompare(b.classCode,undefined,{numeric:true})||a.studentName.localeCompare(b.studentName,'th'));
+  document.getElementById('ul-list').innerHTML=rows.length?`<table class="sessions-table"><thead><tr><th>ห้อง</th><th>นักเรียน</th><th>ปลดล็อกถึง</th><th></th></tr></thead><tbody>${
+    rows.map(u=>`<tr><td>${esc(u.classCode)}</td><td>${u.studentName?esc(u.studentName):'👥 ทั้งห้อง'}</td><td>${esc(stageLabel(u.stage))}</td>
+      <td><button class="mini-btn" onclick='removeUnlock(${JSON.stringify(u.classCode)},${JSON.stringify(u.studentName)})'>ยกเลิก</button></td></tr>`).join('')
+  }</tbody></table>`:'<div class="loading-msg">ยังไม่มีการปลดล็อก — นักเรียนทุกคนเล่นตามกติกาปกติ</div>';
+}
+async function saveUnlock(cc, st, stage) {
+  const err=document.getElementById('ul-err'); err.style.display='none';
+  cc=cc??document.getElementById('ul-class').value;
+  st=st??document.getElementById('ul-student').value;
+  stage=stage??Number(document.getElementById('ul-stage').value);
+  if (!cc) return;
+  try {
+    const d=await teacherApi('setUnlock',{classCode:cc,studentName:st,stage});
+    if (d.error) throw new Error(d.error);
+    unlockData=d; renderUnlocks();
+  } catch(e) { err.textContent='บันทึกไม่ได้: '+(e.message||e); err.style.display='block'; }
+}
+function removeUnlock(cc, st) { saveUnlock(cc, st, 0); }
+
 function showWeekly() {
+  document.getElementById('s-unlock').classList.remove('active');
   document.getElementById('s-dash').classList.remove('active');
   document.getElementById('s-detail').classList.remove('active');
   document.getElementById('s-weekly').classList.add('active');

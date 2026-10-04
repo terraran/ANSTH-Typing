@@ -72,6 +72,8 @@ export const TEST_SECS      = 120;
 
 export const TEST_MIN_CHARS = 700;
 
+export const HW_SECS = 90;          // homework: 1 min 30 s, pass by stars
+
 // Target score (100%): every key correct at the lesson's target speed for the full 2 minutes.
 // Fast, accurate students can go above 100%.
 export function testTargetScore(chars, lessonId) {

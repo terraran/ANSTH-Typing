@@ -64,7 +64,7 @@ export function resultStage({ roomType, roomCode, roomPlayers, myCfg, myName, du
 
 // RESULTS SCREEN
 
-export function ResultsScreen({ cpm, accuracy, errors, totalChars, lesson, saveStatus, saveError, studentName, ghostData, newRecord, roomCode, roomType, roomPlayers, myName, myCfg, bestCombo, score, maxScore, isTest, testBoard, prevBest, sOffset=0, brFinal, onDuelSettled, onRestart, onBack, curResult, nextStep, onNext }) {
+export function ResultsScreen({ cpm, accuracy, errors, totalChars, lesson, saveStatus, saveError, studentName, ghostData, newRecord, roomCode, roomType, roomPlayers, myName, myCfg, bestCombo, score, maxScore, isTest, testBoard, prevBest, sOffset=0, brFinal, onDuelSettled, onRestart, onBack, curResult, nextStep, onNext, hwResult }) {
   const tf="'Sarabun','Noto Sans Thai',sans-serif";
   const isDuel = roomType==='1v1' && !!roomCode;
   const [waited, setWaited] = useState(false);
@@ -212,6 +212,31 @@ export function ResultsScreen({ cpm, accuracy, errors, totalChars, lesson, saveS
           </div>
         );
       })()}
+      {/* Homework: pass when the stars reach the teacher's minimum */}
+      {hwResult && (()=>{
+        const { stars, minStars, passed, late, wpm, target, net, accuracy:acc } = hwResult;
+        const need = minStars===1 ? `แม่นยำอย่างน้อย 90%`
+          : minStars===2 ? `แม่นยำ 90% ขึ้นไป และพิมพ์ได้ ${target} คำ/นาที`
+          : `แม่นยำ 95% ขึ้นไป และพิมพ์ได้ ${Math.round(target*1.5*10)/10} คำ/นาที`;
+        return (
+          <div style={{marginBottom:18,padding:'14px 18px',borderRadius:14,fontFamily:tf,
+            background:passed?'#F0FDF4':'#FFFBEB',border:`1.5px solid ${passed?'#22C55E':'#F59E0B'}`}}>
+            <div style={{fontSize:12,fontWeight:800,color:passed?'#166534':'#B45309',letterSpacing:1}}>📚 การบ้าน</div>
+            <div style={{fontSize:34,letterSpacing:4,lineHeight:1.1}}>
+              {[0,1,2].map(i=><span key={i} style={{color:i<stars?'#F59E0B':'#CBD5E1'}}>★</span>)}
+            </div>
+            <div style={{fontSize:18,fontWeight:800,color:passed?'#14532D':'#92400E',marginTop:4}}>
+              {passed ? (late ? '✅ ผ่านแล้ว (ส่งช้า)' : '✅ ผ่านแล้ว! ส่งการบ้านเรียบร้อย') : `ยังไม่ผ่าน — ต้องได้ ${'⭐'.repeat(minStars)}`}
+            </div>
+            <div style={{fontSize:13,color:'var(--c-t2)',marginTop:4}}>
+              {net?'คำสุทธิ':'ความเร็ว'} {wpm} คำ/นาที · แม่นยำ {acc}%{!passed&&<> · เกณฑ์: {need}</>}
+            </div>
+            {!passed&&<div style={{fontSize:12,color:'#B45309',marginTop:4}}>ลองใหม่ได้ไม่จำกัด ระบบนับครั้งที่ผ่าน</div>}
+            {saveStatus==='saving'&&<div style={{fontSize:12,color:'var(--c-t3)',marginTop:6}}>💾 กำลังส่งการบ้าน...</div>}
+            {saveStatus==='error'&&<div style={{fontSize:12,fontWeight:700,color:'#DC2626',marginTop:6}}>⚠️ ส่งไม่สำเร็จ: {saveError||'ตรวจสอบสัญญาณ'} — ลองทำอีกครั้ง</div>}
+          </div>
+        );
+      })()}
       {/* Ghost comparison — by score (same rule as High Score) */}
       {(ghostData || newRecord) && (()=>{
         const gs = ghostData ? (ghostData.score||0) : 0;
@@ -281,7 +306,7 @@ export function ResultsScreen({ cpm, accuracy, errors, totalChars, lesson, saveS
         )}
         <button onClick={onRestart} style={{background:'#0F172A',color:'#fff',border:'none',
           borderRadius:10,padding:'11px 26px',cursor:'pointer',fontSize:14,fontWeight:700,fontFamily:tf}}>
-          {isTest?'↻ ทำแบบทดสอบอีกครั้ง':roomCode?'ออกจากห้อง':'สุ่มคำใหม่ / ลองอีกครั้ง'}
+          {isTest?'↻ ทำแบบทดสอบอีกครั้ง':hwResult?'↻ ทำการบ้านอีกครั้ง':roomCode?'ออกจากห้อง':'สุ่มคำใหม่ / ลองอีกครั้ง'}
         </button>
         <button onClick={onBack} style={{background:'#F1F5F9',color:'#0F172A',border:'none',
           borderRadius:10,padding:'11px 26px',cursor:'pointer',fontSize:14,fontWeight:600,fontFamily:tf}}>

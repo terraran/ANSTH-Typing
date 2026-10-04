@@ -157,6 +157,7 @@
     <button class="nav-btn" id="btn-back" onclick="showDash()" style="display:none">← กลับ</button>
     <a href="index.html" class="nav-btn" style="text-decoration:none">⌨️ นักเรียน</a>
     <button class="nav-btn" id="btn-weekly" onclick="showWeekly()" style="display:none">🏆 แบบทดสอบประจำสัปดาห์</button>
+    <button class="nav-btn" id="btn-homework" onclick="showHomework()" style="display:none">📚 การบ้าน</button>
     <button class="nav-btn" id="btn-unlock" onclick="showUnlock()" style="display:none">🔓 ปลดล็อกด่าน</button>
     <button class="nav-btn danger" onclick="logout()">ออกจากระบบ</button>
   </nav>
@@ -247,6 +248,69 @@
       <div id="ul-list"><div class="loading-msg">กำลังโหลด...</div></div>
     </div>
   </div>
+
+<!-- HOMEWORK -->
+  <div class="screen" id="s-homework">
+    <div class="wrap" style="max-width:1000px;margin:0 auto;padding:24px">
+      <div class="wk-head">
+        <div class="wk-title">📚 การบ้าน</div>
+        <button class="mini-btn" onclick="loadHomework()" title="โหลดใหม่" style="margin-left:4px">↻</button>
+        <select id="hw-filter" onchange="renderHomework()" style="margin-left:8px;padding:6px 8px;border-radius:8px;border:1.5px solid #E2E8F0;font-family:inherit"></select>
+        <button class="primary-small" onclick="openHwModal()" style="margin-left:auto">+ มอบหมายการบ้าน</button>
+      </div>
+      <div class="wk-sub">มอบให้ทั้งห้องหรือรายคน · จับเวลา 1 นาที 30 วินาที · ผ่านเมื่อได้ดาวถึงเกณฑ์ (คิดดาวแบบเดียวกับบทเรียน) · ทำซ้ำได้ไม่จำกัด · ทำหลังวันส่งยังนับ แต่ขึ้นว่า "ส่งช้า" · กดแถวเพื่อดูรายชื่อ</div>
+      <div id="hw-list"><div class="loading-msg">กำลังโหลด...</div></div>
+    </div>
+  </div>
+
+<!-- HOMEWORK MODAL -->
+<div class="modal-bg" id="hw-modal" style="display:none">
+  <div class="modal">
+    <div style="font-size:18px;font-weight:800;margin-bottom:20px" id="hm-title">มอบหมายการบ้าน</div>
+    <div id="hm-content">
+      <label class="field-label" for="hm-class">ห้อง</label>
+      <select id="hm-class" class="field-select" onchange="fillHwStudents()"></select>
+      <label class="field-label" for="hm-student">นักเรียน</label>
+      <select id="hm-student" class="field-select"></select>
+
+      <label class="field-label">เนื้อหา</label>
+      <div style="display:flex;gap:16px;margin:0 0 12px;font-size:13px;font-weight:600;color:#334155">
+        <label style="display:flex;align-items:center;gap:6px;cursor:pointer">
+          <input type="radio" name="hm-mode" value="stage" checked onchange="updateHwModeUI()"> เลือกด่าน (ระบบสร้างข้อความ)</label>
+        <label style="display:flex;align-items:center;gap:6px;cursor:pointer">
+          <input type="radio" name="hm-mode" value="exercise" onchange="updateHwModeUI()"> เลือกแบบฝึกเอง</label>
+      </div>
+      <div id="hm-stage-box">
+        <label class="field-label" for="hm-stage">ด่าน</label>
+        <select id="hm-stage" class="field-select"></select>
+      </div>
+      <div id="hm-ex-box" style="display:none">
+        <label class="field-label" for="hm-exercise">แบบฝึก</label>
+        <select id="hm-exercise" class="field-select"></select>
+      </div>
+    </div>
+    <div id="hm-fixed" class="modal-note" style="display:none"></div>
+
+    <label class="field-label" for="hm-stars">เกณฑ์ผ่าน</label>
+    <select id="hm-stars" class="field-select">
+      <option value="1">⭐ แม่นยำ 90% ขึ้นไป</option>
+      <option value="2" selected>⭐⭐ ถึงเป้าความเร็วของด่าน + แม่น 90%</option>
+      <option value="3">⭐⭐⭐ 1.5 เท่าของเป้า + แม่น 95%</option>
+    </select>
+    <label class="field-label" for="hm-due">วันส่ง (ทำได้ถึงสิ้นวัน)</label>
+    <input type="date" id="hm-due" class="field-select">
+
+    <div id="hm-err" class="error-msg" style="display:none"></div>
+    <div style="display:flex;gap:10px">
+      <button onclick="closeHwModal()"
+        style="flex:1;background:#F1F5F9;border:none;border-radius:8px;padding:12px;
+          cursor:pointer;font-size:14px;font-weight:600;font-family:inherit">ยกเลิก</button>
+      <button onclick="submitHw()" id="hm-submit"
+        style="flex:2;background:#0F172A;color:#fff;border:none;border-radius:8px;padding:12px;
+          cursor:pointer;font-size:14px;font-weight:700;font-family:inherit">บันทึกการบ้าน</button>
+    </div>
+  </div>
+</div>
 
 <!-- SET WEEKLY TEST MODAL -->
 <div class="modal-bg" id="weekly-modal" style="display:none">
@@ -358,6 +422,7 @@ async function initDashboard() {
   document.getElementById('navbar').classList.add('visible');
   document.getElementById('btn-weekly').style.display = 'inline-block';
   document.getElementById('btn-unlock').style.display = 'inline-block';
+  document.getElementById('btn-homework').style.display = 'inline-block';
   showDash();
   buildClassTabs();
   if (classes.length) loadClass(classes[0]);
@@ -487,6 +552,7 @@ function showDash() {
   document.getElementById('s-unlock').classList.remove('active');
   document.getElementById('s-detail').classList.remove('active');
   document.getElementById('s-weekly').classList.remove('active');
+  document.getElementById('s-homework').classList.remove('active');
   document.getElementById('s-dash').classList.add('active');
   document.getElementById('btn-back').style.display = 'none';
 }
@@ -602,7 +668,7 @@ const fmtNum = n => Number(n||0).toLocaleString('en-US');
 let unlockData={unlocks:[],classes:{}};
 function stageLabel(n){ const ch=(window.ANSTH_LESSON_INDEX||[]).find(c=>c.ch===n); return ch?ch.title:('ด่าน '+n); }
 function showUnlock() {
-  ['s-dash','s-detail','s-weekly'].forEach(id=>document.getElementById(id).classList.remove('active'));
+  ['s-dash','s-detail','s-weekly','s-homework'].forEach(id=>document.getElementById(id).classList.remove('active'));
   document.getElementById('s-unlock').classList.add('active');
   document.getElementById('btn-back').style.display = 'inline-block';
   const st=document.getElementById('ul-stage');
@@ -650,6 +716,7 @@ function showWeekly() {
   document.getElementById('s-unlock').classList.remove('active');
   document.getElementById('s-dash').classList.remove('active');
   document.getElementById('s-detail').classList.remove('active');
+  document.getElementById('s-homework').classList.remove('active');
   document.getElementById('s-weekly').classList.add('active');
   document.getElementById('btn-back').style.display = 'inline-block';
   loadWeeklyTests();
@@ -765,6 +832,168 @@ async function deleteWeekly(t) {
     await teacherApi('deleteWeeklyTest',{testId:t.testId});
     loadWeeklyTests();
   } catch(e) { alert('ลบไม่ได้: '+e.message); }
+}
+
+
+// ── HOMEWORK ──
+let hwData={homework:[],classes:{},today:''};
+const hwResultsCache={};
+const HW_STATUS={none:'❌ ยังไม่ทำ',tried:'🟡 ทำแล้ว ยังไม่ผ่าน',late:'🕒 ผ่าน (ส่งช้า)',passed:'✅ ผ่าน'};
+
+function showHomework() {
+  ['s-dash','s-detail','s-weekly','s-unlock'].forEach(id=>document.getElementById(id).classList.remove('active'));
+  document.getElementById('s-homework').classList.add('active');
+  document.getElementById('btn-back').style.display = 'inline-block';
+  loadHomework();
+}
+async function loadHomework() {
+  const list=document.getElementById('hw-list');
+  list.innerHTML='<div class="loading-msg">กำลังโหลด...</div>';
+  try { hwData=await teacherApi('getHomeworkList'); Object.keys(hwResultsCache).forEach(k=>delete hwResultsCache[k]); renderHomework(); }
+  catch(e) { list.innerHTML='<div class="error-msg">โหลดไม่ได้ — ตรวจว่าเพิ่มไฟล์ Homework.gs และ Deploy แล้ว ('+esc(e.message||e)+')</div>'; }
+}
+function hwSortedClasses() { return Object.keys(hwData.classes||{}).sort((a,b)=>a.localeCompare(b,undefined,{numeric:true})); }
+function dueLabel(ymd) {
+  const d=parseYmd(ymd); if (!d) return ymd;
+  return d.toLocaleDateString('th-TH',{weekday:'short',day:'numeric',month:'short'});
+}
+function renderHomework() {
+  const f=document.getElementById('hw-filter'), prev=f.value;
+  f.innerHTML='<option value="">ทุกห้อง</option>'+hwSortedClasses().map(c=>`<option value="${esc(c)}">${esc(c)}</option>`).join('');
+  if ([...f.options].some(o=>o.value===prev)) f.value=prev;
+  const list=document.getElementById('hw-list');
+  const items=(hwData.homework||[]).filter(h=>!f.value||h.classCode===f.value);
+  if (!items.length) { list.innerHTML='<div class="empty-msg">ยังไม่มีการบ้าน — กด "+ มอบหมายการบ้าน" เพื่อเริ่ม</div>'; return; }
+  const today=hwData.today||toYmd(new Date());
+  const groups=[['📌 ยังไม่ถึงวันส่ง',items.filter(h=>h.dueDate>=today).sort((a,b)=>a.dueDate.localeCompare(b.dueDate))],
+                ['📁 เลยวันส่งแล้ว',items.filter(h=>h.dueDate<today)]];
+  list.innerHTML='';
+  groups.forEach(([label,arr])=>{
+    if (!arr.length) return;
+    const group=document.createElement('div'); group.className='wk-group';
+    group.innerHTML=`<div class="wk-group-title">${label}</div>`;
+    arr.forEach(h=>{
+      const pct=h.total>0?Math.round(h.passed/h.total*100):0;
+      const item=document.createElement('div'); item.className='wk-item';
+      const row=document.createElement('div'); row.className='wk-row';
+      row.innerHTML=`
+        <div class="wk-grade" style="min-width:64px;font-size:16px">${esc(h.classCode)}</div>
+        <div style="flex:1;min-width:0">
+          <div style="font-size:14px;font-weight:800">${esc(h.title)}${h.studentName?` <span style="font-size:12px;color:#B45309">· 👤 ${esc(h.studentName)}</span>`:''}</div>
+          <div style="font-size:11px;color:#64748B;margin:2px 0 6px">
+            ต้องได้ ${'⭐'.repeat(h.minStars)} · ส่ง ${esc(dueLabel(h.dueDate))} · ${h.mode==='stage'?'ระบบสร้างข้อความจากด่าน '+h.stage:'แบบฝึกที่เลือก'} · ▾ ดูรายชื่อ
+          </div>
+          <div style="display:flex;align-items:center;gap:8px">
+            <div class="wk-progress"><div class="wk-progress-fill" style="width:${pct}%"></div></div>
+            <span style="font-size:11px;color:#64748B;white-space:nowrap">ผ่าน ${h.passed}/${h.total} · ยังไม่เข้าไปทำ ${Math.max(0,h.total-h.tried)}</span>
+          </div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:6px;flex-shrink:0">
+          <button class="mini-btn" data-act="edit">แก้</button>
+          <button class="mini-btn danger" data-act="del">ลบ</button>
+        </div>`;
+      const detail=document.createElement('div'); detail.className='wk-detail';
+      row.onclick=(ev)=>{
+        const act=ev.target?.dataset?.act;
+        if (act==='edit') { ev.stopPropagation(); openHwModal(h); return; }
+        if (act==='del')  { ev.stopPropagation(); deleteHw(h); return; }
+        item.classList.toggle('open');
+        if (item.classList.contains('open')) loadHwResults(h, detail);
+      };
+      item.appendChild(row); item.appendChild(detail); group.appendChild(item);
+    });
+    list.appendChild(group);
+  });
+}
+async function loadHwResults(h, el) {
+  if (hwResultsCache[h.hwId]) { el.innerHTML=renderHwResults(hwResultsCache[h.hwId]); return; }
+  el.innerHTML='<div class="loading-msg" style="padding:12px">กำลังโหลด...</div>';
+  try { const d=await teacherApi('getHomeworkResults',{hwId:h.hwId}); hwResultsCache[h.hwId]=d; el.innerHTML=renderHwResults(d); }
+  catch(e) { el.innerHTML='<div style="font-size:12px;color:#DC2626">โหลดไม่ได้: '+esc(e.message)+'</div>'; }
+}
+function renderHwResults(d) {
+  const st=d.students||[];
+  if (!st.length) return '<div style="font-size:12px;color:#94A3B8">ไม่พบนักเรียนใน Roster</div>';
+  const count=k=>st.filter(x=>x.status===k).length;
+  const fmt=v=>v?new Date(v).toLocaleDateString('th-TH',{day:'numeric',month:'short'}):'–';
+  return `<div style="font-size:12px;font-weight:700;margin-bottom:8px">✅ ผ่าน ${count('passed')} · 🕒 ส่งช้า ${count('late')} · 🟡 ยังไม่ผ่าน ${count('tried')} · ❌ ยังไม่ทำ ${count('none')}</div>
+    <table class="res-table"><thead><tr><th>สถานะ</th><th>นักเรียน</th><th>ดาวดีสุด</th><th>คำ/นาที</th><th>ความแม่น</th><th>ครั้ง</th><th>ผ่านเมื่อ</th><th>ทำล่าสุด</th></tr></thead>
+    <tbody>${st.map(x=>`<tr><td>${HW_STATUS[x.status]}</td><td>${esc(x.name)}</td>
+      <td>${x.attempts?('⭐'.repeat(x.best)||'0'):'–'}</td><td>${x.attempts?x.wpm:'–'}</td><td>${x.attempts?x.acc+'%':'–'}</td>
+      <td>${x.attempts||'–'}</td><td>${fmt(x.passedAt)}</td><td>${fmt(x.lastAt)}</td></tr>`).join('')}</tbody></table>`;
+}
+async function deleteHw(h) {
+  if (!confirm(`ลบการบ้าน "${h.title}" ของ ${h.classCode}${h.studentName?' ('+h.studentName+')':''}?\n(ผลที่นักเรียนทำไว้ยังอยู่ในแท็บ HomeworkSubmissions)`)) return;
+  try { hwData=await teacherApi('deleteHomework',{hwId:h.hwId}); renderHomework(); }
+  catch(e) { alert('ลบไม่ได้: '+e.message); }
+}
+
+let hwEditing=null;
+function hwMode() { return document.querySelector('input[name="hm-mode"]:checked')?.value||'stage'; }
+function updateHwModeUI() {
+  const st=hwMode()==='stage';
+  document.getElementById('hm-stage-box').style.display=st?'block':'none';
+  document.getElementById('hm-ex-box').style.display=st?'none':'block';
+}
+function fillHwStudents() {
+  const cc=document.getElementById('hm-class').value;
+  document.getElementById('hm-student').innerHTML='<option value="">👥 ทั้งห้อง</option>'+
+    ((hwData.classes||{})[cc]||[]).map(n=>`<option value="${esc(n)}">${esc(n)}</option>`).join('');
+}
+function openHwModal(existing) {
+  hwEditing=existing||null;
+  const idx=window.ANSTH_LESSON_INDEX||[];
+  document.getElementById('hm-title').textContent=existing?'แก้การบ้าน':'มอบหมายการบ้าน';
+  document.getElementById('hm-content').style.display=existing?'none':'block';
+  const fixed=document.getElementById('hm-fixed');
+  if (existing) {
+    fixed.textContent=`${existing.classCode}${existing.studentName?' · '+existing.studentName:' · ทั้งห้อง'} · ${existing.title} — แก้ได้เฉพาะเกณฑ์ผ่านและวันส่ง (ถ้าจะเปลี่ยนเนื้อหา ให้ลบแล้วมอบหมายใหม่)`;
+    fixed.style.display='block';
+  } else {
+    fixed.style.display='none';
+    const cs=document.getElementById('hm-class'), prev=cs.value;
+    cs.innerHTML=hwSortedClasses().map(c=>`<option value="${esc(c)}">${esc(c)}</option>`).join('');
+    const f=document.getElementById('hw-filter').value;
+    if (f) cs.value=f; else if ([...cs.options].some(o=>o.value===prev)) cs.value=prev;
+    fillHwStudents();
+    document.getElementById('hm-stage').innerHTML=idx.filter(ch=>ch.ch<=7).map(ch=>{
+      const v={stage:ch.ch,lessonId:ch.lessons[ch.lessons.length-1].id,title:ch.title.replace(' — ',' · ')};
+      return `<option value="${esc(JSON.stringify(v))}">${esc(ch.title)}</option>`;
+    }).join('');
+    document.getElementById('hm-exercise').innerHTML=idx.map(ch=>ch.lessons.map(les=>
+      `<optgroup label="${esc(ch.title.split(' — ')[0]+' · บท '+les.name)}">${les.exs.map(ex=>{
+        const v={stage:ch.ch,lessonId:les.id,exerciseTitle:ex,title:'บท '+les.name.split(' ')[0]+' · '+ex};
+        return `<option value="${esc(JSON.stringify(v))}">${esc(ex)}</option>`;
+      }).join('')}</optgroup>`).join('')).join('');
+    document.querySelectorAll('input[name="hm-mode"]').forEach(r=>{ r.checked=r.value==='stage'; });
+    updateHwModeUI();
+  }
+  document.getElementById('hm-stars').value=String(existing?existing.minStars:2);
+  document.getElementById('hm-due').value=existing?existing.dueDate:addDaysYmd(hwData.today||toYmd(new Date()),7);
+  document.getElementById('hm-err').style.display='none';
+  document.getElementById('hw-modal').style.display='flex';
+}
+function closeHwModal() { document.getElementById('hw-modal').style.display='none'; }
+async function submitHw() {
+  const err=document.getElementById('hm-err'), btn=document.getElementById('hm-submit');
+  const minStars=document.getElementById('hm-stars').value, dueDate=document.getElementById('hm-due').value;
+  let values;
+  if (!dueDate) { err.textContent='เลือกวันส่ง'; err.style.display='block'; return; }
+  if (hwEditing) values={hwId:hwEditing.hwId,minStars,dueDate};
+  else {
+    const mode=hwMode();
+    const raw=document.getElementById(mode==='stage'?'hm-stage':'hm-exercise').value;
+    const classCode=document.getElementById('hm-class').value;
+    if (!raw||!classCode) { err.textContent='เลือกห้องและเนื้อหาให้ครบ'; err.style.display='block'; return; }
+    if (dueDate<(hwData.today||toYmd(new Date())) && !confirm('วันส่งเป็นวันที่ผ่านมาแล้ว — นักเรียนที่ทำจะถูกนับว่าส่งช้าทั้งหมด ต้องการบันทึกต่อไหม?')) return;
+    const v=JSON.parse(raw);
+    values={classCode,studentName:document.getElementById('hm-student').value,mode,stage:v.stage,
+      lessonId:v.lessonId,exerciseTitle:v.exerciseTitle||'',title:v.title,minStars,dueDate};
+  }
+  err.style.display='none'; btn.disabled=true; btn.textContent='กำลังบันทึก...';
+  try { hwData=await teacherApi('setHomework',values); Object.keys(hwResultsCache).forEach(k=>delete hwResultsCache[k]); closeHwModal(); renderHomework(); }
+  catch(e) { err.textContent='บันทึกไม่ได้: '+e.message; err.style.display='block'; }
+  finally { btn.disabled=false; btn.textContent='บันทึกการบ้าน'; }
 }
 
 // ── SET / EDIT MODAL ──

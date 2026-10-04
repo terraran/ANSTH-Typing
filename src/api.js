@@ -51,6 +51,19 @@ export async function apiSubmitWeekly(data) {
   });
 }
 
+// Homework for this student (open + recently passed), with my best stars per item
+export async function apiGetHomework(classCode, studentName) {
+  return apiRequest('getHomework',{code:classCode,student:studentName});
+}
+
+// Save one homework attempt — the server re-checks the stars and returns the updated list
+export async function apiSubmitHomework(d) {
+  return apiRequest('submitHomework',{
+    code:d.classCode,student:d.studentName,hwId:d.hwId,stars:d.stars,
+    cpm:d.cpm,accuracy:d.accuracy,errors:d.errors,chars:d.totalChars,duration:d.duration,
+  });
+}
+
 // Save one finished 1v1 / Battle Royale race (one row per student per race — the
 // backend ignores repeats of the same matchId).
 export async function apiSaveMatch(m) {

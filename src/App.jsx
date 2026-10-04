@@ -2,11 +2,11 @@ import { SCRIPT_URL } from './config';
 import { buildChunks, cleanTypingWords, generateBRText, generateStoryText, generateText, generateTimedText, seededRng } from './engine/text';
 import { CHAR_CLASS, CLASS_NAMES, KEY_META, findKeyForChar, resolveKey, validateInput } from './engine/keymap';
 import { KEYS_ON, KeyTester } from './ui/KeyTester';
-import { ERROR_BURST, ERROR_WINDOW_MS, PRESSURE_SECS, SPAM_PENALTY, SPAM_WINDOW_KEYS, SPAM_WRONG_SHARE, SPEED_CPM, TEST_MIN_CHARS, TEST_SECS, charBasePoints, comboMultiplier, fmtScore, hsKey, lessonStars, netThaiWpmOf, readGuestHighScores, stageTarget, thaiWpmOf, speedMultiplier, testTargetScore, writeGuestHighScores } from './engine/scoring';
+import { ERROR_BURST, ERROR_WINDOW_MS, PRESSURE_SECS, SPAM_PENALTY, SPAM_WINDOW_KEYS, SPAM_WRONG_SHARE, SPEED_CPM, TEST_MIN_CHARS, TEST_SECS, HW_SECS, charBasePoints, comboMultiplier, fmtScore, hsKey, lessonStars, netThaiWpmOf, readGuestHighScores, stageTarget, thaiWpmOf, speedMultiplier, testTargetScore, writeGuestHighScores } from './engine/scoring';
 import { ROOM_CODE_LEN, ROOM_CODE_RE, ZONE_GAP, ZONE_GRACE, ZONE_TICK, currentFirebaseUid, ensureFirebaseUser, fbArmLobby, fbArmRace, fbClearActiveRoom, fbCreate, fbDisarm, fbGet, fbGetActiveRoom, fbJoin, fbListen, fbRemove, fbServerOffset, fbSetActiveRoom, fbSetChar, fbSetStatus, fbUpdatePlayer, getDB, getZonePos, getZoneSpeed, makeFreeCode, zonePosAt } from './firebase';
 import { brOrder, brRaceOver, dcLeftMs, graceMs, isOutState, playerState } from './race/presence';
 import { LeaveConfirm, RejoinBanner } from './race/PresenceUI';
-import { apiGetStudentStats, apiGetWeeklyBoard, apiGetWeeklyPast, apiRequest, apiSaveMatch, apiSubmitWeekly, describeApiError, saveSession } from './api';
+import { apiGetHomework, apiGetStudentStats, apiGetWeeklyBoard, apiGetWeeklyPast, apiSubmitHomework, apiRequest, apiSaveMatch, apiSubmitWeekly, describeApiError, saveSession } from './api';
 import { auth } from './auth';
 import { LESSONS, findLesson } from './data/lessons';
 import { stageOf } from './data/curriculum.js';
@@ -153,6 +153,11 @@ export function ThaiTypingApp() {
   const lessonIdRef   = useRef(1);
   // Test mode
   const [activeTest,  setActiveTest]  = useState(null); // weekly test being taken
+  const [activeHw,    setActiveHw]    = useState(null); // homework being done
+  const [hwResult,    setHwResult]    = useState(null); // {stars,minStars,passed,late,wpm,target,net,accuracy}
+  const [homework,    setHomework]    = useState([]);   // my homework list (getHomework)
+  const hwRef         = useRef(null);
+  const hwLoadedAt    = useRef(0);
   const [maxScore,    setMaxScore]    = useState(0);    // weekly test: target score (100%)
   const [highScores,  setHighScores]  = useState({});   // practice best per exercise
   const [prevBest,    setPrevBest]    = useState(0);    // high score before this run
@@ -191,7 +196,7 @@ export function ThaiTypingApp() {
   const raceRunning = !!roomCode && (screen==='countdown' || (screen==='practice' && !endTime && !isEliminated));
   const nextChar    = pos<targetChars.length ? targetChars[pos] : null;
   // Timed run: weekly test (2 min) or a timed curriculum step (exercise.secs). 0 = untimed.
-  const timeLimit   = activeTest ? TEST_SECS : (!roomCode && exercise?.secs) || 0;
+  const timeLimit   = activeHw ? HW_SECS : activeTest ? TEST_SECS : (!roomCode && exercise?.secs) || 0;
   const nextKey     = nextChar ? findKeyForChar(nextChar) : null;
   const nextCode    = nextKey?.code ?? null;
   const needsShift  = nextKey?.needsShift ?? false;
@@ -465,6 +470,7 @@ export function ThaiTypingApp() {
       scoredIdx.current=new Set(); missedIdx.current=new Set();
       speedBuf.current=[]; lastScoreTime.current=null; setBestCombo(0);
       setActiveTest(null); testRef.current=null; setTestBoard(null); setTimeUp(false);
+      setActiveHw(null); hwRef.current=null; setHwResult(null);
       setRaceStand([]); setZonePos(0); setZoneWpm(0); lastZoneDrainTickRef.current=0;
       setPenaltySecs(0); setPressureSecs(0);
       frozenRef.current=false; raceEndedRef.current=false;
@@ -582,7 +588,20 @@ export function ThaiTypingApp() {
   useEffect(() => {
     if (screen !== 'results') return;
     // Practice high score (solo practice only — not tests or multiplayer rooms)
-    if (!hsDone.current && !testRef.current && !rcRef.current && lesson && exercise) {
+    // Homework: stars by the lesson rule (not saved to lesson progress)
+    if (!hsDone.current && hwRef.current && lesson && exercise) {
+      hsDone.current = true;
+      const h = hwRef.current;
+      const mins = startTime && endTime ? (endTime - startTime) / 60000 : 0;
+      const acc = (pos + errors) > 0 ? Math.round(pos / (pos + errors) * 100) : 100;
+      const net = exercise.kind === 'long' || exercise.kind === 'longtimed';
+      const wpm = net ? netThaiWpmOf(pressCountRef.current, errors, mins) : thaiWpmOf(pressCountRef.current, mins);
+      const target = stageTarget(h.stage || lesson.stage);
+      const stars = lessonStars(wpm, acc, target);
+      setHwResult({ stars, minStars: h.minStars, passed: stars >= h.minStars, late: Date.now() > h.dueEndsAt,
+        wpm: Math.round(wpm * 10) / 10, target, net, accuracy: acc });
+    }
+    if (!hsDone.current && !testRef.current && !hwRef.current && !rcRef.current && lesson && exercise) {
       hsDone.current = true;
       const k = hsKey(lesson.id, exercise.title);
       const sc = scoreRef.current;
@@ -624,6 +643,25 @@ export function ThaiTypingApp() {
     const finalKpm = elapsed > 0 ? Math.round(pressCountRef.current / elapsed) : 0;
     const finalAcc = (pos + errors) > 0 ? Math.round((pos / (pos + errors)) * 100) : 100;
     const duration = endTime && startTime ? Math.round((endTime - startTime) / 1000) : 0;
+    if (hwRef.current) {
+      // Homework attempt → HomeworkSubmissions; the server re-checks the stars
+      const h = hwRef.current;
+      const mins = startTime && endTime ? (endTime - startTime) / 60000 : 0;
+      const acc = (pos + errors) > 0 ? Math.round(pos / (pos + errors) * 100) : 100;
+      const net = exercise?.kind === 'long' || exercise?.kind === 'longtimed';
+      const wpm = net ? netThaiWpmOf(pressCountRef.current, errors, mins) : thaiWpmOf(pressCountRef.current, mins);
+      apiSubmitHomework({
+        classCode, studentName, hwId:h.hwId, stars:lessonStars(wpm, acc, stageTarget(h.stage || lesson?.stage)),
+        cpm:finalKpm, accuracy:finalAcc, errors, totalChars:pos, duration:Math.max(1, Math.min(duration, HW_SECS)),
+      })
+        .then(d => {
+          setSaveStatus('saved');
+          setHwResult(r => r ? { ...r, stars:d.stars, passed:d.passed, late:d.late } : r);
+          if (d.homework) { setHomework(d.homework); hwLoadedAt.current = Date.now(); }
+        })
+        .catch(err => { setSaveStatus('error'); setSaveError(describeApiError(err)); });
+      return;
+    }
     if (testRef.current) {
       // Weekly test attempt → Submissions; the reply is the updated board with my new rank
       apiSubmitWeekly({
@@ -677,6 +715,18 @@ export function ThaiTypingApp() {
     } catch { setWeeklyStatus('error'); }
   }, [classCode, studentName]);
   useEffect(() => { loadWeekly(); }, [loadWeekly]);
+
+  // Homework: loaded at sign-in and again when the lesson menu opens (at most once a minute)
+  const loadHomework = useCallback(async () => {
+    if (!classCode || !studentName || !SCRIPT_URL) { setHomework([]); return; }
+    hwLoadedAt.current = Date.now();
+    try { const d = await apiGetHomework(classCode, studentName); setHomework(d.homework || []); }
+    catch { /* keep the last list (backend without Homework.gs → empty) */ }
+  }, [classCode, studentName]);
+  useEffect(() => { loadHomework(); }, [loadHomework]);
+  useEffect(() => {
+    if (screen === 'lessons' && Date.now() - hwLoadedAt.current > 60000) loadHomework();
+  }, [screen, loadHomework]);
   useEffect(() => {
     if (screen !== 'weekly') return;
     const id = setInterval(loadWeekly, 60000);
@@ -733,6 +783,8 @@ export function ThaiTypingApp() {
     setTarget(text);
     const test = opts.test || null;
     setActiveTest(test); testRef.current = test;
+    const hw = opts.hw || null;
+    setActiveHw(hw); hwRef.current = hw; setHwResult(null);
     setMaxScore(test ? testTargetScore([...text], les.id) : 0);
     setTestBoard(null); setTimeUp(false);
     setScore(0); scoreRef.current=0; setScoreStreak(0); streakRef.current=0; setLastGain(null);
@@ -750,7 +802,7 @@ export function ThaiTypingApp() {
     setBestCombo(0);
     setSaveStatus('idle'); setSaveError('');
     setNewRecord(false);
-    if (test) { setGhostKey(''); setGhostData(null); }   // no ghost during tests
+    if (test || hw) { setGhostKey(''); setGhostData(null); }   // no ghost during tests / homework
     else {
       const gk = (les.story?'story_':'ghostv2_') + les.id + '_' + encodeURIComponent(ex.title);
       setGhostKey(gk);
@@ -788,6 +840,24 @@ export function ThaiTypingApp() {
       : generateTimedText(ex.words, TEST_MIN_CHARS, seededRng(t.testId));
     startExercise(les, ex, {test:t, text});
   },[weekly, startExercise]);
+
+  // Start a homework item: same seeded text for everyone it is for, 1 min 30 s.
+  const startHomework = useCallback((h) => {
+    if (!h) return;
+    const les = findLesson(h.lessonId);
+    const exs = les ? (les.exercises || []) : [];
+    let ex, text;
+    if (h.mode === 'exercise') {
+      const num = s => (String(s||'').match(/^(\d+\.\d+)/)||[])[1];
+      ex = exs.find(e=>e.title===h.exerciseTitle) || exs.find(e=>num(e.title) && num(e.title)===num(h.exerciseTitle));
+      if (les && ex) text = curriculumText(les, ex, seededRng(h.hwId), {minChars:TEST_MIN_CHARS});
+    } else {
+      ex = exs[exs.length-1];
+      if (les && ex) text = stageTestText(Number(h.stage), seededRng(h.hwId), TEST_MIN_CHARS);
+    }
+    if (!les || !ex || !text) { alert('ไม่พบแบบฝึกของการบ้าน "'+h.title+'" ในแอป — แจ้งครู'); return; }
+    startExercise(les, ex, {hw:h, text});
+  },[startExercise]);
 
   const openWeekly = useCallback(() => { setScreen('weekly'); loadWeekly(); },[loadWeekly]);
 
@@ -1085,6 +1155,7 @@ export function ThaiTypingApp() {
       scoredIdx.current=new Set(Array.from({length:p},(_,i)=>i)); missedIdx.current=new Set();
       speedBuf.current=[]; lastScoreTime.current=null; setBestCombo(0);
       setActiveTest(null); testRef.current=null; setTestBoard(null); setTimeUp(false);
+      setActiveHw(null); hwRef.current=null; setHwResult(null);
       setPenaltySecs(0); setPressureSecs(0); frozenRef.current=false; raceEndedRef.current=false;
       pressCountRef.current=p;
       const out = type==='royale' && lives<=0;
@@ -1108,6 +1179,7 @@ export function ThaiTypingApp() {
     setGoogleUser(null); setWeekly(null); setWeeklyStatus('idle'); setTestBoard(null);
     setCharacter(window.CharKit?CharKit.loadLocal('guest'):null);
     setActiveTest(null); testRef.current=null;
+    setActiveHw(null); hwRef.current=null; setHomework([]); hwLoadedAt.current=0;
     auth.idToken=''; auth.subject=''; auth.fbSubject='';
     if (typeof firebase!=='undefined'&&firebase.apps.length) firebase.auth().signOut().catch(()=>{});
     if (typeof google !== 'undefined') {
@@ -1412,6 +1484,8 @@ export function ThaiTypingApp() {
             onLogin={()=>setScreen('google-login')}
             weekly={weekly}
             onOpenWeekly={openWeekly}
+            homework={homework}
+            onStartHomework={startHomework}
             highScores={highScores}
             character={character}
             onOpenCharacter={()=>setScreen('character')}
@@ -1483,7 +1557,11 @@ export function ThaiTypingApp() {
                     <span style={{alignSelf:'flex-start',background:'#EDE9FE',color:'#6D28D9',borderRadius:8,
                       padding:'3px 10px',fontSize:12,fontWeight:800}}>📝 แบบทดสอบประจำสัปดาห์ · {activeTest.exerciseTitle}</span>
                   )}
-                  {!activeTest&&lesson?.curriculum&&exercise&&(
+                  {activeHw&&(
+                    <span style={{alignSelf:'flex-start',background:'#FEF3C7',color:'#B45309',borderRadius:8,
+                      padding:'3px 10px',fontSize:12,fontWeight:800}}>📚 การบ้าน · {activeHw.title} · ต้องได้ {'⭐'.repeat(activeHw.minStars)}</span>
+                  )}
+                  {!activeTest&&!activeHw&&lesson?.curriculum&&exercise&&(
                     <span style={{alignSelf:'flex-start',background:lesson.al,color:lesson.accent,borderRadius:8,
                       padding:'3px 10px',fontSize:12,fontWeight:800}}>ด่าน {lesson.stage} · บท {lesson.num} · {exercise.title}</span>
                   )}
@@ -1668,8 +1746,9 @@ export function ThaiTypingApp() {
             score={score} maxScore={maxScore} isTest={!!activeTest}
             testBoard={testBoard}
             prevBest={prevBest}
-            curResult={!roomCode&&!activeTest?curResult:null}
-            nextStep={!roomCode&&!activeTest?nextStepOf(lesson,exercise):null}
+            curResult={!roomCode&&!activeTest&&!activeHw?curResult:null}
+            nextStep={!roomCode&&!activeTest&&!activeHw?nextStepOf(lesson,exercise):null}
+            hwResult={!roomCode&&activeHw?hwResult:null}
             onNext={()=>{ const n=nextStepOf(lesson,exercise); if(n) startExercise(n.lesson,n.exercise); }}
             myCfg={myCfg}
             sOffset={serverTimeOffset}
@@ -1677,6 +1756,7 @@ export function ThaiTypingApp() {
             onDuelSettled={onDuelSettled}
             onRestart={()=>{
               if(rcRef.current){handleLeaveRoom();}
+              else if(hwRef.current) startHomework(hwRef.current);
               else if(testRef.current) startWeeklyTest();
               else if(lesson&&exercise) startExercise(lesson,exercise);
               else setScreen('lessons');

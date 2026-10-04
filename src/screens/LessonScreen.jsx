@@ -8,7 +8,7 @@ const { useEffect, useRef, useState } = React;
 
 // LESSON SELECTOR
 
-export function LessonScreen({ studentName, classCode, onSelect, onOpenSetup, onJoin, joinCode, setJoinCode, joinError, mpBusy, storyPath, storyPower, onViewStats, onLogin, weekly, onOpenWeekly, highScores, character, onOpenCharacter, progress=emptyProgress() }) {
+export function LessonScreen({ studentName, classCode, onSelect, onOpenSetup, onJoin, joinCode, setJoinCode, joinError, mpBusy, storyPath, storyPower, onViewStats, onLogin, weekly, onOpenWeekly, homework=[], onStartHomework, highScores, character, onOpenCharacter, progress=emptyProgress() }) {
   const savedCh=(()=>{try{return Math.min(parseInt(localStorage.getItem('lastChapter')||'0')||0,CHAPTERS.length-1);}catch{return 0;}})();
   const getExercises=(lesson)=>{
     if(!lesson.story) return lesson.exercises||[];
@@ -111,6 +111,39 @@ export function LessonScreen({ studentName, classCode, onSelect, onOpenSetup, on
           </button>
         );
       })()}
+
+      {/* ── Homework: one row per item, pending first ── */}
+      {studentName && homework.length>0 && (
+        <div style={{marginBottom:20,borderRadius:14,border:'1.5px solid #F59E0B',background:'var(--c-surf)',
+          overflow:'hidden',fontFamily:"'Sarabun','Noto Sans Thai',sans-serif"}}>
+          <div style={{padding:'10px 16px',background:'#FEF3C7',color:'#92400E',fontSize:15,fontWeight:800}}>
+            📚 การบ้าน {(()=>{ const n=homework.filter(h=>!h.passed).length; return n?`· ค้าง ${n} ชิ้น`:'· ส่งครบแล้ว 🎉'; })()}
+          </div>
+          {homework.map(h=>{
+            const days=Math.ceil((h.dueEndsAt-Date.now())/86400000);
+            const due = days<=0 ? 'เลยกำหนดแล้ว' : days===1 ? 'ส่งภายในวันนี้' : `เหลือ ${days} วัน`;
+            const status = h.passed ? (h.late?'✅ ผ่าน (ส่งช้า)':'✅ ผ่านแล้ว')
+              : h.attempts ? `ดีสุด ${'⭐'.repeat(h.best)||'0 ดาว'} · ยังไม่ผ่าน` : 'ยังไม่ได้ทำ';
+            return (
+              <div key={h.hwId} style={{display:'flex',alignItems:'center',gap:12,padding:'10px 16px',borderTop:'1px solid var(--c-border)'}}>
+                <div style={{flex:1,minWidth:0}}>
+                  <div style={{fontSize:14,fontWeight:800,color:'var(--c-t1)'}}>{h.title}</div>
+                  <div style={{fontSize:12,color:'var(--c-t2)'}}>
+                    ต้องได้ {'⭐'.repeat(h.minStars)} · ⏱ 1:30 · {status}
+                    {!h.passed&&<span style={{color:days<=1?'#DC2626':'var(--c-t3)',fontWeight:700}}> · {due}</span>}
+                  </div>
+                </div>
+                <button onClick={()=>onStartHomework&&onStartHomework(h)}
+                  style={{background:h.passed?'var(--c-surf)':'#D97706',color:h.passed?'var(--c-t2)':'#fff',
+                    border:h.passed?'1.5px solid var(--c-border)':'none',borderRadius:10,padding:'8px 14px',
+                    cursor:'pointer',fontSize:13,fontWeight:800,fontFamily:'inherit',whiteSpace:'nowrap'}}>
+                  {h.passed?'ฝึกอีกครั้ง':h.attempts?'ลองอีกครั้ง ▶':'เริ่มทำ ▶'}
+                </button>
+              </div>
+            );
+          })}
+        </div>
+      )}
 
       {/* ── Adventure map: a trail through the 9 stages ── */}
       <AdventureMap progress={progress} selected={chIdx} onSelect={gotoChapter} character={character}/>

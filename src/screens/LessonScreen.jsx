@@ -12,6 +12,21 @@ const { useEffect, useRef, useState } = React;
 
 const SUB = { fontSize: 12, fontWeight: 600, opacity: .9, display: 'block', lineHeight: 1.3 };
 
+// Star count as a small pixel badge (same style as the class-code badge): pixel star + number.
+// Gold when every star is collected.
+function StarBadge({ got, max, small }) {
+  const full = max > 0 && got >= max;
+  return (
+    <span aria-label={`ได้ ${got} จาก ${max} ดาว`} style={{ display:'inline-flex', alignItems:'center', gap:4, lineHeight:1,
+      padding: small ? '2px 6px 2px 3px' : '3px 7px 3px 4px', border:'2px solid #3B2416',
+      background: full ? '#FFC23D' : '#5A3A22', color: full ? '#3B2416' : '#FFF6D8',
+      boxShadow: full ? 'inset -2px -2px 0 #D9922B, inset 2px 2px 0 #FFE08A' : 'inset -2px -2px 0 #3B2416, inset 2px 2px 0 #7A5233' }}>
+      <span className="sp sp-star_s" style={{ flex:'none' }} aria-hidden="true"/>
+      <span style={{ fontFamily:PX_FONT, fontSize: small ? 11 : 12, fontWeight:400 }}>{got}<span style={{ opacity:.7 }}>/{max}</span></span>
+    </span>
+  );
+}
+
 function Stars3({ n, size = 's' }) {
   return <span style={{ display: 'inline-flex', gap: 2 }}>
     {[0, 1, 2].map(i => <Sprite key={i} name={i < n ? 'star_' + size : 'star_' + size + '_off'}/>)}
@@ -100,10 +115,17 @@ export function LessonScreen({ studentName, classCode, onSelect, onOpenSetup, on
             border:'2px solid '+INK, padding:'0 6px', color:INK }}>สร้างตัวละคร</span>}
         </button>
         <div style={{ display:'flex', flexDirection:'column', gap:6, minWidth:0, flex:'0 1 300px', alignSelf:'center' }}>
-          <div style={{ display:'flex', flexDirection:'column', minWidth:0, ...outlined }}>
-            <span style={{ fontSize:short?22:28, fontWeight:700, lineHeight:1.3, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{studentName || 'ผู้เล่นทดลอง'}</span>
-            {classCode && <span style={{ fontFamily:PX_FONT, fontSize:14, fontWeight:400, color:'#F5D27A' }}>{classCode}</span>}
-            {!studentName && <span style={{ fontSize:13, fontWeight:600 }}>ทดลองเล่น — ดาวและคะแนนจะไม่ถูกบันทึก</span>}
+          {/* Name plate: wood 9-slice like the header bar, so the name reads on any part of the scene */}
+          <div className="px-wood" style={{ display:'flex', flexDirection:'column', minWidth:0, maxWidth:'100%', alignSelf:'flex-start', padding:'0 6px', color:'#FFF6D8' }}>
+            <div style={{ display:'flex', alignItems:'center', gap:10, minWidth:0 }}>
+              <span style={{ fontSize:short?20:26, fontWeight:700, lineHeight:1.3, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis',
+                textShadow:'2px 2px 0 #3B2416', minWidth:0 }} title={studentName || 'ผู้เล่นทดลอง'}>{studentName || 'ผู้เล่นทดลอง'}</span>
+              {/* class code as a small pixel badge */}
+              {classCode && <span aria-label={'ห้อง '+classCode} style={{ flex:'none', fontFamily:PX_FONT, fontSize:11, fontWeight:400, lineHeight:1,
+                color:'#3B2416', background:'#FFC23D', border:'2px solid #3B2416', padding:'4px 6px 3px',
+                boxShadow:'inset -2px -2px 0 #D9922B, inset 2px 2px 0 #FFE08A' }}>{classCode}</span>}
+            </div>
+            {!studentName && <span style={{ fontSize:12, fontWeight:600, color:'#E8CF95', whiteSpace:'nowrap' }}>ทดลองเล่น — ดาวและคะแนนจะไม่ถูกบันทึก</span>}
           </div>
           <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
             {!studentName && SCRIPT_URL && <PxButton onClick={()=>onLogin&&onLogin()} style={{ fontSize:14, minHeight:'var(--hb)' }}>เข้าสู่ระบบเพื่อบันทึกผล</PxButton>}
@@ -127,7 +149,7 @@ export function LessonScreen({ studentName, classCode, onSelect, onOpenSetup, on
                       {open ? c.id : <Sprite name="i_lock" style={{ transform:'scale(.75)' }}/>}
                     </span>
                     <span style={{ fontSize:11, fontWeight:600, lineHeight:1.25, minHeight:'2.5em' }}>{c.title}</span>
-                    {(open||got>0) && <span style={{ fontFamily:PX_FONT, fontSize:12, fontWeight:400, color: done?'#FFC23D':'#E8CF95' }}>★{got}/{max}</span>}
+                    {(open||got>0) && <StarBadge got={got} max={max} small/>}
                   </button>
                 );
               })}
@@ -234,8 +256,11 @@ export function LessonScreen({ studentName, classCode, onSelect, onOpenSetup, on
                           </span>
                           <Stars3 n={max?Math.floor(got/max*3+1e-9):0}/>
                           <span style={{ fontSize:15, fontWeight:700, lineHeight:1.3 }}>{lesson.thaiName}</span>
-                          <span style={{ fontFamily:PX_FONT, fontSize:12, fontWeight:400, color:'#6A4A30' }}>
-                            ★ {got}/{max}{progress.cleared?.[lesson.id]?' · RUSH':''}</span>
+                          <span style={{ display:'flex', gap:4, alignItems:'center', flexWrap:'wrap', justifyContent:'center' }}>
+                            <StarBadge got={got} max={max}/>
+                            {progress.cleared?.[lesson.id] && <span style={{ fontFamily:PX_FONT, fontSize:10, fontWeight:400, lineHeight:1,
+                              color:'#FFF6D8', background:'#D9452F', border:'2px solid #3B2416', padding:'4px 5px 3px' }}>RUSH</span>}
+                          </span>
                         </button>
                       );
                     })}

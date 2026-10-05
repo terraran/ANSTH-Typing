@@ -9,7 +9,7 @@
   const h = React.createElement;
   const { useState, useEffect, useRef } = React;
   const BASE = 'assets/char/';
-  const VER = '5';               // bump after replacing any asset file (cache-busting)
+  const VER = '6';               // bump after replacing any asset file (cache-busting)
   const TF = "'Noto Sans Thai Looped','Sarabun','Noto Sans Thai',sans-serif";
 
   // ── Choices ─────────────────────────────────────────────────
@@ -45,17 +45,18 @@
     { id: 'f04_bun',      name: 'ดังโงะ' },
     { id: 'f05_braid',    name: 'เปีย' },
   ];
+  // Hair colours: 5 shades dark→light with hue-shifted shadows/highlights (null = original art).
   const HAIR_COLORS = [
-    { id: 'black',     name: 'ดำ',         ramp: [[18, 16, 22], [74, 66, 72]] },
-    { id: 'darkbrown', name: 'น้ำตาลเข้ม', ramp: [[34, 20, 16], [118, 76, 50]] },
-    { id: 'brown',     name: 'น้ำตาล',     ramp: null },
-    { id: 'blonde',    name: 'บลอนด์',     ramp: [[140, 98, 36], [250, 224, 142]] },
-    { id: 'red',       name: 'แดง',        ramp: [[96, 24, 18], [232, 108, 62]] },
-    { id: 'pink',      name: 'ชมพู',       ramp: [[130, 40, 90], [252, 160, 205]] },
-    { id: 'purple',    name: 'ม่วง',       ramp: [[56, 30, 104], [178, 132, 236]] },
-    { id: 'blue',      name: 'น้ำเงิน',    ramp: [[24, 38, 100], [108, 162, 236]] },
-    { id: 'green',     name: 'เขียว',      ramp: [[22, 74, 46], [126, 214, 140]] },
-    { id: 'silver',    name: 'เทา',        ramp: [[78, 80, 92], [232, 234, 240]] },
+    { id: 'black',     name: 'ดำ', ramp: [[14, 12, 22], [30, 28, 44], [52, 52, 72], [80, 82, 106], [116, 122, 150]] },
+    { id: 'darkbrown', name: 'น้ำตาลเข้ม', ramp: [[30, 16, 14], [54, 32, 24], [84, 52, 36], [116, 76, 50], [152, 106, 72]] },
+    { id: 'brown',     name: 'น้ำตาล', ramp: null },
+    { id: 'blonde',    name: 'บลอนด์', ramp: [[122, 74, 30], [172, 118, 46], [214, 164, 72], [242, 206, 114], [255, 238, 172]] },
+    { id: 'red',       name: 'แดง', ramp: [[80, 18, 20], [134, 38, 26], [190, 70, 40], [228, 114, 64], [252, 164, 108]] },
+    { id: 'pink',      name: 'ชมพู', ramp: [[112, 34, 84], [166, 62, 124], [214, 104, 162], [242, 150, 196], [255, 198, 226]] },
+    { id: 'purple',    name: 'ม่วง', ramp: [[42, 22, 82], [74, 42, 130], [112, 76, 178], [152, 118, 222], [198, 170, 250]] },
+    { id: 'blue',      name: 'น้ำเงิน', ramp: [[18, 26, 80], [30, 50, 132], [54, 92, 188], [92, 142, 230], [148, 194, 252]] },
+    { id: 'green',     name: 'เขียว', ramp: [[14, 54, 40], [24, 92, 58], [46, 136, 80], [88, 182, 108], [152, 224, 152]] },
+    { id: 'silver',    name: 'เทา', ramp: [[62, 64, 80], [104, 108, 126], [148, 152, 170], [194, 198, 214], [238, 240, 248]] },
   ];
   const SKIN_TONES = [
     { id: 'light',   name: 'ขาว',      ramp: [[66, 40, 34], [250, 214, 188]] },
@@ -166,12 +167,14 @@
   const lum = c => 0.3 * c[0] + 0.59 * c[1] + 0.11 * c[2];
   const ck = c => c[0] + ',' + c[1] + ',' + c[2];
   // Map each source shade onto the ramp by its brightness within the group.
+  // A ramp is 2 or more colours, darkest first; in-between shades are blended piece by piece.
   function rampMap(sources, ramp, map) {
     if (!ramp || !sources || !sources.length) return map;
-    const L = sources.map(lum), lo = Math.min(...L), hi = Math.max(...L);
+    const L = sources.map(lum), lo = Math.min(...L), hi = Math.max(...L), n = ramp.length;
     sources.forEach((c, i) => {
       const t = hi > lo ? (L[i] - lo) / (hi - lo) : 0.5;
-      map.set(ck(c), [0, 1, 2].map(k => Math.round(ramp[0][k] + (ramp[1][k] - ramp[0][k]) * t)));
+      const sPos = t * (n - 1), k = Math.min(Math.floor(sPos), n - 2), f = sPos - k;
+      map.set(ck(c), [0, 1, 2].map(j => Math.round(ramp[k][j] + (ramp[k + 1][j] - ramp[k][j]) * f)));
     });
     return map;
   }
@@ -190,6 +193,10 @@
     ctx.putImageData(id, 0, 0);
     return cv;
   }
+
+  // Tail swing per frame (px, + = towards the face). Animations not listed keep the tail still
+  // apart from the one-frame lag behind the head's bob.
+  const TAIL_SWAY = { run: [0, -1, -1, 0, -1, -1], cheer: [0, 0, -1, -1] };
 
   // Builds (and caches) one finished sheet per character: body + hair, every frame.
   const _cache = new Map();
@@ -211,14 +218,36 @@
       const style = D.hair[cfg.hair];
       if (style) {
         const hairMap = rampMap(style.hairColours, hairRamp, new Map(skinMap));
-        const ov = recolorCanvas(D.imgs['hair_' + cfg.hair], hairMap);
+        let ov = recolorCanvas(D.imgs['hair_' + cfg.hair], hairMap);
+        // Tail styles (ponytail, pigtails, braid): the tail is cut out and drawn with its own small
+        // offset per frame — it swings back while running and lags one frame behind the head's bob.
+        // The bridge (tail's top 2 rows, drawn in place) keeps it joined to the head when it moves.
+        let tail = null, bridge = null;
+        if (style.tail) {
+          const [x0, y0, x1, y1] = style.tail, w = x1 - x0 + 1, hgt = y1 - y0 + 1;
+          const cut = (h2) => { const c = document.createElement('canvas'); c.width = ov.width; c.height = ov.height;
+            c.getContext('2d').drawImage(ov, x0, y0, w, h2, x0, y0, w, h2); return c; };
+          tail = cut(hgt); bridge = cut(2);
+          const rest = document.createElement('canvas'); rest.width = ov.width; rest.height = ov.height;
+          const rc = rest.getContext('2d'); rc.drawImage(ov, 0, 0); rc.clearRect(x0, y0, w, hgt);
+          ov = rest;
+        }
         const ctx = sheet.getContext('2d');
         Object.entries(D.animations).forEach(([name, a]) => {
-          (D.headAnchor[name] || []).forEach((anc, i) => {
+          const ancs = D.headAnchor[name] || [];
+          ancs.forEach((anc, i) => {
             const fx = i * S, fy = a.row * S;
+            const hx = fx + anc.x + style.offset.x, hy = fy + anc.y + style.offset.y;
             ctx.save();
             ctx.beginPath(); ctx.rect(fx, fy, S, S); ctx.clip();
-            ctx.drawImage(ov, fx + anc.x + style.offset.x, fy + anc.y + style.offset.y);
+            if (tail) {
+              const prev = ancs[(i - 1 + ancs.length) % ancs.length];
+              const dy = Math.max(-1, Math.min(1, prev.y - anc.y));
+              const dx = (TAIL_SWAY[name] || [])[i] || 0;
+              if (dx || dy) ctx.drawImage(bridge, hx, hy);
+              ctx.drawImage(tail, hx + dx, hy + dy);
+            }
+            ctx.drawImage(ov, hx, hy);
             ctx.restore();
           });
         });
@@ -703,7 +732,7 @@
   // Online-game style: the character stands in the middle, each category is a row with ◀ ▶
   // that steps through its choices one at a time. Keyboard: ↑ ↓ pick a row, ← → change it.
   function rampSwatch(o, fallback) {
-    const c = o.ramp ? o.ramp.map(v => 'rgb(' + v.join(',') + ')') : fallback;
+    const c = o.ramp ? [o.ramp[0], o.ramp[o.ramp.length - 1]].map(v => 'rgb(' + v.join(',') + ')') : fallback;
     return 'linear-gradient(135deg,' + c[1] + ' 0%,' + c[1] + ' 45%,' + c[0] + ' 100%)';
   }
   const ORIGINAL = {

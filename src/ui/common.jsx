@@ -27,8 +27,9 @@ export const TextDisplay = React.memo(function TextDisplay({ displayChars, displ
 
   return (
     <div style={{fontFamily:"'Noto Sans Thai Looped','Sarabun','Noto Sans Thai',sans-serif",
-      fontSize:34,lineHeight:compact?1.75:2,display:'flex',flexWrap:'wrap',
-      alignContent:'flex-start',gap:'0 2px',minHeight:compact?119:130}}>
+      fontSize:'var(--tf)',lineHeight:compact?1.75:2,display:'flex',flexWrap:'wrap',
+      alignContent:'flex-start',gap:'0 2px',minHeight:compact?'calc(var(--tf) * 3.5)':'calc(var(--tf) * 4)',
+      '--tf':'clamp(24px, 4.3vh, 34px)'}}>
       {tokens.map((tok,ti) => {
         if (tok.type==='space') {
           const done=tok.start<displayPos,cur=tok.start===displayPos;

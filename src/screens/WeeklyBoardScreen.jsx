@@ -15,6 +15,7 @@ export function WeeklyBoardScreen({ data, status, onRefresh, onStart, onLoadPast
   const [pastId, setPastId] = useState('');
   const [pastBoards, setPastBoards] = useState({});
   const [pastStatus, setPastStatus] = useState('idle');   // idle|loading|error
+  const [side, setSide] = useState('top');                // right column: top | past | hist
   const pickPast = id => {
     setPastId(id);
     if (!id || pastBoards[id] || !onLoadPast) return;
@@ -43,7 +44,7 @@ export function WeeklyBoardScreen({ data, status, onRefresh, onStart, onLoadPast
   const les = t && findLesson(t.lessonId);
   const me = data.me;
   const medal = r => r<=3
-    ? <span style={{position:'relative',display:'inline-flex'}}><Sprite name="i_trophy" style={{filter:r===1?'none':r===2?'grayscale(1) brightness(1.3)':'sepia(1) hue-rotate(-20deg) saturate(1.6)'}}/>
+    ? <span style={{position:'relative',display:'inline-flex'}}><Sprite name="i_trophy" className="px-z" style={{filter:r===1?'none':r===2?'grayscale(1) brightness(1.3)':'sepia(1) hue-rotate(-20deg) saturate(1.6)'}}/>
         <span style={{position:'absolute',right:-4,bottom:-4,fontFamily:PX_FONT,fontSize:12,fontWeight:400,color:INK}}>{r}</span></span>
     : r;
   const row = (e, key) => (
@@ -60,10 +61,18 @@ export function WeeklyBoardScreen({ data, status, onRefresh, onStart, onLoadPast
     </div>
   );
 
+  // Right column tabs — only the ones that have something to show
+  const tabs = [t && ['top', 'Top 10 ของ '+(data.grade||'')], data.past?.length>0 && ['past','🗓 สัปดาห์ก่อน ๆ'],
+    data.history?.length>0 && ['hist','📈 พัฒนาการของฉัน']].filter(Boolean);
+  const cur = tabs.some(x=>x[0]===side) ? side : tabs[0]?.[0];
+
   return (
-    <div style={{fontFamily:tf}}>
+    <div className="px-fill" style={{fontFamily:tf,display:'grid',gridTemplateColumns:tabs.length?'minmax(0,1fr) minmax(0,1fr)':'minmax(0,1fr)',
+      gridTemplateRows:'minmax(0,1fr)',gap:14}}>
+      {/* Left: this week's test, start button, my rank */}
+      <div className="px-scroll" style={{display:'flex',flexDirection:'column',gap:'var(--fg)'}}>
       {/* Header: this week's test + start */}
-      <div className="px-wood" style={{padding:'0 6px',color:'#F5E6BE',marginBottom:16}}>
+      <div className="px-wood" style={{padding:'0 6px',color:'#F5E6BE',flex:'none'}}>
         <div style={{display:'flex',alignItems:'center',gap:8}}>
           <div style={{flex:1,fontSize:13,fontWeight:700,opacity:.85}}>
             ภารกิจประจำสัปดาห์ {data.grade?`· ${data.grade}`:''} · {fmtWeekRange(data.weekStart)}
@@ -80,7 +89,7 @@ export function WeeklyBoardScreen({ data, status, onRefresh, onStart, onLoadPast
             <div style={{fontSize:12,opacity:.85}}>
               {t.stage ? `คำจากด่าน ${t.stage} + ทบทวนด่านก่อนหน้า` : `บท ${les?.num ?? t.lessonId}${les?` ${les.thaiName}`:''}`} · ⏱ 2 นาที · {t.showHints?'มีไฮไลต์ปุ่มถัดไป':'🙈 ไม่มีไฮไลต์ปุ่ม'} · {fmtTimeLeft(data.weekEndsAt-Date.now())}
             </div>
-            <PxButton onClick={onStart} style={{marginTop:14,width:'100%',minHeight:64,fontSize:20}}>
+            <PxButton onClick={onStart} style={{marginTop:10,width:'100%',minHeight:'var(--sb)',fontSize:20}}>
               ▶ {me?'ทำภารกิจอีกครั้ง':'เริ่มภารกิจประจำสัปดาห์'}
             </PxButton>
             <div style={{fontSize:11,opacity:.75,marginTop:8,textAlign:'center'}}>
@@ -98,8 +107,8 @@ export function WeeklyBoardScreen({ data, status, onRefresh, onStart, onLoadPast
 
       {/* My rank */}
       {t && (
-        <div style={{display:'flex',alignItems:'center',gap:14,padding:'12px 16px',
-          marginBottom:16,background:'var(--c-surf)',border:'3px solid '+INK}}>
+        <div style={{display:'flex',alignItems:'center',gap:14,padding:'10px 14px',flex:'none',
+          background:'var(--c-surf)',border:'3px solid '+INK}}>
           {me ? (
             <>
               <div style={{fontFamily:PX_FONT,fontSize:32,fontWeight:400,color:INK,minWidth:60,textAlign:'center'}}>#{me.rank}</div>
@@ -119,11 +128,23 @@ export function WeeklyBoardScreen({ data, status, onRefresh, onStart, onLoadPast
         </div>
       )}
 
+      </div>
+
+      {/* Right: Top 10 / earlier weeks / my progress — long lists scroll inside their box */}
+      {tabs.length>0 && (
+      <div style={{display:'flex',flexDirection:'column',gap:8,minHeight:0}}>
+        <div role="tablist" style={{display:'flex',gap:6,flexWrap:'wrap',flex:'none'}}>
+          {tabs.map(([k,l])=>(
+            <button key={k} role="tab" aria-selected={cur===k} onClick={()=>setSide(k)} className={cur===k?'px-btn':''}
+              style={cur===k?{minHeight:'var(--hb)',padding:'0 6px',fontSize:14,fontFamily:tf}
+                :{background:'#EFE2BF',border:'3px solid '+INK,padding:'4px 10px',minHeight:'var(--hb)',cursor:'pointer',fontSize:14,fontWeight:700,
+                  color:'var(--c-t2)',fontFamily:tf}}>{l}</button>
+          ))}
+        </div>
       {/* Top 10 */}
-      {t && (
-        <div style={{marginBottom:16}}>
-          <div style={{fontSize:15,fontWeight:800,color:'var(--c-t1)',marginBottom:6}}>Top 10 ของ {data.grade}</div>
-          <div style={{background:'var(--c-card)',border:'3px solid '+INK,padding:6}}>
+      {cur==='top' && t && (
+        <>
+          <div className="px-scroll" style={{background:'var(--c-card)',border:'3px solid '+INK,padding:6,flex:'0 1 auto'}}>
             {data.top.length ? (
               <>
                 {data.top.map((e,i)=>row(e,'t'+i))}
@@ -139,18 +160,17 @@ export function WeeklyBoardScreen({ data, status, onRefresh, onStart, onLoadPast
                 ยังไม่มีใครทำ — เป็นคนแรกบนกระดานได้เลย!</div>
             )}
           </div>
-          <div style={{fontSize:11,color:'var(--c-t3)',marginTop:6,textAlign:'right'}}>
+          <div style={{fontSize:11,color:'var(--c-t3)',textAlign:'right',flex:'none'}}>
             อัปเดตอัตโนมัติทุก 1 นาที</div>
-        </div>
+        </>
       )}
 
       {/* Earlier weeks' Top 10 */}
-      {data.past && data.past.length>0 && (
-        <div style={{marginBottom:16}}>
-          <div style={{fontSize:15,fontWeight:800,color:'var(--c-t1)',marginBottom:6}}>🗓 กระดานสัปดาห์ก่อน ๆ</div>
+      {cur==='past' && data.past && data.past.length>0 && (
+        <>
           <select value={pastId} onChange={e=>pickPast(e.target.value)}
             style={{width:'100%',padding:'10px 12px',border:'3px solid '+INK,
-              background:'var(--c-card)',color:'var(--c-t1)',fontSize:14,fontWeight:700,fontFamily:tf,marginBottom:8}}>
+              background:'var(--c-card)',color:'var(--c-t1)',fontSize:14,fontWeight:700,fontFamily:tf,flex:'none'}}>
             <option value="">— เลือกสัปดาห์ —</option>
             {data.past.map(p=>(
               <option key={p.testId} value={p.testId}>{fmtWeekRange(p.weekStart)} · {p.exerciseTitle}</option>
@@ -163,7 +183,7 @@ export function WeeklyBoardScreen({ data, status, onRefresh, onStart, onLoadPast
                 {pastStatus==='error'?'โหลดไม่ได้ — ลองเลือกใหม่อีกครั้ง':'กำลังโหลด...'}</div>
             );
             return (
-              <div style={{background:'var(--c-card)',border:'3px solid '+INK,padding:6}}>
+              <div className="px-scroll" style={{background:'var(--c-card)',border:'3px solid '+INK,padding:6,flex:'0 1 auto'}}>
                 {b.top.length ? (
                   <>
                     {b.top.map((e,i)=>row(e,'p'+i))}
@@ -182,14 +202,13 @@ export function WeeklyBoardScreen({ data, status, onRefresh, onStart, onLoadPast
               </div>
             );
           })()}
-        </div>
+        </>
       )}
 
       {/* Week-by-week progress */}
-      {data.history && data.history.length>0 && (
-        <div>
-          <div style={{fontSize:15,fontWeight:800,color:'var(--c-t1)',marginBottom:6}}>📈 พัฒนาการของฉัน</div>
-          <div style={{background:'var(--c-card)',border:'3px solid '+INK,overflow:'hidden'}}>
+      {cur==='hist' && data.history && data.history.length>0 && (
+        <>
+          <div className="px-scroll" style={{background:'var(--c-card)',border:'3px solid '+INK,flex:'0 1 auto'}}>
             {data.history.map((h,i)=>{
               const older = data.history[i+1];
               const pct = pctOf(h.score,h.max);
@@ -213,11 +232,12 @@ export function WeeklyBoardScreen({ data, status, onRefresh, onStart, onLoadPast
               );
             })}
           </div>
-          <div style={{fontSize:11,color:'var(--c-t3)',marginTop:6}}>
+          <div style={{fontSize:11,color:'var(--c-t3)',flex:'none'}}>
             ▲▼ เทียบ % ของคะแนนเป้าหมายกับสัปดาห์ก่อน (แต่ละสัปดาห์แบบฝึกไม่เหมือนกัน)</div>
-        </div>
+        </>
       )}
-      {back}
+      </div>
+      )}
     </div>
   );
 }

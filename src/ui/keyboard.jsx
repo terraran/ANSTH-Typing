@@ -35,7 +35,7 @@ export const Key = React.memo(function Key({ kdef, active, isFlash, shiftHeld })
   const smallChar = chars ? (shifted ? chars[0] : chars[1]) : '';
   const bg=sp?'var(--c-key-sp)':meta?FINGER_COLORS[meta.f]:'var(--c-key-def)';
   return (
-    <div className={'px-key'+(isFlash?' flash':active?' on':'')} style={{ flex:w,height:44,background:bg,
+    <div className={'px-key'+(isFlash?' flash':active?' on':'')} style={{ flex:w,height:'var(--kh)',background:bg,
       display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',
       position:'relative',cursor:'default',userSelect:'none',
       transition:'background .1s,box-shadow .1s',minWidth:0 }}>
@@ -64,14 +64,15 @@ export const Key = React.memo(function Key({ kdef, active, isFlash, shiftHeld })
 export const OnScreenKeyboard = React.memo(function OnScreenKeyboard({ nextCode, needsShift, flashCode, shiftHeld, correctShiftCode }) {
   const isActive = c => nextCode===c || ((c==='ShiftLeft'||c==='ShiftRight') && needsShift && (correctShiftCode ? c===correctShiftCode : true));
   return (
-    <div style={{display:'flex',flexDirection:'column',gap:5,width:'100%'}}>
+    <div style={{display:'flex',flexDirection:'column',gap:'var(--kg)',width:'100%',
+      '--kh':'clamp(30px, 5.4vh, 50px)','--kg':'clamp(3px, .7vh, 5px)'}}>
       {KB_ROWS.map((row,ri)=>(
-        <div key={ri} style={{display:'flex',gap:5}}>
+        <div key={ri} style={{display:'flex',gap:'var(--kg)'}}>
           {row.map(kdef=><Key key={kdef.c} kdef={kdef} active={isActive(kdef.c)}
             isFlash={flashCode===kdef.c} shiftHeld={shiftHeld}/>)}
         </div>
       ))}
-      <div style={{display:'flex',gap:10,marginTop:6,flexWrap:'wrap',justifyContent:'center'}}>
+      <div style={{display:'flex',gap:10,marginTop:2,flexWrap:'wrap',justifyContent:'center'}}>
         {[['LP','ซ้ายก้อย'],['LR','ซ้ายนาง'],['LM','ซ้ายกลาง'],['LI','ซ้ายชี้'],
           ['RI','ขวาชี้'],['RM','ขวากลาง'],['RR','ขวานาง'],['RP','ขวาก้อย']].map(([f,lbl])=>(
           <div key={f} style={{display:'flex',alignItems:'center',gap:4,fontSize:11,fontWeight:600,color:'inherit',

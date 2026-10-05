@@ -336,7 +336,7 @@
   function RaceTrack(props) {
     const { mode = '1v1', runners = [], style } = props;
     const isDuel = mode !== 'royale';
-    const height = TRACK_H;
+    const height = props.height || TRACK_H;    // shorter lane on short screens (App passes 84)
     const wrapRef = useRef(null), cvRef = useRef(null);
     const optRef = useRef(props); optRef.current = props;
     const spritesRef = useRef(new Map());    // runner id → finished sprite
@@ -685,11 +685,8 @@
   }
 
   // ── React: character creator screen ─────────────────────────
-  function Section({ title, children }) {
-    return h('div', { style: { marginBottom: 16 } },
-      h('div', { style: { fontSize: 12, fontWeight: 800, color: 'var(--c-t2)', letterSpacing: .5, marginBottom: 8 } }, title),
-      children);
-  }
+  // Online-game style: the character stands in the middle, each category is a row with ◀ ▶
+  // that steps through its choices one at a time. Keyboard: ↑ ↓ pick a row, ← → change it.
   function rampSwatch(o, fallback) {
     const c = o.ramp ? o.ramp.map(v => 'rgb(' + v.join(',') + ')') : fallback;
     return 'linear-gradient(135deg,' + c[1] + ' 0%,' + c[1] + ' 45%,' + c[0] + ' 100%)';
@@ -700,17 +697,47 @@
     socks: ['rgb(62,79,96)', 'rgb(84,117,151)'],
     shoes: ['rgb(66,103,92)', 'rgb(177,211,186)'],
   };
-  function Swatches({ list, value, onPick, field }) {
-    return h('div', { style: { display: 'flex', flexWrap: 'wrap', gap: 10 } },
-      list.map(o => {
-        const on = o.id === value;
-        return h('button', { key: o.id, onClick: () => onPick(o.id), title: o.name,
-            style: { background: 'none', border: 'none', cursor: 'pointer', padding: 0, width: 52,
-              display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, fontFamily: TF } },
-          h('span', { style: { width: 34, height: 34, background: rampSwatch(o, ORIGINAL[field]), border: '3px solid #3B2416',
-            boxShadow: on ? '0 0 0 3px #FFC23D' : 'none' } }),
-          h('span', { style: { fontSize: 11, fontWeight: on ? 800 : 600, color: '#3B2416', lineHeight: 1.2 } }, o.name));
-      }));
+  // Rows: left column first, then right (also the ↑ ↓ order).
+  const PICKERS = [
+    { key: 'body',      title: 'ชุด',     list: BODIES },
+    { key: 'hair',      title: 'ทรงผม',   list: HAIRSTYLES },
+    { key: 'hairColor', title: 'สีผม',    list: HAIR_COLORS },
+    { key: 'skin',      title: 'สีผิว',    list: SKIN_TONES },
+    { key: 'socks',     title: 'ถุงเท้า',  list: SOCK_COLORS },
+    { key: 'shoes',     title: 'รองเท้า', list: SHOE_COLORS },
+  ];
+  const SHORT_Q = '(max-height: 820px)';     // same breakpoint as pixel.css
+  function useShort() {
+    const [s, setS] = useState(() => window.matchMedia(SHORT_Q).matches);
+    useEffect(() => {
+      const m = window.matchMedia(SHORT_Q), on = () => setS(m.matches);
+      m.addEventListener ? m.addEventListener('change', on) : m.addListener(on);
+      return () => { m.removeEventListener ? m.removeEventListener('change', on) : m.removeListener(on); };
+    }, []);
+    return s;
+  }
+
+  function PickerRow({ p, cfg, active, onStep, onFocus }) {
+    const list = p.list, i = Math.max(0, list.findIndex(o => o.id === cfg[p.key])), o = list[i];
+    let thumb;
+    if (p.key === 'hair') thumb = h(CharCanvas, { config: cfg, crop: HEAD, scale: 1.5, still: true, style: { width: 51, height: 45 } });
+    else if (p.key === 'body') thumb = h('span', { style: { fontSize: 30, lineHeight: 1 } }, o.id === 'boy' ? '👦' : '👧');
+    else thumb = h('span', { style: { width: 34, height: 34, flex: 'none', background: rampSwatch(o, ORIGINAL[p.key]), border: '3px solid #3B2416' } });
+    const arrow = (dir) => h('button', { className: 'sp sp-i_' + (dir < 0 ? 'left' : 'right') + ' px-icon-btn',
+      onClick: () => { onFocus(); onStep(dir); }, 'aria-label': p.title + (dir < 0 ? ' ก่อนหน้า' : ' ถัดไป'), title: dir < 0 ? 'ก่อนหน้า' : 'ถัดไป' });
+    return h('div', { onClick: onFocus, role: 'group', 'aria-label': p.title,
+        style: { display: 'flex', flexDirection: 'column', gap: 2, padding: '4px 8px 6px', cursor: 'default',
+          background: active ? '#FFE9A8' : 'transparent', border: '3px solid ' + (active ? '#3B2416' : 'transparent') } },
+      h('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', fontFamily: TF } },
+        h('span', { style: { fontSize: 14, fontWeight: 800, color: '#3B2416' } }, p.title),
+        h('span', { style: { fontFamily: "'Press Start 2P', monospace", fontSize: 10, color: '#8C6E4E' } }, (i + 1) + '/' + list.length)),
+      h('div', { style: { display: 'flex', alignItems: 'center', gap: 6 } },
+        arrow(-1),
+        h('div', { 'aria-live': 'polite', style: { flex: 1, minWidth: 0, height: 52, display: 'flex', alignItems: 'center', gap: 10, padding: '0 10px',
+            background: '#FFF9E6', border: '3px solid #3B2416', fontFamily: TF } },
+          thumb,
+          h('span', { style: { fontSize: 16, fontWeight: 700, color: '#3B2416', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' } }, o.name)),
+        arrow(1)));
   }
 
   function CreatorScreen({ initial, signedIn, onSave, onBack }) {
@@ -720,9 +747,10 @@
     const [errMsg, setErrMsg] = useState('');
     const [ready, setReady] = useState(!!_data);
     const [loadErr, setLoadErr] = useState('');
+    const [row, setRow] = useState(0);                  // highlighted category (keyboard)
+    const short = useShort();
     const isNew = !sanitize(initial);
     useEffect(() => { load().then(() => setReady(true)).catch(e => setLoadErr(e.message)); }, []);
-    const set = (k, v) => { setCfg(c => ({ ...c, [k]: v })); setStatus('idle'); };
     // Switching uniform also swaps socks/shoes to the new uniform's defaults, unless the student changed them.
     const setBody = b => { setStatus('idle'); setCfg(c => {
       const od = defaults(c.body), nd = defaults(b), n = { ...c, body: b };
@@ -730,6 +758,29 @@
       if (c.shoes === od.shoes) n.shoes = nd.shoes;
       return n;
     }); };
+    // One step through a category, wrapping around at both ends.
+    const step = (k, dir) => {
+      const list = OPTIONS[k];
+      const i = Math.max(0, list.findIndex(o => o.id === cfg[k]));
+      const v = list[(i + dir + list.length) % list.length].id;
+      if (k === 'body') setBody(v);
+      else { setCfg(c => ({ ...c, [k]: v })); setStatus('idle'); }
+    };
+    const stepRef = useRef(step); stepRef.current = step;
+    useEffect(() => {
+      const onKey = e => {
+        const t = e.target && e.target.tagName;
+        if (t === 'INPUT' || t === 'TEXTAREA' || t === 'SELECT' || e.altKey || e.ctrlKey || e.metaKey) return;
+        if (e.key === 'ArrowUp')   { e.preventDefault(); setRow(r => (r + PICKERS.length - 1) % PICKERS.length); }
+        else if (e.key === 'ArrowDown') { e.preventDefault(); setRow(r => (r + 1) % PICKERS.length); }
+        else if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+          e.preventDefault();
+          setRow(r => { stepRef.current(PICKERS[r].key, e.key === 'ArrowLeft' ? -1 : 1); return r; });
+        }
+      };
+      window.addEventListener('keydown', onKey);
+      return () => window.removeEventListener('keydown', onKey);
+    }, []);
     const save = async () => {
       setStatus('saving'); setErrMsg('');
       try { await onSave(sanitize(cfg)); setStatus('saved'); }
@@ -737,77 +788,48 @@
     };
     // Pixel look (styles in assets/ui/pixel.css): green .px-btn when chosen, parchment square otherwise.
     const pill = (on, label, onClick) => h('button', { onClick, className: on ? 'px-btn' : undefined, 'aria-pressed': on,
-      style: on ? { flex: 1, minHeight: 46, padding: '0 6px', fontFamily: TF, fontSize: 14 }
-        : { flex: 1, minHeight: 46, padding: '6px 10px', cursor: 'pointer', fontFamily: TF, fontSize: 14, fontWeight: 700,
+      style: on ? { flex: 1, minHeight: 44, padding: '0 6px', fontFamily: TF, fontSize: 14 }
+        : { flex: 1, minHeight: 44, padding: '4px 10px', cursor: 'pointer', fontFamily: TF, fontSize: 14, fontWeight: 700,
           border: '3px solid #3B2416', background: '#EFE2BF', color: '#3B2416' } }, label);
 
     if (loadErr) return h('div', { style: { fontFamily: TF, textAlign: 'center', padding: 30 } },
       h('div', { style: { color: '#DC2626', fontWeight: 700, marginBottom: 12 } }, '⚠️ โหลดตัวละครไม่ได้ — ' + loadErr),
-      h('button', { onClick: onBack, style: { padding: '10px 18px', borderRadius: 10, border: 'none', background: '#0F172A', color: '#fff', cursor: 'pointer', fontFamily: TF } }, '← กลับ'));
+      h('button', { onClick: onBack, className: 'px-btn', style: { minHeight: 48, padding: '0 18px', fontFamily: TF, fontSize: 15 } }, '← กลับ'));
     if (!ready) return h('div', { style: { fontFamily: TF, textAlign: 'center', padding: 40, color: 'var(--c-t3)' } }, 'กำลังโหลดตัวละคร...');
 
-    const preview = h('div', { style: { flex: '0 0 auto', width: 240, margin: '0 auto' } },
-      h('div', { className: 'px-lane', style: { padding: '14px 0 6px', display: 'flex', justifyContent: 'center', border: '3px solid #3B2416' } },
-        h(CharCanvas, { config: cfg, anim, scale: 4 })),
-      h('div', { style: { display: 'flex', gap: 6, marginTop: 10 } },
+    const column = (from) => h('div', { style: { flex: '1 1 0', minWidth: 0, display: 'flex', flexDirection: 'column', gap: short ? 6 : 12, justifyContent: 'center' } },
+      PICKERS.slice(from, from + 3).map((p, j) => h(PickerRow, { key: p.key, p, cfg, active: row === from + j,
+        onFocus: () => setRow(from + j), onStep: dir => step(p.key, dir) })));
+
+    const scale = short ? 4 : 5;
+    const preview = h('div', { style: { flex: '0 0 auto', width: FULL.w * scale + 40, display: 'flex', flexDirection: 'column', gap: 8 } },
+      h('div', { className: 'px-lane', style: { padding: '12px 0 6px', display: 'flex', justifyContent: 'center', border: '3px solid #3B2416' } },
+        h(CharCanvas, { config: cfg, anim, scale })),
+      h('div', { style: { display: 'flex', gap: 6 } },
         pill(anim === 'idle', '🧍 ยืน', () => setAnim('idle')),
         pill(anim === 'run', '🏃 วิ่ง', () => setAnim('run'))),
       h('button', { onClick: () => { setCfg(randomize(cfg.body)); setStatus('idle'); }, className: 'px-btn',
-          style: { width: '100%', marginTop: 8, minHeight: 48, fontFamily: TF, fontSize: 15 } }, '🎲 สุ่มตัวละคร'));
-
-    const hairGrid = h('div', { style: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(64px,1fr))', gap: 8 } },
-      HAIRSTYLES.map(s => {
-        const on = s.id === cfg.hair;
-        return h('button', { key: s.id, onClick: () => set('hair', s.id),
-            'aria-pressed': on,
-            style: { cursor: 'pointer', padding: '6px 2px 4px', fontFamily: TF,
-              border: '3px solid ' + (on ? '#3B2416' : '#A9854F'), background: on ? '#FFE9A8' : '#E2CF9F',
-              boxShadow: on ? '0 0 0 3px #FFC23D' : 'none',
-              display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 } },
-          h(CharCanvas, { config: { ...cfg, hair: s.id }, crop: HEAD, scale: 1.5, still: true, style: { width: 51, height: 45 } }),
-          h('span', { style: { fontSize: 12, fontWeight: 700, color: '#3B2416' } }, s.name));
-      }));
-
-    const options = h('div', { style: { flex: '1 1 300px', minWidth: 0 } },
-      h(Section, { title: 'ชุดนักเรียน' },
-        h('div', { style: { display: 'flex', gap: 8 } },
-          BODIES.map(b => pill(cfg.body === b.id, (b.id === 'boy' ? '👦 ' : '👧 ') + b.name, () => setBody(b.id))))),
-      h(Section, { title: 'ทรงผม' }, hairGrid),
-      h(Section, { title: 'สีผม · ' + byId(HAIR_COLORS, cfg.hairColor).name },
-        h(Swatches, { list: HAIR_COLORS, value: cfg.hairColor, field: 'hairColor', onPick: v => set('hairColor', v) })),
-      h(Section, { title: 'สีผิว · ' + byId(SKIN_TONES, cfg.skin).name },
-        h(Swatches, { list: SKIN_TONES, value: cfg.skin, field: 'skin', onPick: v => set('skin', v) })),
-      h(Section, { title: 'ถุงเท้า · ' + byId(SOCK_COLORS, cfg.socks).name },
-        h(Swatches, { list: SOCK_COLORS, value: cfg.socks, field: 'socks', onPick: v => set('socks', v) })),
-      h(Section, { title: 'รองเท้า · ' + byId(SHOE_COLORS, cfg.shoes).name },
-        h(Swatches, { list: SHOE_COLORS, value: cfg.shoes, field: 'shoes', onPick: v => set('shoes', v) })),
-      h(Section, { title: 'ชุด' },
-        h('div', { style: { display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px',
-            border: '3px solid #3B2416', background: 'var(--c-surf)' } },
-          h('span', { style: { fontSize: 22 } }, '🏫'),
-          h('div', { style: { flex: 1 } },
-            h('div', { style: { fontSize: 13, fontWeight: 800, color: 'var(--c-t1)' } }, 'ชุดนักเรียน ✓'),
-            h('div', { style: { fontSize: 11, color: 'var(--c-t3)' } }, 'สีชุดล็อกไว้ตามชุดจริงของโรงเรียน · ชุดอื่นจะปลดล็อกได้จากเป้าหมายการพิมพ์ เร็ว ๆ นี้')))));
+          style: { width: '100%', minHeight: 44, fontFamily: TF, fontSize: 15 } }, '🎲 สุ่มตัวละคร'));
 
     const statusLine = status === 'saving' ? '💾 กำลังบันทึก...'
       : status === 'saved' ? '✅ บันทึกแล้ว!'
       : status === 'error' ? '⚠️ ' + (errMsg || 'บันทึกไม่สำเร็จ') : '';
 
-    return h('div', { style: { fontFamily: TF } },
-      h('div', { style: { marginBottom: 18 } },
-        h('div', { style: { fontSize: 22, fontWeight: 800, color: 'var(--c-t1)' } }, isNew ? '🎨 สร้างตัวละครของคุณ' : '🎨 แก้ไขตัวละคร'),
-        h('div', { style: { fontSize: 13, color: 'var(--c-t2)', marginTop: 2 } },
-          'ตัวละครนี้จะไปอยู่บนลู่วิ่งตอนแข่ง · แก้ไขทีหลังได้เสมอ'),
-        !signedIn && h('div', { style: { fontSize: 12, color: '#B45309', marginTop: 6, fontWeight: 700 } },
+    return h('div', { className: 'px-fill', style: { fontFamily: TF, display: 'flex', flexDirection: 'column', gap: short ? 8 : 14 } },
+      h('div', { style: { display: 'flex', alignItems: 'baseline', gap: 12, flexWrap: 'wrap', flex: 'none' } },
+        h('div', { style: { fontSize: short ? 20 : 22, fontWeight: 800, color: 'var(--c-t1)' } }, isNew ? '🎨 สร้างตัวละครของคุณ' : '🎨 แก้ไขตัวละคร'),
+        h('div', { style: { fontSize: 13, color: 'var(--c-t2)' } }, 'ตัวละครนี้จะไปอยู่บนลู่วิ่งตอนแข่ง · กด ◀ ▶ เพื่อเปลี่ยน (ใช้ปุ่มลูกศรบนคีย์บอร์ดก็ได้)'),
+        !signedIn && h('div', { style: { fontSize: 12, color: '#B45309', fontWeight: 700 } },
           'ยังไม่ได้เข้าสู่ระบบ — ตัวละครจะบันทึกไว้ในเครื่องนี้เท่านั้น')),
-      h('div', { style: { display: 'flex', gap: 22, flexWrap: 'wrap', alignItems: 'flex-start' } }, preview, options),
-      h('div', { style: { display: 'flex', gap: 10, marginTop: 8, alignItems: 'center', flexWrap: 'wrap' } },
-        h('button', { onClick: save, disabled: status === 'saving', className: 'px-btn',
-            style: { flex: '2 1 200px', minHeight: 54, fontSize: 17, fontFamily: TF } }, '💾 บันทึกตัวละคร'),
+      h('div', { style: { flex: '1 1 auto', minHeight: 0, display: 'flex', gap: short ? 14 : 24, alignItems: 'center', justifyContent: 'center' } },
+        column(0), preview, column(3)),
+      h('div', { style: { display: 'flex', gap: 10, alignItems: 'center', flex: 'none' } },
         h('button', { onClick: onBack, className: 'px-btn',
-            style: { flex: '1 1 120px', minHeight: 54, fontSize: 16, fontFamily: TF } }, '← กลับ')),
-      statusLine && h('div', { style: { marginTop: 10, fontSize: 13, fontWeight: 700, textAlign: 'center',
-        color: status === 'error' ? '#DC2626' : status === 'saved' ? '#059669' : 'var(--c-t2)' } }, statusLine));
+            style: { flex: '1 1 120px', minHeight: short ? 46 : 54, fontSize: 16, fontFamily: TF } }, '← กลับ'),
+        h('div', { role: 'status', style: { flex: '1 1 160px', fontSize: 14, fontWeight: 700, textAlign: 'center',
+          color: status === 'error' ? '#DC2626' : status === 'saved' ? '#059669' : 'var(--c-t2)' } }, statusLine),
+        h('button', { onClick: save, disabled: status === 'saving', className: 'px-btn',
+            style: { flex: '2 1 200px', minHeight: short ? 46 : 54, fontSize: 17, fontFamily: TF } }, '💾 บันทึกตัวละคร')));
   }
 
   window.CharKit = {

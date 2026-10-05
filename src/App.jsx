@@ -215,18 +215,14 @@ export function ThaiTypingApp() {
     ? (['LP','LR','LM','LI'].includes(KEY_META[nextCode]?.f) ? 'ShiftRight' : 'ShiftLeft')
     : null;
 
-  // Lock the view once when a run starts: race HUD / score at the top of the
-  // screen so the text and the on-screen keyboard are visible together.
-  // Only once per run — the student can scroll freely afterwards.
+  // Every screen fits the window (no page scrolling): the race lane gets shorter on short screens.
+  const [viewH, setViewH] = useState(()=>window.innerHeight);
   useEffect(() => {
-    if (screen!=='practice') return;
-    const id=requestAnimationFrame(()=>{
-      const el=practiceRef.current; if(!el) return;
-      const top=el.getBoundingClientRect().top+window.scrollY-8;
-      window.scrollTo({top:Math.max(0,top),behavior:'smooth'});
-    });
-    return ()=>cancelAnimationFrame(id);
-  },[screen]);
+    const on=()=>setViewH(window.innerHeight);
+    window.addEventListener('resize',on);
+    return ()=>window.removeEventListener('resize',on);
+  },[]);
+  const laneH = viewH<720 ? 84 : 100;
 
   // ?perf=1: time from key press to the next frame
   useEffect(() => {
@@ -1380,9 +1376,14 @@ export function ThaiTypingApp() {
     />
   );
 
+  const soloTyping = screen==='practice' && !roomCode;
+  const wideScreen = screen==='my-stats' || screen==='weekly' || screen==='character';
+  // These screens stretch to the bottom of the window; the rest (typing, results, rooms…) keep their natural height.
+  const fillScreen = screen==='lessons' || screen==='my-stats' || screen==='weekly';
   return (
-    <div style={{minHeight:'100vh',fontFamily:TH_FONT,position:'relative',
-      display:'flex',flexDirection:'column',alignItems:'center',padding:'14px 16px 40px',color:'var(--c-t1)'}}>
+    <div style={{height:'100dvh',overflow:'hidden',fontFamily:TH_FONT,position:'relative',
+      display:'flex',flexDirection:'column',alignItems:'center',justifyContent:soloTyping?'center':'flex-start',
+      padding:'var(--fp)',gap:'var(--fg)',color:'var(--c-t1)'}}>
       {/* Pixel scene behind every screen (dimmer while typing so the text stands out) */}
       <div style={{position:'fixed',inset:0,zIndex:0}}><Scene dim={screen==='practice'?0.25:screen==='lessons'?0.08:0.18}/></div>
 
@@ -1401,9 +1402,10 @@ export function ThaiTypingApp() {
         }}/>
       )}
 
-      {/* Header: small logo + navigation, on a wooden bar */}
+      {/* Header: small logo + navigation, on a wooden bar (hidden in solo typing — the HUD has its own back button) */}
+      {!soloTyping && (
       <div className="px-wood" style={{width:'100%',maxWidth:1120,display:'flex',justifyContent:'space-between',alignItems:'center',
-        gap:10,flexWrap:'wrap',marginBottom:16,padding:'0 4px',position:'relative',zIndex:1}}>
+        gap:10,flexWrap:'wrap',padding:'0 4px',position:'relative',zIndex:1,flex:'none'}}>
         <button onClick={()=>!roomCode&&setScreen('lessons')} aria-label="หน้าหลัก"
           style={{background:'none',border:0,padding:0,cursor:'pointer',display:'flex',flexDirection:'column',alignItems:'flex-start'}}>
           <span className="px-logo" style={{fontFamily:"'Kanit',sans-serif",fontStyle:'italic',fontWeight:800,fontSize:26,lineHeight:1.2,
@@ -1412,18 +1414,19 @@ export function ThaiTypingApp() {
         </button>
         <div style={{display:'flex',gap:8,alignItems:'center',flexWrap:'wrap'}}>
           {screen!=='lessons'&&screen!=='spam'&&(
-            <PxButton onClick={()=>roomCode?requestLeave():setScreen('lessons')} style={{minHeight:44,fontSize:14}}>← หน้าหลัก</PxButton>
+            <PxButton onClick={()=>roomCode?requestLeave():setScreen('lessons')} style={{minHeight:'var(--hb)',fontSize:14}}>← หน้าหลัก</PxButton>
           )}
           {studentName && (
-            <PxButton onClick={handleLogout} style={{minHeight:44,fontSize:14}}>ออกจากระบบ</PxButton>
+            <PxButton onClick={handleLogout} style={{minHeight:'var(--hb)',fontSize:14}}>ออกจากระบบ</PxButton>
           )}
-          <PxIconButton icon="i_person" label="สำหรับครู" href="teacher.html"/>
+          <PxIconButton icon="i_person" label="สำหรับครู" href="teacher.html" zoom/>
         </div>
       </div>
+      )}
 
       {/* Card */}
-      <div className={screen==='lessons'?'':'px-panel'} style={{width:'100%',maxWidth:screen==='lessons'?1120:900,position:'relative',zIndex:1,
-        padding:screen==='lessons'?0:'10px 8px'}}>
+      <div className={(screen==='lessons'?'':'px-panel ')+'px-scroll'} style={{width:'100%',maxWidth:screen==='lessons'||wideScreen?1120:900,position:'relative',zIndex:1,
+        padding:screen==='lessons'?0:'var(--cp)',flex:fillScreen?'1 1 auto':'0 1 auto',minHeight:0,display:'flex',flexDirection:'column'}}>
 
         {notice&&(
           <div role="status" style={{display:'flex',alignItems:'center',gap:10,background:'#F8EED2',border:'3px solid #3B2416',
@@ -1479,8 +1482,29 @@ export function ThaiTypingApp() {
             onBack={()=>setScreen('lessons')}/>
         )}
 
-        {screen==='practice'&&lesson&&target&&(
-          <div ref={practiceRef} style={isEliminated?{filter:'grayscale(1)',opacity:.65,transition:'filter .6s, opacity .6s'}:undefined}>
+        {screen==='practice'&&lesson&&target&&(()=>{
+          const TF="'Noto Sans Thai Looped','Sarabun','Noto Sans Thai',sans-serif";
+          const keyLabel = nextKey ? (needsShift?'⇧ + ':'')+nextKey.code.replace('Key','').replace('Digit','')
+            .replace('BracketLeft','[').replace('BracketRight',']')
+            .replace('Semicolon',';').replace('Quote',"'")
+            .replace('Comma',',').replace('Period','.').replace('Slash','/') : '';
+          // "now typing" box — inside the solo HUD, or its own slim row in a race room
+          const nowTyping = nextChar && (
+            <div style={{display:'flex',alignItems:'center',gap:8,minWidth:0}}>
+              <span style={{fontSize:12,fontWeight:700,fontFamily:TF,color:roomCode?'#3B2416':'#E8CF95'}}>กำลังพิมพ์</span>
+              <span style={{fontFamily:TF,fontSize:24,fontWeight:700,lineHeight:1.3,color:'#3B2416',background:'#FFC23D',
+                border:'3px solid #3B2416',padding:'0 8px',minWidth:40,textAlign:'center'}}>
+                {nextChar===' '?'เว้นวรรค':nextChar}</span>
+              <span style={{display:'flex',flexDirection:'column',lineHeight:1.3,minWidth:0}}>
+                <span style={{fontSize:12,fontWeight:600,fontFamily:TF,color:roomCode?'#6A4A30':'#F5E6BE',whiteSpace:'nowrap'}}>
+                  {CLASS_NAMES[CHAR_CLASS[nextChar]]??''}</span>
+                {nextKey&&showHints&&<span style={{fontFamily:PX_FONT,fontSize:11,fontWeight:400,color:roomCode?'#6A4A30':'#F5D27A'}}>{keyLabel}</span>}
+              </span>
+            </div>
+          );
+          return (
+          <div ref={practiceRef} className="px-fill" style={{display:'flex',flexDirection:'column',gap:'var(--fg)',position:'relative',
+            ...(isEliminated?{filter:'grayscale(1)',opacity:.65,transition:'filter .6s, opacity .6s'}:{})}}>
             {/* Eliminated banner — student keeps typing for practice */}
             {isEliminated&&(
               <DeadScreen
@@ -1520,8 +1544,8 @@ export function ThaiTypingApp() {
 
             {/* Solo practice (untimed only): my character runs as I type; races my best run (ghost) if there is one */}
             {!roomCode&&!activeTest&&!activeHw&&!timeLimit&&window.CharKit&&myCfg&&(
-              <div style={{marginBottom:10,border:'3px solid #3B2416',overflow:'hidden'}}>
-                <CharKit.RaceTrack mode="1v1" scene info={`${pos} / ${totalChars} ตัว`} runners={[
+              <div style={{border:'3px solid #3B2416',overflow:'hidden',flex:'none'}}>
+                <CharKit.RaceTrack mode="1v1" scene height={laneH} info={`${pos} / ${totalChars} ตัว`} runners={[
                   {id:'me',me:true,label:'คุณ',cfg:myCfg,pct:totalChars?pos/totalChars:0,kpm,finished:pos>=totalChars,color:'#1D4ED8'},
                   ...(ghostData?[{id:'ghost',label:'👻 สถิติ '+fmtScore(ghostData.score||0)+' คะแนน',cfg:myCfg,alpha:.38,color:'#64748B',kpm:ghostData.cpm,
                     track:{timings:ghostData.timings,start:startTime,total:totalChars}}]:[]),
@@ -1529,9 +1553,10 @@ export function ThaiTypingApp() {
               </div>
             )}
             {!roomCode&&(
-              <div className="px-wood" style={{display:'flex',alignItems:'center',gap:14,marginBottom:10,padding:'0 4px',flexWrap:'wrap',color:'#F5E6BE'}}>
+              <div className="px-wood" style={{display:'flex',alignItems:'center',gap:14,padding:'0 4px',color:'#F5E6BE',flex:'none'}}>
+                <PxButton onClick={()=>setScreen('lessons')} style={{minHeight:'var(--hb)',fontSize:14,flex:'none'}}>← กลับ</PxButton>
                 {timeLimit>0&&<TestTimer startTime={startTime} now={now} endTime={endTime} total={timeLimit}/>}
-                <div style={{display:'flex',flexDirection:'column',lineHeight:1.35,minWidth:0}}>
+                <div style={{display:'flex',flexDirection:'column',lineHeight:1.35,minWidth:0,flex:'1 1 0'}}>
                   {activeTest&&<><span style={{fontSize:13,fontWeight:600,color:'#E8CF95'}}>ภารกิจประจำสัปดาห์</span>
                     <span style={{fontSize:18,fontWeight:700}}>{activeTest.exerciseTitle}</span></>}
                   {activeHw&&<><span style={{fontSize:13,fontWeight:600,color:'#E8CF95'}}>การบ้าน · ต้องได้ {activeHw.minStars} ดาว</span>
@@ -1540,103 +1565,83 @@ export function ThaiTypingApp() {
                     <span style={{fontSize:18,fontWeight:700}}>{exercise.title}</span></>}
                   {!activeTest&&!activeHw&&!lesson?.curriculum&&exercise&&<span style={{fontSize:18,fontWeight:700}}>{exercise.title}</span>}
                 </div>
-                <div style={{marginLeft:'auto',display:'flex',alignItems:'center',gap:18}}>
+                {nowTyping}
+                <div style={{marginLeft:'auto',display:'flex',alignItems:'center',gap:14,flex:'none'}}>
                   <div style={{display:'flex',alignItems:'center',gap:6}} aria-label="คะแนน">
-                    <Sprite name="i_coin"/>
-                    <span style={{fontFamily:PX_FONT,fontSize:24,fontWeight:400,color:'#F5D27A'}}>{fmtScore(score)}</span>
+                    <Sprite name="i_coin" className="px-z"/>
+                    <span style={{fontFamily:PX_FONT,fontSize:22,fontWeight:400,color:'#F5D27A'}}>{fmtScore(score)}</span>
                     {lastGain&&(
                       <span key={lastGain.id} className="score-pop"
                         style={{fontFamily:PX_FONT,fontSize:16,fontWeight:400,color:lastGain.v>=400?'#FFC23D':'#9BE39A'}}>+{lastGain.v}</span>
                     )}
                   </div>
                   {comboMultiplier(scoreStreak)>1&&(
-                    <span style={{fontFamily:PX_FONT,fontSize:16,fontWeight:400,color:'#FF9A5C'}} aria-label="คอมโบ">
+                    <span style={{fontFamily:PX_FONT,fontSize:14,fontWeight:400,color:'#FF9A5C'}} aria-label="คอมโบ">
                       COMBO x{comboMultiplier(scoreStreak).toFixed(1)}</span>
                   )}
                 </div>
               </div>
             )}
-            <div className="px-panel" style={{padding:roomCode?'0 8px':'6px 10px',
-              marginBottom:roomCode?8:12,minHeight:96,
-              display:'flex',alignItems:'center',justifyContent:'center'}}>
+            {roomCode&&nowTyping&&(
+              <div style={{padding:'4px 12px',background:'#F8EED2',border:'3px solid #3B2416',flex:'none'}}>{nowTyping}</div>
+            )}
+            <div className="px-panel" style={{padding:roomCode?'0 8px':'4px 10px',flex:'1 1 auto',minHeight:0,
+              display:'flex',alignItems:'center',justifyContent:'center',overflow:'hidden'}}>
               <TextDisplay displayChars={displayChars} displayPos={displayPos} compact={!!roomCode}/>
             </div>
-            <div className="px-wood" style={{marginTop:4,padding:'0 2px',color:'#F5E6BE'}}>
+            <div className="px-wood" style={{padding:'0 2px',color:'#F5E6BE',flex:'none'}}>
               <OnScreenKeyboard nextCode={showHints?nextCode:null} needsShift={showHints&&needsShift}
                 flashCode={flashCode} shiftHeld={shiftHeld} correctShiftCode={showHints?correctShiftCode:null}/>
-              {capsLockOn&&(
-                <div role="alert" style={{marginTop:8,padding:'6px 12px',background:'#FFE9A8',
-                  border:'3px solid #3B2416',display:'flex',alignItems:'center',gap:8}}>
-                  <Sprite name="i_help"/>
-                  <span style={{fontFamily:"'Noto Sans Thai Looped','Sarabun','Noto Sans Thai',sans-serif",
-                    fontSize:14,color:'#3B2416',fontWeight:700}}>
-                    Caps Lock เปิดอยู่ — ภาษาไทยไม่ใช้ Caps Lock กรุณากด Caps Lock เพื่อปิด แล้วใช้ Shift แทน
-                  </span>
-                  <button onClick={()=>setCapsLockOn(false)} aria-label="ปิด" className="sp sp-i_x px-icon-btn" style={{marginLeft:'auto'}}/>
-                </div>
-              )}
             </div>
 
-            {nextChar&&(
-              <div style={{display:'flex',alignItems:'center',gap:10,margin:'10px 0',
-                padding:'6px 14px',background:'#F8EED2',border:'3px solid #3B2416'}}>
-                <span style={{fontSize:13,color:'#3B2416',fontWeight:700,
-                  fontFamily:"'Noto Sans Thai Looped','Sarabun','Noto Sans Thai',sans-serif"}}>กำลังพิมพ์:</span>
-                <span style={{fontFamily:"'Noto Sans Thai Looped','Sarabun','Noto Sans Thai',sans-serif",
-                  fontSize:26,fontWeight:700,color:'#3B2416',background:'#FFC23D',border:'3px solid #3B2416',padding:'0 8px',minWidth:40,textAlign:'center'}}>
-                  {nextChar===' '?'(เว้นวรรค)':nextChar}</span>
-                <span style={{fontSize:13,color:'#6A4A30',fontWeight:600,
-                  fontFamily:"'Noto Sans Thai Looped','Sarabun','Noto Sans Thai',sans-serif"}}>
-                  {CLASS_NAMES[CHAR_CLASS[nextChar]]??''}</span>
-                {nextKey&&showHints&&(
-                  <span style={{marginLeft:'auto',fontFamily:PX_FONT,fontSize:12,color:'#6A4A30',fontWeight:400}}>
-                    {needsShift?'⇧ + ':''}
-                    {nextKey.code.replace('Key','').replace('Digit','')
-                      .replace('BracketLeft','[').replace('BracketRight',']')
-                      .replace('Semicolon',';').replace('Quote',"'")
-                      .replace('Comma',',').replace('Period','.').replace('Slash','/')}
-                  </span>
+            {/* Messages float over the race lane / HUD so they never push the keyboard off the screen */}
+            {(capsLockOn||hint||(rivalDcSecs>0&&pressureSecs<=0)||pressureSecs>0)&&(
+              <div style={{position:'absolute',top:0,left:0,right:0,zIndex:5,display:'flex',flexDirection:'column',gap:6,pointerEvents:'none'}}>
+                {capsLockOn&&(
+                  <div role="alert" style={{padding:'6px 12px',background:'#FFE9A8',
+                    border:'3px solid #3B2416',display:'flex',alignItems:'center',gap:8,pointerEvents:'auto',boxShadow:'0 4px 0 rgba(59,36,22,.35)'}}>
+                    <Sprite name="i_help" className="px-z"/>
+                    <span style={{fontFamily:TF,fontSize:14,color:'#3B2416',fontWeight:700}}>
+                      Caps Lock เปิดอยู่ — ภาษาไทยไม่ใช้ Caps Lock กรุณากด Caps Lock เพื่อปิด แล้วใช้ Shift แทน
+                    </span>
+                    <button onClick={()=>setCapsLockOn(false)} aria-label="ปิด" className="sp sp-i_x px-icon-btn px-z" style={{marginLeft:'auto'}}/>
+                  </div>
+                )}
+                {hint&&(
+                  <div style={{padding:'6px 12px',background:'#FFE9A8',border:'3px solid #3B2416',
+                    display:'flex',alignItems:'center',gap:8,boxShadow:'0 4px 0 rgba(59,36,22,.35)'}}>
+                    <Sprite name="i_help" className="px-z"/>
+                    <span style={{fontFamily:TF,fontSize:15,color:'#3B2416',fontWeight:700}}>{hint}</span>
+                  </div>
+                )}
+                {/* 1v1 — opponent dropped out: they have a few seconds to come back */}
+                {rivalDcSecs>0&&pressureSecs<=0&&(
+                  <div role="status" style={{background:'#FFE9A8',border:'3px solid #3B2416',padding:'8px 16px',
+                    fontFamily:TF,fontSize:15,fontWeight:700,color:'#3B2416',boxShadow:'0 4px 0 rgba(59,36,22,.35)'}}>
+                    📶 คู่แข่งหลุดการเชื่อมต่อ — รออีก {rivalDcSecs} วินาที ถ้าไม่กลับมา คุณชนะ
+                  </div>
+                )}
+                {/* 1v1 pressure timer — opponent already finished */}
+                {pressureSecs>0&&(
+                  <div role="alert" style={{background:'#FBD3CC',border:'3px solid #3B2416',
+                    padding:'8px 16px',display:'flex',alignItems:'center',gap:14,boxShadow:'0 4px 0 rgba(59,36,22,.35)'}}>
+                    <span style={{fontFamily:PX_FONT,fontSize:24,fontWeight:400,color:'#B3261E',minWidth:48,
+                      textAlign:'center'}}>{pressureSecs}</span>
+                    <div style={{flex:1}}>
+                      <div style={{fontFamily:TF,fontSize:15,fontWeight:700,color:'#7A1D14'}}>
+                        คู่แข่งพิมพ์จบแล้ว! เหลือ {pressureSecs} วินาที — เก็บคะแนนให้ได้มากที่สุด!</div>
+                      <div style={{background:'#F5E6BE',border:'2px solid #3B2416',height:12,marginTop:6,overflow:'hidden'}}>
+                        <div style={{width:`${(pressureSecs/PRESSURE_SECS)*100}%`,height:'100%',
+                          background:'#D9452F',transition:'width 1s steps(4)'}}/>
+                      </div>
+                    </div>
+                  </div>
                 )}
               </div>
             )}
-
-            {hint&&(
-              <div style={{padding:'6px 12px',background:'#FFE9A8',border:'3px solid #3B2416',marginBottom:10,
-                display:'flex',alignItems:'center',gap:8}}>
-                <Sprite name="i_help"/>
-                <span style={{fontFamily:"'Noto Sans Thai Looped','Sarabun','Noto Sans Thai',sans-serif",
-                  fontSize:15,color:'#3B2416',fontWeight:700}}>{hint}</span>
-              </div>
-            )}
-
-            {/* 1v1 — opponent dropped out: they have a few seconds to come back */}
-            {rivalDcSecs>0&&pressureSecs<=0&&(
-              <div role="status" style={{background:'#FFE9A8',border:'3px solid #3B2416',padding:'8px 16px',
-                marginBottom:12,fontFamily:"'Noto Sans Thai Looped','Sarabun','Noto Sans Thai',sans-serif",fontSize:15,fontWeight:700,color:'#3B2416'}}>
-                📶 คู่แข่งหลุดการเชื่อมต่อ — รออีก {rivalDcSecs} วินาที ถ้าไม่กลับมา คุณชนะ
-              </div>
-            )}
-
-            {/* 1v1 pressure timer — opponent already finished */}
-            {pressureSecs>0&&(
-              <div role="alert" style={{background:'#FBD3CC',border:'3px solid #3B2416',
-                padding:'8px 16px',marginBottom:12,display:'flex',alignItems:'center',gap:14}}>
-                <span style={{fontFamily:PX_FONT,fontSize:24,fontWeight:400,color:'#B3261E',minWidth:48,
-                  textAlign:'center'}}>{pressureSecs}</span>
-                <div style={{flex:1}}>
-                  <div style={{fontFamily:"'Noto Sans Thai Looped','Sarabun','Noto Sans Thai',sans-serif",
-                    fontSize:15,fontWeight:700,color:'#7A1D14'}}>
-                    คู่แข่งพิมพ์จบแล้ว! เหลือ {pressureSecs} วินาที — เก็บคะแนนให้ได้มากที่สุด!</div>
-                  <div style={{background:'#F5E6BE',border:'2px solid #3B2416',height:12,marginTop:6,overflow:'hidden'}}>
-                    <div style={{width:`${(pressureSecs/PRESSURE_SECS)*100}%`,height:'100%',
-                      background:'#D9452F',transition:'width 1s steps(4)'}}/>
-                  </div>
-                </div>
-              </div>
-            )}
-
           </div>
-        )}
+          );
+        })()}
 
         {screen==='mp-setup'&&(
           <MPSetupScreen

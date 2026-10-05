@@ -7,8 +7,9 @@ export const TH_FONT = "'Noto Sans Thai Looped', 'Sarabun', sans-serif";
 export const INK = '#3B2416';
 
 // One piece from the sprite atlas: <Sprite name="i_coin"/>
-export function Sprite({ name, style, label }) {
-  return <span className={'sp sp-' + name} style={style}
+// className="px-z" → 2/3 size on short screens (see pixel.css).
+export function Sprite({ name, style, label, className }) {
+  return <span className={'sp sp-' + name + (className ? ' ' + className : '')} style={style}
     role={label ? 'img' : undefined} aria-label={label} aria-hidden={label ? undefined : true}/>;
 }
 
@@ -17,7 +18,7 @@ export function PxPanel({ title, children, style, bodyStyle, wood }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', ...style }}>
       {title != null && (
-        <div className="px-head" style={{ minHeight: 56, display: 'flex', alignItems: 'center', justifyContent: 'center',
+        <div className="px-head" style={{ minHeight: 'var(--hh)', display: 'flex', alignItems: 'center', justifyContent: 'center',
           color: '#FFF6D8', fontWeight: 700, fontSize: 20, textShadow: '2px 2px 0 #2B4A3A',
           marginBottom: -6, position: 'relative', textAlign: 'center' }}>{title}</div>
       )}
@@ -31,9 +32,10 @@ export function PxButton({ children, style, ...rest }) {
 }
 
 // Square green button with an icon from the atlas.
-export function PxIconButton({ icon, label, onClick, href }) {
+// zoom → 2/3 size on short screens.
+export function PxIconButton({ icon, label, onClick, href, zoom }) {
   const inner = <Sprite name={icon}/>;
-  const cls = 'sp sp-sqbtn px-icon-btn';
+  const cls = 'sp sp-sqbtn px-icon-btn' + (zoom ? ' px-z' : '');
   return href
     ? <a className={cls} href={href} aria-label={label} title={label}>{inner}</a>
     : <button className={cls} onClick={onClick} aria-label={label} title={label}>{inner}</button>;
@@ -111,4 +113,16 @@ export function Runners({ queue, max = 3, scale = 3, bottom = 40 }) {
   }, [max, scale]);
   return <canvas ref={cvRef} aria-hidden="true"
     style={{ position: 'absolute', left: 0, right: 0, bottom, width: '100%', height: 64 * scale + 12, pointerEvents: 'none' }}/>;
+}
+
+// true on short screens (same breakpoint as the ×2 frames in pixel.css) — for canvas sizes CSS cannot reach.
+export function useShortScreen() {
+  const q = '(max-height: 820px)';
+  const [short, setShort] = React.useState(() => window.matchMedia(q).matches);
+  useEffect(() => {
+    const m = window.matchMedia(q), on = () => setShort(m.matches);
+    m.addEventListener ? m.addEventListener('change', on) : m.addListener(on);
+    return () => { m.removeEventListener ? m.removeEventListener('change', on) : m.removeListener(on); };
+  }, []);
+  return short;
 }

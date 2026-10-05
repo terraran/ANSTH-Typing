@@ -45,9 +45,9 @@ export function ProgressChart({ sessions }) {
   const yGrids = [0, 25, 50, 75, 100];
 
   return (
-    <div>
+    <div style={{display:'flex',flexDirection:'column',flex:'1 1 auto',minHeight:0}}>
       {/* Tab switcher */}
-      <div style={{display:'flex',gap:6,marginBottom:12}}>
+      <div style={{display:'flex',gap:6,marginBottom:8,alignItems:'center',flexWrap:'wrap'}}>
         {[['wpm','📈 WPM'],['both','📊 WPM + ความแม่น']].map(([key,lbl])=>(
           <button key={key} onClick={()=>setTab(key)}
             style={{padding:'5px 12px',borderRadius:8,border:'1.5px solid '+(tab===key?'#2563EB':'#E2E8F0'),
@@ -59,7 +59,7 @@ export function ProgressChart({ sessions }) {
       </div>
 
       {/* Legend */}
-      <div style={{display:'flex',gap:16,marginBottom:10}}>
+      <div style={{display:'flex',gap:16,marginBottom:6}}>
         <div style={{display:'flex',alignItems:'center',gap:5}}>
           <div style={{width:20,height:3,borderRadius:2,background:'#2563EB'}}/>
           <span style={{fontSize:11,color:'var(--c-t2)',fontFamily:tf}}>WPM</span>
@@ -73,8 +73,8 @@ export function ProgressChart({ sessions }) {
       </div>
 
       {/* Chart */}
-      <div style={{overflowX:'auto'}}>
-        <svg viewBox={`0 0 ${W} ${H}`} style={{width:'100%',minWidth:280,display:'block'}}>
+      <div style={{flex:'1 1 auto',minHeight:90}}>
+        <svg viewBox={`0 0 ${W} ${H}`} style={{width:'100%',height:'100%',display:'block'}}>
           {/* Grid lines */}
           {yGrids.map(pct => {
             const y = PT + IH - (pct / 100) * IH;
@@ -167,13 +167,22 @@ function Metric({ label, value, sub, color }) {
   );
 }
 const Grid = ({ children }) => (
-  <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(130px,1fr))',gap:10,marginBottom:14}}>{children}</div>
+  <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(120px,1fr))',gap:8,flex:'none'}}>{children}</div>
 );
-const Card = ({ title, children, note }) => (
-  <div style={{background:'var(--c-card)',border:'3px solid #3B2416',padding:'14px 16px',marginBottom:14}}>
-    {title&&<div style={{fontSize:14,fontWeight:800,color:'var(--c-t1)',marginBottom:8}}>{title}</div>}
-    {children}
-    {note&&<div style={{fontSize:11,color:'var(--c-t3)',marginTop:6}}>{note}</div>}
+// Card fills the rest of its column; scroll=true → long lists scroll inside the card, never the page.
+const Card = ({ title, children, note, scroll }) => (
+  <div style={{background:'var(--c-card)',border:'3px solid #3B2416',padding:'8px 14px',flex:'1 1 auto',minHeight:0,
+    display:'flex',flexDirection:'column'}}>
+    {title&&<div style={{fontSize:14,fontWeight:800,color:'var(--c-t1)',marginBottom:6,flex:'none'}}>{title}</div>}
+    <div className={scroll?'px-scroll':undefined} style={{flex:'1 1 auto',minHeight:0,display:'flex',flexDirection:'column'}}>{children}</div>
+    {note&&<div style={{fontSize:11,color:'var(--c-t3)',marginTop:4,flex:'none'}}>{note}</div>}
+  </div>
+);
+// Two columns: numbers + chart on the left, the history list on the right.
+const Split = ({ left, right }) => (
+  <div style={{flex:'1 1 auto',minHeight:0,display:'grid',gridTemplateColumns:'minmax(0,1fr) minmax(0,1fr)',gridTemplateRows:'minmax(0,1fr)',gap:12}}>
+    <div style={{display:'flex',flexDirection:'column',gap:10,minHeight:0}}>{left}</div>
+    <div style={{display:'flex',flexDirection:'column',minHeight:0}}>{right}</div>
   </div>
 );
 const Empty = ({ children }) => (
@@ -200,7 +209,7 @@ function MiniChart({ points, yMin=0, yMax, line='#2563EB', refY, refLabel, heigh
   const d=points.map((p,i)=>(i?'L':'M')+x(i).toFixed(1)+' '+y(p.y).toFixed(1)).join(' ');
   const ticks=[yMin,(yMin+hi)/2,hi];
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} style={{width:'100%',display:'block'}}>
+    <svg viewBox={`0 0 ${W} ${H}`} style={{width:'100%',height:'100%',minHeight:80,display:'block',flex:'1 1 auto'}}>
       {ticks.map((t,i)=>(
         <g key={i}><line x1={PL} x2={W-PR} y1={y(t)} y2={y(t)} stroke="var(--c-border)" strokeWidth="1"/>
           <text x={PL-6} y={y(t)+4} textAnchor="end" fontSize="10" fill="var(--c-t3)">{fmt(Math.round(t))}</text></g>
@@ -311,7 +320,7 @@ export function MyStatsScreen({ studentName, classCode, myCfg, onBack }) {
   );
 
   const solo = S.sessions.length ? (
-    <>
+    <Split left={<>
       <Grid>
         <Metric label="WPM เฉลี่ย" value={Math.round((data.avgCpm||0)/5)} color="#2563EB"/>
         <Metric label="WPM สูงสุด" value={Math.round((data.bestCpm||0)/5)} color="#7C3AED"/>
@@ -319,11 +328,13 @@ export function MyStatsScreen({ studentName, classCode, myCfg, onBack }) {
         <Metric label="ฝึกแล้ว" value={S.sessions.length+' รอบ'}/>
       </Grid>
       <Card title="พัฒนาการฝึกเดี่ยว"><ProgressChart sessions={S.sessions}/></Card>
-      <Card title="ประวัติการฝึก">
-        <div style={{overflowX:'auto'}}>
+    </>} right={
+      <Card title="ประวัติการฝึก" scroll>
+        <div>
           <table style={{width:'100%',borderCollapse:'collapse',fontSize:12}}>
             <thead><tr>{['วันที่','แบบฝึก','คะแนน','WPM','ความแม่น','ผิด'].map(h=>(
-              <th key={h} style={{padding:'6px 8px',textAlign:'left',fontWeight:700,color:'var(--c-t2)',fontSize:10,borderBottom:'1.5px solid var(--c-border)'}}>{h}</th>))}</tr></thead>
+              <th key={h} style={{padding:'6px 8px',textAlign:'left',fontWeight:700,color:'var(--c-t2)',fontSize:10,borderBottom:'1.5px solid var(--c-border)',
+                position:'sticky',top:0,background:'var(--c-card)'}}>{h}</th>))}</tr></thead>
             <tbody>{S.sessions.map((s,i)=>(
               <tr key={i} style={{borderBottom:'1px solid var(--c-border)'}}>
                 <td style={{padding:'6px 8px',color:'var(--c-t2)'}}>{fmtDate(s.date)}</td>
@@ -336,11 +347,11 @@ export function MyStatsScreen({ studentName, classCode, myCfg, onBack }) {
           </table>
         </div>
       </Card>
-    </>
+    }/>
   ) : <Empty>ยังไม่มีประวัติการฝึก — เริ่มฝึกบทเรียนได้เลย!</Empty>;
 
   const duel = S.duels.length ? (
-    <>
+    <Split left={<>
       <Grid>
         <Metric label="สถิติ ชนะ-แพ้-เสมอ" value={`${S.rec.w}-${S.rec.l}-${S.rec.d}`}/>
         <Metric label="อัตราชนะ" value={Math.round(S.rec.w/S.duels.length*100)+'%'} color="#16A34A"/>
@@ -350,12 +361,13 @@ export function MyStatsScreen({ studentName, classCode, myCfg, onBack }) {
         <MiniChart line="#94A3B8" points={S.chrono(S.duels).slice(-30).map(m=>({y:wpmOf(m),color:resColor[m.result],
           title:`${RES[m.result]?.t||''} · ${m.oppName||'ผู้เล่นทั่วไป'} · ${wpmOf(m)} WPM`}))}/>
       </Card>
-      <Card title="แมตช์ล่าสุด">{S.duels.slice(0,15).map((m,i)=><MatchRow key={i} m={m} oppChars={oppChars}/>)}</Card>
-    </>
+    </>} right={
+      <Card title="แมตช์ล่าสุด" scroll>{S.duels.slice(0,15).map((m,i)=><MatchRow key={i} m={m} oppChars={oppChars}/>)}</Card>
+    }/>
   ) : <Empty>ยังไม่มีการแข่ง 1v1 — ชวนเพื่อนมาแข่งกันดูสิ ⚔️</Empty>;
 
   const br = S.brs.length ? (
-    <>
+    <Split left={<>
       <Grid>
         <Metric label="แข่งทั้งหมด" value={S.brs.length}/>
         <Metric label="ได้ที่ 1" value={S.brWins+' ครั้ง'} color="#D97706"/>
@@ -367,7 +379,8 @@ export function MyStatsScreen({ studentName, classCode, myCfg, onBack }) {
           points={S.chrono(S.brs).slice(-30).map(m=>({y:m.players>1?Math.round((1-(m.place-1)/(m.players-1))*100):100,
             color:m.place===1?'#D97706':'#7C3AED',title:`#${m.place}/${m.players} · ${fmtDay(m.date)}`}))}/>
       </Card>
-      <Card title="รอบล่าสุด">{S.brs.slice(0,15).map((m,i)=>(
+    </>} right={
+      <Card title="รอบล่าสุด" scroll>{S.brs.slice(0,15).map((m,i)=>(
         <div key={i} style={{display:'flex',alignItems:'center',gap:10,padding:'9px 0',borderBottom:'1px solid var(--c-border)'}}>
           <span style={{minWidth:64,textAlign:'center',borderRadius:8,padding:'3px 8px',fontSize:13,fontWeight:800,
             background:m.place===1?'#FEF3C7':m.place<=3?'#EDE9FE':'var(--c-surf)',color:m.place===1?'#92400E':m.place<=3?'#5B21B6':'var(--c-t2)'}}>
@@ -378,11 +391,11 @@ export function MyStatsScreen({ studentName, classCode, myCfg, onBack }) {
           </div>
           <span style={{fontSize:13,color:'var(--c-t2)',fontWeight:700}}>{wpmOf(m)} WPM</span>
         </div>))}</Card>
-    </>
+    }/>
   ) : <Empty>ยังไม่มีการแข่ง Battle Royale 🏆</Empty>;
 
   const h2h = S.h2h.length ? (
-    <Card note="นับเฉพาะ 1v1 กับเพื่อนที่เข้าสู่ระบบ · กดชื่อเพื่อดูทุกแมตช์ที่เคยเจอ">
+    <Card scroll note="นับเฉพาะ 1v1 กับเพื่อนที่เข้าสู่ระบบ · กดชื่อเพื่อดูทุกแมตช์ที่เคยเจอ">
       {S.h2h.map(e=>{
         const open=openOpp===e.key;
         return (
@@ -411,25 +424,24 @@ export function MyStatsScreen({ studentName, classCode, myCfg, onBack }) {
   ) : <Empty>ยังไม่มีคู่แข่งที่บันทึกไว้ — แข่ง 1v1 กับเพื่อนที่เข้าสู่ระบบแล้วจะขึ้นที่นี่</Empty>;
 
   return (
-    <div style={{fontFamily:tf}}>
-      <div style={{display:'flex',alignItems:'center',gap:12,marginBottom:6}}>
-        {window.CharKit?<CharKit.Avatar config={myCfg} size={48}/>:<span style={{fontSize:30}}>📊</span>}
-        <div>
-          <div style={{fontSize:20,fontWeight:800,color:'var(--c-t1)'}}>สถิติของ {studentName}</div>
+    <div className="px-fill" style={{fontFamily:tf,display:'flex',flexDirection:'column',gap:'var(--fg)'}}>
+      <div style={{display:'flex',alignItems:'center',gap:12,flexWrap:'wrap',flex:'none'}}>
+        {window.CharKit?<CharKit.Avatar config={myCfg} size={44}/>:<span style={{fontSize:30}}>📊</span>}
+        <div style={{minWidth:0}}>
+          <div style={{fontSize:19,fontWeight:800,color:'var(--c-t1)'}}>สถิติของ {studentName}</div>
           <div style={{fontSize:12,color:'var(--c-t3)'}}>ห้อง {classCode} · ฝึก {S.sessions.length} รอบ · แข่ง {games} ครั้ง</div>
         </div>
-      </div>
-      <div role="tablist" style={{display:'flex',gap:8,margin:'10px 0 14px',flexWrap:'wrap',alignItems:'center'}}>
-        {TABS.map(([k,l])=>(
-          <button key={k} role="tab" aria-selected={tab===k} onClick={()=>setTab(k)}
-            className={tab===k?'px-btn':''}
-            style={tab===k?{minHeight:44,padding:'0 6px',fontSize:15,fontFamily:tf}
-              :{background:'#EFE2BF',border:'3px solid #3B2416',padding:'6px 12px',cursor:'pointer',fontSize:15,fontWeight:700,
-                color:'var(--c-t2)',fontFamily:tf}}>{l}</button>
-        ))}
+        <div role="tablist" style={{display:'flex',gap:6,flexWrap:'wrap',alignItems:'center',marginLeft:'auto'}}>
+          {TABS.map(([k,l])=>(
+            <button key={k} role="tab" aria-selected={tab===k} onClick={()=>setTab(k)}
+              className={tab===k?'px-btn':''}
+              style={tab===k?{minHeight:'var(--hb)',padding:'0 6px',fontSize:14,fontFamily:tf}
+                :{background:'#EFE2BF',border:'3px solid #3B2416',padding:'4px 10px',minHeight:'var(--hb)',cursor:'pointer',fontSize:14,fontWeight:700,
+                  color:'var(--c-t2)',fontFamily:tf}}>{l}</button>
+          ))}
+        </div>
       </div>
       {tab==='ov'&&overview}{tab==='solo'&&solo}{tab==='duel'&&duel}{tab==='br'&&br}{tab==='h2h'&&h2h}
-      <button className="px-btn" onClick={onBack} style={{marginTop:6,width:'100%',minHeight:52,fontSize:16,fontFamily:tf}}>← กลับหน้าหลัก</button>
     </div>
   );
 }

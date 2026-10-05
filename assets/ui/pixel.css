@@ -66,3 +66,16 @@
 .px-key{border:2px solid #3B2416;box-shadow:0 3px 0 #3B2416}
 .px-key.on{background:#FFC23D!important;box-shadow:0 1px 0 #3B2416;transform:translateY(2px)}
 .px-key.flash{background:#F28B82!important}
+/* ── Fit-to-screen (no page scrolling) ──────────────────────────
+ * Short screens (school lab 1366×657 / 1366×768): 9-slice frames drop from ×3 to ×2 and
+ * .px-z sprites are zoomed to 2/3 — the art is ×3, so ×2 stays pixel-exact. */
+.px-scroll{overflow-y:auto;min-height:0;scrollbar-width:thin;scrollbar-color:#8C6E4E transparent}
+.px-fill{flex:1 1 auto;min-height:0}
+@media (max-height:820px){
+  .px-panel,.px-wood{border-width:12px}
+  .px-head{border-width:8px 8px 10px}
+  .px-btn{border-width:6px 8px 8px}
+  .px-z{zoom:.6667}
+  .px-short-hide{display:none!important}
+}
+@media (max-height:700px){ .px-tiny-hide{display:none!important} }

@@ -3,7 +3,7 @@ import { SCRIPT_URL } from '../config';
 import { fmtScore, hsKey } from '../engine/scoring';
 import { emptyProgress, lessonAnyOpen, lessonComplete, stageDone, stageOpen, stageStars, starsOf as progStars, stepState } from '../engine/progress';
 import { ROOM_CODE_LEN, normalizeRoomCode } from '../firebase';
-import { INK, PX_FONT, PxButton, PxPanel, Sprite, TH_FONT } from '../ui/pixel';
+import { INK, PX_FONT, PxButton, PxPanel, Sprite, TH_FONT, useShortScreen } from '../ui/pixel';
 
 const { useEffect, useRef, useState } = React;
 
@@ -32,6 +32,7 @@ export function LessonScreen({ studentName, classCode, onSelect, onOpenSetup, on
   const [chIdx,      setChIdx]      = useState(savedCh);
   const [openLesson, setOpenLesson] = useState(null);
   const [view,       setView]       = useState('map');   // map | homework
+  const short = useShortScreen();
 
   const gotoChapter = (i) => {
     const c=Math.max(0,Math.min(i,CHAPTERS.length-1));
@@ -73,62 +74,86 @@ export function LessonScreen({ studentName, classCode, onSelect, onOpenSetup, on
     || chLessons.find(l=>lessonAnyOpen(progress,l)) || chLessons[0];
 
   return (
-    <div style={{ fontFamily:TH_FONT, color:INK, display:'flex', flexDirection:'column', gap:18 }}>
+    <div className="px-fill" style={{ fontFamily:TH_FONT, color:INK, display:'flex', flexDirection:'column', gap:'var(--fg)' }}>
 
       {/* ── HUD: character head + name, stage progress, character / stats buttons ── */}
-      <div style={{ display:'flex', alignItems:'center', gap:14, flexWrap:'wrap' }}>
+      <div style={{ display:'flex', alignItems:'flex-end', gap:14, flex:'none' }}>
         <button onClick={()=>onOpenCharacter&&onOpenCharacter()} title="แต่งตัวละคร" aria-label="แต่งตัวละคร"
           style={{ position:'relative', background:'none', border:0, padding:0, cursor:'pointer', flexShrink:0,
             display:'flex', flexDirection:'column', alignItems:'center' }}>
           {window.CharKit && (
-            <CharKit.CharCanvas config={character || CharKit.fromName(studentName || 'ผู้เล่น')} scale={3}
+            <CharKit.CharCanvas config={character || CharKit.fromName(studentName || 'ผู้เล่น')} scale={short?2:3}
               style={{ marginBottom:-12, position:'relative' }}/>
           )}
           {/* small grass platform */}
-          <span style={{ width:140, height:14, background:'#6BB05A', border:'3px solid '+INK, borderBottomWidth:0 }}/>
-          <span style={{ width:140, height:10, background:'#8A5A32', border:'3px solid '+INK, borderTopWidth:0 }}/>
+          <span style={{ width:short?110:140, height:14, background:'#6BB05A', border:'3px solid '+INK, borderBottomWidth:0 }}/>
+          <span style={{ width:short?110:140, height:10, background:'#8A5A32', border:'3px solid '+INK, borderTopWidth:0 }}/>
           {!character && <span style={{ position:'absolute', top:-6, right:-18, fontSize:12, fontWeight:700, background:'#FFC23D',
             border:'2px solid '+INK, padding:'0 6px', color:INK }}>สร้างตัวละคร</span>}
         </button>
-        <div style={{ display:'flex', flexDirection:'column', minWidth:0, ...outlined }}>
-          <span style={{ fontSize:28, fontWeight:700, lineHeight:1.3 }}>{studentName || 'ผู้เล่นทดลอง'}</span>
-          {classCode && <span style={{ fontFamily:PX_FONT, fontSize:16, fontWeight:400, color:'#F5D27A' }}>{classCode}</span>}
-          {!studentName && <span style={{ fontSize:14, fontWeight:600 }}>ทดลองเล่น — ดาวและคะแนนจะไม่ถูกบันทึก</span>}
+        <div style={{ display:'flex', flexDirection:'column', gap:6, minWidth:0, flex:'0 1 300px', alignSelf:'center' }}>
+          <div style={{ display:'flex', flexDirection:'column', minWidth:0, ...outlined }}>
+            <span style={{ fontSize:short?22:28, fontWeight:700, lineHeight:1.3, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{studentName || 'ผู้เล่นทดลอง'}</span>
+            {classCode && <span style={{ fontFamily:PX_FONT, fontSize:14, fontWeight:400, color:'#F5D27A' }}>{classCode}</span>}
+            {!studentName && <span style={{ fontSize:13, fontWeight:600 }}>ทดลองเล่น — ดาวและคะแนนจะไม่ถูกบันทึก</span>}
+          </div>
+          <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
+            {!studentName && SCRIPT_URL && <PxButton onClick={()=>onLogin&&onLogin()} style={{ fontSize:14, minHeight:'var(--hb)' }}>เข้าสู่ระบบเพื่อบันทึกผล</PxButton>}
+            <PxButton onClick={()=>onOpenCharacter&&onOpenCharacter()} style={{ fontSize:14, minHeight:'var(--hb)' }}>{character?'แต่งตัวละคร':'สร้างตัวละคร'}</PxButton>
+            {studentName && <PxButton onClick={()=>onViewStats&&onViewStats()} style={{ fontSize:14, minHeight:'var(--hb)' }}>สถิติของฉัน</PxButton>}
+          </div>
         </div>
-        <div style={{ marginLeft:'auto', display:'flex', gap:10, flexWrap:'wrap' }}>
-          {!studentName && SCRIPT_URL && <PxButton onClick={()=>onLogin&&onLogin()} style={{ fontSize:15 }}>เข้าสู่ระบบเพื่อบันทึกผล</PxButton>}
-          <PxButton onClick={()=>onOpenCharacter&&onOpenCharacter()} style={{ fontSize:15 }}>{character?'แต่งตัวละคร':'สร้างตัวละคร'}</PxButton>
-          {studentName && <PxButton onClick={()=>onViewStats&&onViewStats()} style={{ fontSize:15 }}>สถิติของฉัน</PxButton>}
-        </div>
+          {/* Stage strip */}
+          <div className="px-wood" style={{ padding:'0 4px', flex:'1 1 520px', minWidth:0, alignSelf:'center' }}>
+            <div style={{ display:'grid', gridTemplateColumns:'repeat(9, minmax(0, 1fr))', gap:4 }}>
+              {CHAPTERS.map((c,i)=>{
+                const open=stageOpen(progress,c.id), done=stageDone(progress,c.id), sel=i===chIdx;
+                const {got,max}=stageStars(progress,c.id);
+                return (
+                  <button key={c.id} onClick={()=>gotoChapter(i)} aria-label={`ด่าน ${c.id} ${c.title}${open?'':' (ล็อก)'}`} aria-pressed={sel}
+                    style={{ background:'none', border:0, padding:'2px 0', cursor:'pointer', fontFamily:TH_FONT, color:'#F5E6BE',
+                      display:'flex', flexDirection:'column', alignItems:'center', gap:3, textAlign:'center' }}>
+                    <span className={'sp sp-'+(open?'slot':'slot_dark')+' px-z'} style={{ display:'flex', alignItems:'center', justifyContent:'center',
+                      fontFamily:PX_FONT, fontSize:16, fontWeight:400, color:INK,
+                      outline: sel?'3px solid #FFC23D':'none', outlineOffset:2 }}>
+                      {open ? c.id : <Sprite name="i_lock" style={{ transform:'scale(.75)' }}/>}
+                    </span>
+                    <span style={{ fontSize:11, fontWeight:600, lineHeight:1.25, minHeight:'2.5em' }}>{c.title}</span>
+                    {(open||got>0) && <span style={{ fontFamily:PX_FONT, fontSize:12, fontWeight:400, color: done?'#FFC23D':'#E8CF95' }}>★{got}/{max}</span>}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
       </div>
 
-      <div style={{ display:'flex', gap:22, flexWrap:'wrap', alignItems:'flex-start' }}>
+      <div style={{ display:'flex', gap:'var(--fg)', alignItems:'flex-start', flex:'1 1 auto', minHeight:0 }}>
         {/* ── Menu ── */}
-        <div className="px-panel" style={{ flex:'1 1 260px', maxWidth:'min(100%, 420px)', padding:'4px 0 8px', display:'flex', flexDirection:'column', gap:12 }}>
-          <PxButton disabled={!next} onClick={()=>next&&onSelect(next.lesson,next.ex)} style={{ minHeight:68, fontSize:22, textAlign:'center' }}>
+        <div className="px-panel px-scroll" style={{ flex:'0 0 340px', maxHeight:'100%', padding:short?'2px 0 4px':'4px 0 8px', display:'flex', flexDirection:'column', gap:short?6:12 }}>
+          <PxButton disabled={!next} onClick={()=>next&&onSelect(next.lesson,next.ex)} style={{ minHeight:short?52:68, fontSize:short?20:22, textAlign:'center', flex:'none' }}>
             ▶ เล่นต่อ
             {next && <span style={SUB}>บท {next.lesson.num} · {next.ex.title}</span>}
           </PxButton>
           {studentName && SCRIPT_URL && (
-            <PxButton onClick={()=>setView(v=>v==='homework'?'map':'homework')} style={{ position:'relative' }}>
+            <PxButton onClick={()=>setView(v=>v==='homework'?'map':'homework')} style={{ position:'relative', minHeight:short?44:52, flex:'none' }}>
               การบ้าน{pendingHw>0 && badge(pendingHw)}
               <span style={SUB}>{homework.length ? (pendingHw?`ค้าง ${pendingHw} ชิ้น`:'ส่งครบแล้ว') : 'ยังไม่มีการบ้าน'}</span>
             </PxButton>
           )}
           {studentName && SCRIPT_URL && (
-            <PxButton onClick={()=>onOpenWeekly&&onOpenWeekly()} style={{ position:'relative' }}>
+            <PxButton onClick={()=>onOpenWeekly&&onOpenWeekly()} style={{ position:'relative', minHeight:short?44:52, flex:'none' }}>
               ภารกิจประจำสัปดาห์{t && !me && badge('ใหม่')}
               <span style={SUB}>{weeklySub}</span>
             </PxButton>
           )}
-          <PxButton onClick={()=>onOpenSetup&&onOpenSetup('1v1')}>1 ปะทะ 1<span style={SUB}>ดวล 2 คน · ใครคะแนนมากกว่าชนะ</span></PxButton>
-          <PxButton onClick={()=>onOpenSetup&&onOpenSetup('royale')}>Battle Royale<span style={SUB}>แข่งทั้งห้อง · คนสุดท้ายที่รอดชนะ</span></PxButton>
-          <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
-            <label htmlFor="join-code" style={{ fontSize:14, fontWeight:700 }}>รหัสห้องจากเพื่อน</label>
+          <PxButton onClick={()=>onOpenSetup&&onOpenSetup('1v1')} style={{ minHeight:short?44:52, flex:'none' }}>1 ปะทะ 1<span style={SUB}>ดวล 2 คน · ใครคะแนนมากกว่าชนะ</span></PxButton>
+          <PxButton onClick={()=>onOpenSetup&&onOpenSetup('royale')} style={{ minHeight:short?44:52, flex:'none' }}>Battle Royale<span style={SUB}>แข่งทั้งห้อง · คนสุดท้ายที่รอดชนะ</span></PxButton>
+          <div style={{ display:'flex', flexDirection:'column', gap:4, flex:'none' }}>
+            <label htmlFor="join-code" style={{ fontSize:13, fontWeight:700 }}>รหัสห้องจากเพื่อน</label>
             <div style={{ display:'flex', gap:8 }}>
               <input id="join-code" value={joinCode||''} onChange={e=>setJoinCode&&setJoinCode(normalizeRoomCode(e.target.value))}
                 onKeyDown={e=>e.key==='Enter'&&onJoin&&onJoin(joinCode)} placeholder="A7K2M" maxLength={ROOM_CODE_LEN}
-                style={{ flex:1, minWidth:0, fontFamily:PX_FONT, fontSize:16, letterSpacing:1, padding:'6px 10px', minHeight:48,
+                style={{ flex:1, minWidth:0, fontFamily:PX_FONT, fontSize:16, letterSpacing:1, padding:'6px 10px', minHeight:short?40:48,
                   boxSizing:'border-box', background:'#FFF9E6', border:'3px solid '+INK, color:INK, outline:'none' }}/>
               <PxButton onClick={()=>onJoin&&onJoin(joinCode)} disabled={!joinCode||joinCode.length<ROOM_CODE_LEN||mpBusy} style={{ fontSize:16 }}>
                 {mpBusy?'...':'เข้า'}</PxButton>
@@ -138,9 +163,9 @@ export function LessonScreen({ studentName, classCode, onSelect, onOpenSetup, on
         </div>
 
         {/* ── Right: homework list, or the current stage ── */}
-        <div style={{ flex:'999 1 520px', minWidth:0, display:'flex', flexDirection:'column', gap:16 }}>
+        <div style={{ flex:'1 1 0', minWidth:0, minHeight:0, maxHeight:'100%', display:'flex', flexDirection:'column', gap:'var(--fg)' }}>
           {view==='homework' ? (
-            <PxPanel title="การบ้าน" bodyStyle={{ padding:'6px 12px 12px', display:'flex', flexDirection:'column', gap:10 }}>
+            <PxPanel title="การบ้าน" style={{ minHeight:0, flex:'0 1 auto' }} bodyStyle={{ padding:'6px 12px 12px', display:'flex', flexDirection:'column', gap:10, overflowY:'auto', minHeight:0 }}>
               {homework.length===0 && <div style={{ fontSize:15, fontWeight:600 }}>ยังไม่มีการบ้าน</div>}
               {homework.map(h=>{
                 const days=Math.ceil((h.dueEndsAt-Date.now())/86400000);
@@ -165,18 +190,18 @@ export function LessonScreen({ studentName, classCode, onSelect, onOpenSetup, on
             </PxPanel>
           ) : (
             <>
-              <div style={{ display:'flex', flexDirection:'column' }}>
-                <div className="px-head" style={{ minHeight:58, display:'flex', alignItems:'center', justifyContent:'space-between',
+              <div style={{ display:'flex', flexDirection:'column', minHeight:0, flex:'0 1 auto' }}>
+                <div className="px-head" style={{ minHeight:'var(--hh)', flex:'none', display:'flex', alignItems:'center', justifyContent:'space-between',
                   marginBottom:-6, position:'relative', padding:'0 2px', gap:8 }}>
-                  <button className="sp sp-i_left px-icon-btn" aria-label="ด่านก่อนหน้า" disabled={chIdx===0}
+                  <button className="sp sp-i_left px-icon-btn px-z" aria-label="ด่านก่อนหน้า" disabled={chIdx===0}
                     onClick={()=>gotoChapter(chIdx-1)} style={{ opacity: chIdx===0?.3:1 }}/>
-                  <span style={{ fontSize:21, fontWeight:700, color:'#FFF6D8', textShadow:'2px 2px 0 #2B4A3A', textAlign:'center' }}>
+                  <span style={{ fontSize:short?18:21, fontWeight:700, color:'#FFF6D8', textShadow:'2px 2px 0 #2B4A3A', textAlign:'center' }}>
                     ด่าน {ch.id} · {ch.title}</span>
-                  <button className="sp sp-i_right px-icon-btn" aria-label="ด่านถัดไป" disabled={chIdx===CHAPTERS.length-1}
+                  <button className="sp sp-i_right px-icon-btn px-z" aria-label="ด่านถัดไป" disabled={chIdx===CHAPTERS.length-1}
                     onClick={()=>gotoChapter(chIdx+1)} style={{ opacity: chIdx===CHAPTERS.length-1?.3:1 }}/>
                 </div>
-                <div className="px-panel" style={{ padding:'6px 12px 14px', display:'flex', flexDirection:'column', gap:14 }}>
-                  <div style={{ fontSize:15, fontWeight:600, textAlign:'center', color:'#5A3A22' }}>{ch.subtitle}</div>
+                <div className="px-panel px-scroll" style={{ padding:short?'4px 10px 6px':'6px 12px 14px', display:'flex', flexDirection:'column', gap:short?8:14 }}>
+                  <div style={{ fontSize:short?14:15, fontWeight:600, textAlign:'center', color:'#5A3A22' }}>{ch.subtitle}</div>
                   {!stOpen && prevBoss && (
                     <div style={{ display:'flex', gap:10, alignItems:'center', background:'#F3E7C4', border:'3px dashed #8A6A48', padding:'8px 12px',
                       fontSize:14, fontWeight:600, lineHeight:1.6 }}>
@@ -196,8 +221,8 @@ export function LessonScreen({ studentName, classCode, onSelect, onOpenSetup, on
                         <button key={lesson.id} onClick={()=>setOpenLesson(lesson.id)} aria-pressed={sel}
                           aria-label={`บท ${lesson.num} ${lesson.thaiName}${open?'':' (ล็อก)'}`}
                           style={{ background: sel?'#F7EDCF':'transparent', border: sel?'3px solid '+INK:'3px solid transparent', cursor:'pointer',
-                            fontFamily:TH_FONT, color:INK, padding:'6px 4px', display:'flex', flexDirection:'column', alignItems:'center', gap:4 }}>
-                          <span style={{ position:'relative', width:90, height:93, display:'flex', alignItems:'center', justifyContent:'center' }}>
+                            fontFamily:TH_FONT, color:INK, padding:short?'2px 4px':'6px 4px', display:'flex', flexDirection:'column', alignItems:'center', gap:short?2:4 }}>
+                          <span className="px-z" style={{ position:'relative', width:90, height:93, display:'flex', alignItems:'center', justifyContent:'center' }}>
                             <Sprite name={open?'circle':'circle_dark'} style={{ position:'absolute', inset:0 }}/>
                             <Sprite name={open?'door_open':'door_lock'} style={{ position:'relative' }}/>
                             <span style={{ position:'absolute', top:2, left:4, fontFamily:PX_FONT, fontSize:16, fontWeight:400 }}>{lesson.num}</span>
@@ -211,13 +236,13 @@ export function LessonScreen({ studentName, classCode, onSelect, onOpenSetup, on
                       );
                     })}
                   </div>
-                  {/* Steps of the selected lesson */}
-                  {selLesson && (()=>{
+                  {/* Steps of the selected lesson (a locked stage shows only its doors + how to open it) */}
+                  {selLesson && stOpen && (()=>{
                     const exs=getExercises(selLesson);
                     const cleared=!!progress.cleared?.[selLesson.id];
                     return (
                       <div className="px-wood" style={{ padding:'0 6px' }}>
-                        <div style={{ fontSize:16, fontWeight:700, marginBottom:8 }}>บท {selLesson.num} · {selLesson.thaiName}</div>
+                        <div style={{ fontSize:short?14:16, fontWeight:700, marginBottom:short?2:8 }}>บท {selLesson.num} · {selLesson.thaiName}</div>
                         <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(84px, 1fr))', gap:8 }}>
                           {exs.map((ex,i)=>{
                             const stt=stepState(progress,selLesson,i);
@@ -229,7 +254,7 @@ export function LessonScreen({ studentName, classCode, onSelect, onOpenSetup, on
                                 title={stt.open?(stt.rush?'Rush: ได้ 3 ดาว = ผ่านทั้งบท':ex.title):stt.reason}
                                 style={{ background:'none', border:0, padding:'4px 0', cursor:stt.open?'pointer':'not-allowed', fontFamily:TH_FONT,
                                   color:'#F5E6BE', display:'flex', flexDirection:'column', alignItems:'center', gap:4, textAlign:'center' }}>
-                                <span className={'sp sp-'+(stt.open?'slot':'slot_dark')} style={{ display:'flex', alignItems:'center', justifyContent:'center' }}>
+                                <span className={'sp sp-'+(stt.open?'slot':'slot_dark')+' px-z'} style={{ display:'flex', alignItems:'center', justifyContent:'center' }}>
                                   <Sprite name={!stt.open?'i_lock':st?'i_check':'i_play'}/>
                                 </span>
                                 <Stars3 n={st}/>
@@ -248,28 +273,6 @@ export function LessonScreen({ studentName, classCode, onSelect, onOpenSetup, on
                 </div>
               </div>
 
-              {/* Stage strip */}
-              <div className="px-wood" style={{ padding:'2px 6px', overflowX:'auto' }}>
-                <div style={{ display:'grid', gridTemplateColumns:'repeat(9, minmax(64px, 1fr))', gap:6 }}>
-                  {CHAPTERS.map((c,i)=>{
-                    const open=stageOpen(progress,c.id), done=stageDone(progress,c.id), sel=i===chIdx;
-                    const {got,max}=stageStars(progress,c.id);
-                    return (
-                      <button key={c.id} onClick={()=>gotoChapter(i)} aria-label={`ด่าน ${c.id} ${c.title}${open?'':' (ล็อก)'}`} aria-pressed={sel}
-                        style={{ background:'none', border:0, padding:'2px 0', cursor:'pointer', fontFamily:TH_FONT, color:'#F5E6BE',
-                          display:'flex', flexDirection:'column', alignItems:'center', gap:3, textAlign:'center' }}>
-                        <span className={'sp sp-'+(open?'slot':'slot_dark')} style={{ display:'flex', alignItems:'center', justifyContent:'center',
-                          fontFamily:PX_FONT, fontSize:16, fontWeight:400, color:INK,
-                          outline: sel?'3px solid #FFC23D':'none', outlineOffset:2 }}>
-                          {open ? c.id : <Sprite name="i_lock" style={{ transform:'scale(.75)' }}/>}
-                        </span>
-                        <span style={{ fontSize:11, fontWeight:600, lineHeight:1.25 }}>{c.title}</span>
-                        {(open||got>0) && <span style={{ fontFamily:PX_FONT, fontSize:12, fontWeight:400, color: done?'#FFC23D':'#E8CF95' }}>★{got}/{max}</span>}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
             </>
           )}
         </div>

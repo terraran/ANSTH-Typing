@@ -9,28 +9,28 @@
   const h = React.createElement;
   const { useState, useEffect, useRef } = React;
   const BASE = 'assets/char/';
-  const VER = '3';               // bump after replacing any asset file (cache-busting)
+  const VER = '4';               // bump after replacing any asset file (cache-busting)
   const TF = "'Noto Sans Thai Looped','Sarabun','Noto Sans Thai',sans-serif";
 
   // ── Choices ─────────────────────────────────────────────────
   // ramp = [darkest, lightest] target colours; null = keep the original art colours.
-  // sheet = which body sheet in char.json (defaults to id); shirt = polo colour (SHIRT_COLORS id).
-  // socks/shoes = this outfit's default colours.
+  // sheet = which body sheet in char.json (defaults to id); shirt = swatch colour for the picker.
+  // socks/shoes = this outfit's default colours. Polo sheets come ready-coloured (no in-app shirt recolour).
   const BODIES = [
     { id: 'boy',         name: 'ชุดนักเรียนชาย',  socks: 'black', shoes: 'black' },
     { id: 'girl',        name: 'ชุดนักเรียนหญิง', socks: 'white', shoes: 'white' },
-    { id: 'polo_red',    name: 'โปโลแดง',      sheet: 'polo', shirt: 'red',    socks: 'white', shoes: 'white' },
-    { id: 'polo_blue',   name: 'โปโลน้ำเงิน',   sheet: 'polo', shirt: 'blue',   socks: 'white', shoes: 'white' },
-    { id: 'polo_green',  name: 'โปโลเขียว',     sheet: 'polo', shirt: 'green',  socks: 'white', shoes: 'white' },
-    { id: 'polo_yellow', name: 'โปโลเหลือง',    sheet: 'polo', shirt: 'yellow', socks: 'white', shoes: 'white' },
+    { id: 'polo_red',    name: 'โปโลแดง',      sheet: 'polo_red', shirt: 'red',    socks: 'white', shoes: 'white' },
+    { id: 'polo_blue',   name: 'โปโลน้ำเงิน',   sheet: 'polo_blue', shirt: 'blue',   socks: 'white', shoes: 'white' },
+    { id: 'polo_green',  name: 'โปโลเขียว',     sheet: 'polo_green', shirt: 'green',  socks: 'white', shoes: 'white' },
+    { id: 'polo_yellow', name: 'โปโลเหลือง',    sheet: 'polo_yellow', shirt: 'yellow', socks: 'white', shoes: 'white' },
   ];
   const UNIFORMS = BODIES.slice(0, 2);   // name-based default characters stay in school uniform
-  // Polo shirt colours: ramp over palette.shirt (the polo sheet's neutral shirt greys).
+  // Polo colours for the picker swatch only: [shadow, main] = the sheets' own shirt tones.
   const SHIRT_COLORS = [
-    { id: 'red',    ramp: [[104, 10, 22], [234, 44, 52]] },
-    { id: 'blue',   ramp: [[16, 66, 140], [66, 162, 244]] },
-    { id: 'green',  ramp: [[8, 88, 60], [52, 184, 124]] },
-    { id: 'yellow', ramp: [[186, 146, 0], [255, 226, 36]] },
+    { id: 'red',    ramp: [[132, 20, 32], [230, 52, 54]] },
+    { id: 'blue',   ramp: [[28, 80, 158], [66, 160, 240]] },
+    { id: 'green',  ramp: [[16, 100, 68], [46, 184, 120]] },
+    { id: 'yellow', ramp: [[178, 130, 8], [255, 222, 40]] },
   ];
   const HAIRSTYLES = [
     { id: 'buzz',         name: 'เกรียน' },
@@ -207,7 +207,6 @@
       rampMap(P.shoes, byId(SHOE_COLORS, cfg.shoes).ramp, bodyMap);
       rampMap(P.baseHair, hairRamp, bodyMap);   // the buzz cut is the body's own hair
       const outfit = byId(BODIES, cfg.body);
-      if (outfit.shirt) rampMap(P.shirt, byId(SHIRT_COLORS, outfit.shirt).ramp, bodyMap);
       const sheet = recolorCanvas(D.imgs['body_' + (outfit.sheet || outfit.id)], bodyMap);
       const style = D.hair[cfg.hair];
       if (style) {

@@ -69,9 +69,9 @@ export const TextDisplay = React.memo(function TextDisplay({ displayChars, displ
 
 export function StatPill({ label, value, color }) {
   return (
-    <div style={{background:'var(--c-surf)',border:'1.5px solid var(--c-border)',
-      borderRadius:12,padding:'8px 16px',textAlign:'center',minWidth:80}}>
-      <div style={{fontSize:21,fontWeight:800,color:color??'var(--c-t1)'}}>{value}</div>
+    <div style={{background:'var(--c-surf)',border:'3px solid #3B2416',
+      padding:'6px 14px',textAlign:'center',minWidth:80}}>
+      <div style={{fontFamily:"'Pixelify Sans', monospace",fontSize:22,fontWeight:700,color:color??'var(--c-t1)'}}>{value}</div>
       <div style={{fontSize:10,color:'var(--c-t3)',marginTop:2,fontWeight:600,letterSpacing:.5,
         fontFamily:"'Noto Sans Thai Looped','Sarabun','Noto Sans Thai',sans-serif"}}>{label}</div>
     </div>

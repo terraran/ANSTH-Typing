@@ -1,5 +1,6 @@
 import { findLesson } from '../data/lessons';
 import { Stars } from '../ui/common';
+import { INK, PX_FONT, PxButton, Sprite } from '../ui/pixel';
 import { fmtScore, fmtTimeLeft, fmtWeekRange, pctOf, starsFor } from '../engine/scoring';
 
 const { useEffect, useState } = React;
@@ -24,19 +25,14 @@ export function WeeklyBoardScreen({ data, status, onRefresh, onStart, onLoadPast
   };
   const loading = status==='loading';
   const back = (
-    <button onClick={onBack}
-      style={{marginTop:18,width:'100%',background:'#F1F5F9',color:'#0F172A',border:'none',
-        borderRadius:10,padding:'12px',cursor:'pointer',fontSize:14,fontWeight:600,fontFamily:tf}}>
-      ← กลับหน้าบทเรียน
-    </button>
+    <PxButton onClick={onBack} style={{marginTop:18,width:'100%',fontSize:16}}>← กลับหน้าหลัก</PxButton>
   );
   if (!data) return (
     <div style={{fontFamily:tf,textAlign:'center',padding:'40px 0'}}>
       {status==='error'
         ? <>
             <div style={{color:'#DC2626',fontWeight:700,marginBottom:12}}>โหลดกระดานอันดับไม่ได้ — ตรวจสัญญาณแล้วลองใหม่</div>
-            <button onClick={onRefresh} style={{background:'#0F172A',color:'#fff',border:'none',borderRadius:10,
-              padding:'10px 20px',cursor:'pointer',fontSize:14,fontWeight:700,fontFamily:tf}}>↻ โหลดใหม่</button>
+            <PxButton onClick={onRefresh} style={{fontSize:16}}>↻ โหลดใหม่</PxButton>
           </>
         : <div style={{color:'var(--c-t3)'}}>กำลังโหลดกระดานอันดับ...</div>}
       {back}
@@ -46,34 +42,34 @@ export function WeeklyBoardScreen({ data, status, onRefresh, onStart, onLoadPast
   const t = data.test;
   const les = t && findLesson(t.lessonId);
   const me = data.me;
-  const medal = r => r===1?'🥇':r===2?'🥈':r===3?'🥉':r;
+  const medal = r => r<=3
+    ? <span style={{position:'relative',display:'inline-flex'}}><Sprite name="i_trophy" style={{filter:r===1?'none':r===2?'grayscale(1) brightness(1.3)':'sepia(1) hue-rotate(-20deg) saturate(1.6)'}}/>
+        <span style={{position:'absolute',right:-4,bottom:-4,fontFamily:PX_FONT,fontSize:13,fontWeight:700,color:INK}}>{r}</span></span>
+    : r;
   const row = (e, key) => (
-    <div key={key} style={{display:'flex',alignItems:'center',gap:10,padding:'9px 12px',borderRadius:10,
-      background:e.me?'#EFF6FF':'transparent',border:e.me?'1.5px solid #93C5FD':'1.5px solid transparent'}}>
-      <span style={{width:30,textAlign:'center',fontSize:e.rank<=3?20:14,fontWeight:800,color:'var(--c-t3)',
-        fontVariantNumeric:'tabular-nums'}}>{medal(e.rank)}</span>
+    <div key={key} style={{display:'flex',alignItems:'center',gap:10,padding:'7px 12px',
+      background:e.me?'#FFE9A8':'transparent',border:e.me?'3px solid '+INK:'3px solid transparent'}}>
+      <span style={{width:52,textAlign:'center',fontFamily:PX_FONT,fontSize:18,fontWeight:700,color:'var(--c-t2)'}}>{medal(e.rank)}</span>
       <span style={{flex:1,minWidth:0}}>
-        <span style={{display:'block',fontSize:14,fontWeight:800,color:e.me?'#1D4ED8':'var(--c-t1)',
+        <span style={{display:'block',fontSize:14,fontWeight:800,color:'var(--c-t1)',
           whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{e.name}{e.me?' (ฉัน)':''}</span>
         <span style={{display:'block',fontSize:11,color:'var(--c-t3)'}}>{e.room}</span>
       </span>
       <Stars n={starsFor(e.score,e.max)} size={12}/>
-      <span style={{minWidth:72,textAlign:'right',fontSize:15,fontWeight:800,color:'#D97706',
-        fontVariantNumeric:'tabular-nums'}}>{fmtScore(e.score)}</span>
+      <span style={{minWidth:80,textAlign:'right',fontFamily:PX_FONT,fontSize:18,fontWeight:700,color:'#9A5B12'}}>{fmtScore(e.score)}</span>
     </div>
   );
 
   return (
     <div style={{fontFamily:tf}}>
       {/* Header: this week's test + start */}
-      <div style={{background:'linear-gradient(135deg,#1E3A8A,#6D28D9)',borderRadius:16,
-        padding:'18px 20px',color:'#fff',marginBottom:16}}>
+      <div className="px-wood" style={{padding:'0 6px',color:'#F5E6BE',marginBottom:16}}>
         <div style={{display:'flex',alignItems:'center',gap:8}}>
           <div style={{flex:1,fontSize:13,fontWeight:700,opacity:.85}}>
-            📝 แบบทดสอบประจำสัปดาห์ {data.grade?`· ${data.grade}`:''} · {fmtWeekRange(data.weekStart)}
+            ภารกิจประจำสัปดาห์ {data.grade?`· ${data.grade}`:''} · {fmtWeekRange(data.weekStart)}
           </div>
           <button onClick={onRefresh} disabled={loading} title="โหลดกระดานใหม่"
-            style={{background:'rgba(255,255,255,.16)',border:'none',color:'#fff',borderRadius:8,
+            style={{background:'rgba(255,255,255,.16)',border:'2px solid #F5E6BE',color:'#F5E6BE',
               padding:'5px 10px',cursor:loading?'default':'pointer',fontSize:13,fontWeight:800,fontFamily:tf}}>
             <span className={loading?'spin':''}>↻</span>
           </button>
@@ -84,11 +80,9 @@ export function WeeklyBoardScreen({ data, status, onRefresh, onStart, onLoadPast
             <div style={{fontSize:12,opacity:.85}}>
               {t.stage ? `คำจากด่าน ${t.stage} + ทบทวนด่านก่อนหน้า` : `บท ${les?.num ?? t.lessonId}${les?` ${les.thaiName}`:''}`} · ⏱ 2 นาที · {t.showHints?'มีไฮไลต์ปุ่มถัดไป':'🙈 ไม่มีไฮไลต์ปุ่ม'} · {fmtTimeLeft(data.weekEndsAt-Date.now())}
             </div>
-            <button onClick={onStart}
-              style={{marginTop:14,width:'100%',background:'#fff',color:'#4C1D95',border:'none',
-                borderRadius:12,padding:'14px',cursor:'pointer',fontSize:17,fontWeight:800,fontFamily:tf}}>
-              ▶ {me?'ทำแบบทดสอบอีกครั้ง':'เริ่มทดสอบประจำสัปดาห์'}
-            </button>
+            <PxButton onClick={onStart} style={{marginTop:14,width:'100%',minHeight:64,fontSize:20}}>
+              ▶ {me?'ทำภารกิจอีกครั้ง':'เริ่มภารกิจประจำสัปดาห์'}
+            </PxButton>
             <div style={{fontSize:11,opacity:.75,marginTop:8,textAlign:'center'}}>
               ทำได้หลายครั้ง ระบบนับครั้งที่ดีที่สุด · ทั้ง {data.grade} ได้ข้อความเดียวกัน · นาฬิกาเริ่มเมื่อกดปุ่มแรก · คะแนนเท่ากัน ใครแม่นกว่าได้อันดับดีกว่า
             </div>
@@ -104,17 +98,16 @@ export function WeeklyBoardScreen({ data, status, onRefresh, onStart, onLoadPast
 
       {/* My rank */}
       {t && (
-        <div style={{display:'flex',alignItems:'center',gap:14,padding:'14px 16px',borderRadius:14,
-          marginBottom:16,background:'var(--c-surf)',border:'1.5px solid var(--c-border)'}}>
+        <div style={{display:'flex',alignItems:'center',gap:14,padding:'12px 16px',
+          marginBottom:16,background:'var(--c-surf)',border:'3px solid '+INK}}>
           {me ? (
             <>
-              <div style={{fontSize:34,fontWeight:800,color:'#1D4ED8',minWidth:54,textAlign:'center',
-                fontVariantNumeric:'tabular-nums'}}>#{me.rank}</div>
+              <div style={{fontFamily:PX_FONT,fontSize:38,fontWeight:700,color:INK,minWidth:60,textAlign:'center'}}>#{me.rank}</div>
               <div style={{flex:1}}>
                 <div style={{fontSize:15,fontWeight:800,color:'var(--c-t1)'}}>
                   อันดับของฉัน: {me.rank} จาก {data.total} คนใน {data.grade}</div>
                 <div style={{fontSize:12,color:'var(--c-t2)',marginTop:2}}>
-                  คะแนนดีสุด <b style={{color:'#D97706'}}>{fmtScore(me.score)}</b> · <Stars n={starsFor(me.score,me.max)} size={12}/> · {pctOf(me.score,me.max)}% ของเป้าหมาย · ทำแล้ว {me.attempts} ครั้ง
+                  คะแนนดีสุด <b style={{color:'#9A5B12'}}>{fmtScore(me.score)}</b> · <Stars n={starsFor(me.score,me.max)} size={12}/> · {pctOf(me.score,me.max)}% ของเป้าหมาย · ทำแล้ว {me.attempts} ครั้ง
                 </div>
               </div>
             </>
@@ -129,8 +122,8 @@ export function WeeklyBoardScreen({ data, status, onRefresh, onStart, onLoadPast
       {/* Top 10 */}
       {t && (
         <div style={{marginBottom:16}}>
-          <div style={{fontSize:15,fontWeight:800,color:'var(--c-t1)',marginBottom:6}}>🏆 Top 10 ของ {data.grade}</div>
-          <div style={{background:'var(--c-card)',border:'1.5px solid var(--c-border)',borderRadius:14,padding:6}}>
+          <div style={{fontSize:15,fontWeight:800,color:'var(--c-t1)',marginBottom:6}}>Top 10 ของ {data.grade}</div>
+          <div style={{background:'var(--c-card)',border:'3px solid '+INK,padding:6}}>
             {data.top.length ? (
               <>
                 {data.top.map((e,i)=>row(e,'t'+i))}
@@ -156,7 +149,7 @@ export function WeeklyBoardScreen({ data, status, onRefresh, onStart, onLoadPast
         <div style={{marginBottom:16}}>
           <div style={{fontSize:15,fontWeight:800,color:'var(--c-t1)',marginBottom:6}}>🗓 กระดานสัปดาห์ก่อน ๆ</div>
           <select value={pastId} onChange={e=>pickPast(e.target.value)}
-            style={{width:'100%',padding:'10px 12px',borderRadius:10,border:'1.5px solid var(--c-border)',
+            style={{width:'100%',padding:'10px 12px',border:'3px solid '+INK,
               background:'var(--c-card)',color:'var(--c-t1)',fontSize:14,fontWeight:700,fontFamily:tf,marginBottom:8}}>
             <option value="">— เลือกสัปดาห์ —</option>
             {data.past.map(p=>(
@@ -170,7 +163,7 @@ export function WeeklyBoardScreen({ data, status, onRefresh, onStart, onLoadPast
                 {pastStatus==='error'?'โหลดไม่ได้ — ลองเลือกใหม่อีกครั้ง':'กำลังโหลด...'}</div>
             );
             return (
-              <div style={{background:'var(--c-card)',border:'1.5px solid var(--c-border)',borderRadius:14,padding:6}}>
+              <div style={{background:'var(--c-card)',border:'3px solid '+INK,padding:6}}>
                 {b.top.length ? (
                   <>
                     {b.top.map((e,i)=>row(e,'p'+i))}
@@ -196,7 +189,7 @@ export function WeeklyBoardScreen({ data, status, onRefresh, onStart, onLoadPast
       {data.history && data.history.length>0 && (
         <div>
           <div style={{fontSize:15,fontWeight:800,color:'var(--c-t1)',marginBottom:6}}>📈 พัฒนาการของฉัน</div>
-          <div style={{background:'var(--c-card)',border:'1.5px solid var(--c-border)',borderRadius:14,overflow:'hidden'}}>
+          <div style={{background:'var(--c-card)',border:'3px solid '+INK,overflow:'hidden'}}>
             {data.history.map((h,i)=>{
               const older = data.history[i+1];
               const pct = pctOf(h.score,h.max);

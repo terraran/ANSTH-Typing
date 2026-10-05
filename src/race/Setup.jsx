@@ -19,31 +19,26 @@ export function MPSetupScreen({ mode, onSelect, onBack, busy }) {
   if (isRoyale && pickedLesson) {
     return (
       <div style={{fontFamily:tf}}>
-        <div style={{background:`linear-gradient(135deg,${MODE.from},${MODE.to})`,
-          borderRadius:16,padding:'20px 20px 18px',marginBottom:20,
-          position:'relative',overflow:'hidden',textAlign:'center'}}>
-          <div style={{position:'absolute',top:-25,right:-25,width:90,height:90,
-            borderRadius:'50%',background:'rgba(255,255,255,.08)'}}/>
-          <button onClick={()=>setPickedLesson(null)}
-            style={{position:'absolute',top:12,left:12,background:'rgba(255,255,255,.18)',
-              border:'none',borderRadius:8,padding:'5px 10px',cursor:'pointer',
-              fontSize:12,color:'#fff',fontWeight:700}}>← กลับ</button>
+        <div className="px-wood" style={{padding:'4px 8px',marginBottom:20,
+          position:'relative',textAlign:'center',color:'#F5E6BE'}}>
+          <button onClick={()=>setPickedLesson(null)} className="px-btn"
+            style={{position:'absolute',top:0,left:0,minHeight:40,padding:'0 4px',fontSize:14,fontFamily:tf}}>← กลับ</button>
           <div style={{fontSize:34,marginBottom:6}}>💀</div>
-          <div style={{fontSize:10,color:'rgba(255,255,255,.7)',fontWeight:700,letterSpacing:2,marginBottom:3}}>
+          <div style={{fontFamily:"'Pixelify Sans', monospace",fontSize:14,color:'#E8CF95',fontWeight:700,letterSpacing:2,marginBottom:3}}>
             {MODE.label} · {pickedLesson.thaiName}</div>
-          <div style={{fontSize:20,fontWeight:800,color:'#fff',fontFamily:tf}}>เลือกความยาก</div>
-          <div style={{fontSize:12,color:'rgba(255,255,255,.6)',marginTop:4}}>ยิ่งชีวิตน้อย ยิ่งท้าทาย</div>
+          <div style={{fontSize:22,fontWeight:700,color:'#FFF6D8',fontFamily:tf}}>เลือกความยาก</div>
+          <div style={{fontSize:12,color:'#E8CF95',marginTop:4}}>ยิ่งชีวิตน้อย ยิ่งท้าทาย</div>
         </div>
         <div style={{display:'flex',flexDirection:'column',gap:10}}>
           {BR_DIFFICULTIES.map(d=>(
             <button key={d.lives} onClick={()=>!busy&&onSelect(pickedLesson,d.lives)}
               disabled={busy}
-              style={{background:'#fff',border:`2px solid ${d.color}`,borderRadius:14,
+              style={{background:'var(--c-surf)',border:'3px solid #3B2416',boxShadow:`inset 6px 0 0 ${d.color}`,
                 padding:'14px 18px',cursor:busy?'not-allowed':'pointer',
                 display:'flex',alignItems:'center',gap:14,textAlign:'left',
                 transition:'all .15s',opacity:busy?0.5:1}}
               onMouseEnter={e=>{if(!busy){e.currentTarget.style.background=d.bg;e.currentTarget.style.transform='translateY(-2px)';}}}
-              onMouseLeave={e=>{e.currentTarget.style.background='#fff';e.currentTarget.style.transform='none';}}>
+              onMouseLeave={e=>{e.currentTarget.style.background='var(--c-surf)';e.currentTarget.style.transform='none';}}>
               <span style={{fontSize:28}}>{d.emoji}</span>
               <div style={{flex:1}}>
                 <div style={{fontFamily:tf,fontSize:15,fontWeight:800,color:'var(--c-t1)',lineHeight:1.4}}>{d.thai}</div>
@@ -63,27 +58,22 @@ export function MPSetupScreen({ mode, onSelect, onBack, busy }) {
 
   return (
     <div style={{fontFamily:tf}}>
-      <div style={{background:`linear-gradient(135deg,${MODE.from},${MODE.to})`,
-        borderRadius:16,padding:'20px 20px 18px',marginBottom:20,
-        position:'relative',overflow:'hidden',textAlign:'center'}}>
-        <div style={{position:'absolute',top:-25,right:-25,width:90,height:90,
-          borderRadius:'50%',background:'rgba(255,255,255,.08)'}}/>
-        <button onClick={onBack}
-          style={{position:'absolute',top:12,left:12,background:'rgba(255,255,255,.18)',
-            border:'none',borderRadius:8,padding:'5px 10px',cursor:'pointer',
-            fontSize:12,color:'#fff',fontWeight:700}}>← ออก</button>
+      <div className="px-wood" style={{padding:'4px 8px',marginBottom:20,
+        position:'relative',textAlign:'center',color:'#F5E6BE'}}>
+        <button onClick={onBack} className="px-btn"
+          style={{position:'absolute',top:0,left:0,minHeight:40,padding:'0 4px',fontSize:14,fontFamily:tf}}>← ออก</button>
         <div style={{fontSize:34,marginBottom:6}}>{MODE.icon}</div>
-        <div style={{fontSize:10,color:'rgba(255,255,255,.7)',fontWeight:700,
+        <div style={{fontFamily:"'Pixelify Sans', monospace",fontSize:14,color:'#E8CF95',fontWeight:700,
           letterSpacing:2,marginBottom:3}}>{MODE.label}</div>
-        <div style={{fontSize:20,fontWeight:800,color:'#fff',fontFamily:tf}}>เลือก Arena</div>
-        <div style={{fontSize:12,color:'rgba(255,255,255,.6)',marginTop:4}}>{MODE.hint}</div>
+        <div style={{fontSize:22,fontWeight:700,color:'#FFF6D8',fontFamily:tf}}>เลือก Arena</div>
+        <div style={{fontSize:12,color:'#E8CF95',marginTop:4}}>{MODE.hint}</div>
       </div>
       {CHAPTERS.map(ch=>{
         const chLessons=LESSONS.filter(l=>ch.lessonIds.includes(l.id));
         if (!chLessons.length) return null;
         return (
           <div key={ch.id} style={{marginBottom:18}}>
-            <div style={{fontSize:10,fontWeight:800,color:'var(--c-t3)',
+            <div style={{fontSize:14,fontWeight:700,color:'var(--c-t2)',
               letterSpacing:1,marginBottom:8,paddingLeft:4}}>
               {ch.label.toUpperCase()} · {ch.title}
             </div>
@@ -92,11 +82,11 @@ export function MPSetupScreen({ mode, onSelect, onBack, busy }) {
                 <button key={lesson.id}
                   onClick={()=>{if(busy)return; isRoyale?setPickedLesson(lesson):onSelect(lesson);}}
                   disabled={busy}
-                  style={{background:busy?'#F8FAFC':'#fff',border:`2px solid ${lesson.accent}`,
-                    borderRadius:12,padding:'12px 14px',cursor:busy?'not-allowed':'pointer',
+                  style={{background:'var(--c-surf)',border:'3px solid #3B2416',boxShadow:`inset 6px 0 0 ${lesson.accent}`,
+                    padding:'10px 14px 10px 18px',cursor:busy?'not-allowed':'pointer',
                     textAlign:'left',opacity:busy?0.5:1,transition:'all .15s'}}
                   onMouseEnter={e=>{if(!busy){e.currentTarget.style.background=lesson.al;e.currentTarget.style.transform='translateY(-2px)';}}}
-                  onMouseLeave={e=>{e.currentTarget.style.background='#fff';e.currentTarget.style.transform='none';}}>
+                  onMouseLeave={e=>{e.currentTarget.style.background='var(--c-surf)';e.currentTarget.style.transform='none';}}>
                   <div style={{display:'flex',alignItems:'center',gap:6,marginBottom:4}}>
                     <span style={{background:lesson.al,color:lesson.accent,borderRadius:6,
                       padding:'2px 7px',fontSize:9,fontWeight:800}}>บท {lesson.num ?? lesson.id}</span>
@@ -126,20 +116,21 @@ export function LobbyScreen({ roomCode, roomInfo, roomPlayers, isHost, roomType,
       <div style={{marginBottom:24}}>
         <div style={{fontSize:11,color:'var(--c-t3)',letterSpacing:2,marginBottom:6,fontWeight:700}}>
           {roomType==='royale'?'🏆 BATTLE ROYALE':'⚡ 1V1'} — รหัสห้อง</div>
-        <div style={{fontSize:56,fontWeight:800,letterSpacing:10,color:'var(--c-t1)',
-          fontFamily:'system-ui,monospace',lineHeight:1}}>{roomCode}</div>
+        <div className="px-wood" style={{display:'inline-block',padding:'0 18px'}}>
+          <div style={{fontSize:60,fontWeight:700,letterSpacing:12,color:'#F5D27A',
+            fontFamily:"'Pixelify Sans', monospace",lineHeight:1.2}}>{roomCode}</div></div>
         <div style={{fontSize:12,color:'var(--c-t3)',marginTop:6,fontFamily:tf}}>
           แจ้งรหัสนี้ให้เพื่อนพิมพ์เพื่อเข้าร่วม</div>
       </div>
       {roomInfo&&(
         <div style={{display:'flex',gap:8,justifyContent:'center',flexWrap:'wrap',marginBottom:20}}>
-          <div style={{background:'var(--c-surf)',border:'1.5px solid var(--c-border)',borderRadius:10,
-            padding:'8px 16px',fontFamily:tf,fontSize:13,color:'var(--c-t4)'}}>
+          <div style={{background:'var(--c-surf)',border:'3px solid #3B2416',
+            padding:'8px 16px',fontFamily:tf,fontSize:14,fontWeight:600,color:'var(--c-t4)'}}>
             📝 {roomInfo.exerciseTitle}
           </div>
           {roomType==='1v1'&&(
-            <div style={{background:'#EFF6FF',border:'1.5px solid #BFDBFE',borderRadius:10,
-              padding:'8px 16px',fontFamily:tf,fontSize:13,color:'#1D4ED8',fontWeight:700}}>
+            <div style={{background:'var(--c-surf)',border:'3px solid #3B2416',
+              padding:'8px 16px',fontFamily:tf,fontSize:14,color:'var(--c-t1)',fontWeight:700}}>
               ⭐ ชนะด้วยคะแนน · คนแรกจบแล้วอีกคนเหลือ {PRESSURE_SECS} วินาที
             </div>
           )}
@@ -161,9 +152,9 @@ export function LobbyScreen({ roomCode, roomInfo, roomPlayers, isHost, roomType,
           {players.map(([uid,p])=>{
             const name=p.name||uid, isMe=uid===currentFirebaseUid();
             return (
-            <div key={uid} style={{background:isMe?'#EFF6FF':'#F8FAFC',
-              border:'1.5px solid '+(isMe?'#BFDBFE':'#E2E8F0'),
-              borderRadius:10,padding:'5px 14px 5px 5px',fontFamily:tf,fontWeight:700,fontSize:15,
+            <div key={uid} style={{background:isMe?'#FFE9A8':'var(--c-surf)',
+              border:'3px solid #3B2416',
+              padding:'5px 14px 5px 5px',fontFamily:tf,fontWeight:700,fontSize:15,
               display:'flex',alignItems:'center',gap:8}}>
               {window.CharKit
                 ? <CharKit.Avatar config={isMe&&myCfg?myCfg:CharKit.fromPlayer(p)} size={30}/>
@@ -172,27 +163,23 @@ export function LobbyScreen({ roomCode, roomInfo, roomPlayers, isHost, roomType,
             </div>
           );})}
           {roomType==='1v1'&&players.length<2&&(
-            <div style={{border:'1.5px dashed #CBD5E1',borderRadius:10,
+            <div style={{border:'3px dashed #8C6E4E',
               padding:'8px 18px',color:'var(--c-t3)',fontSize:13}}>รอผู้เล่น...</div>
           )}
         </div>
       </div>
       {isHost&&(
         <div style={{marginBottom:12,display:'flex',gap:8}}>
-          <button onClick={onStart} disabled={!canStart} style={{
-            flex:2,background:canStart?'#059669':'#94A3B8',color:'#fff',border:'none',
-            borderRadius:10,padding:'12px',cursor:canStart?'pointer':'not-allowed',
-            fontSize:15,fontWeight:700,fontFamily:tf,transition:'background .15s'}}>
+          <button onClick={onStart} disabled={!canStart} className="px-btn" style={{
+            flex:2,minHeight:56,fontSize:18,fontFamily:tf}}>
             {canStart
               ? (roomType==='royale'?'▶ เริ่ม Battle Royale!':'▶ เริ่มแข่ง 1v1!')
               : 'รอ ('+players.length+(roomType==='1v1'?'/2':'/2+')+')'}
           </button>
           {roomType==='royale'&&canStart&&(
-            <button onClick={()=>onStartSpectator&&onStartSpectator()} style={{
-              flex:1,background:'#7C3AED',color:'#fff',border:'none',
-              borderRadius:10,padding:'12px 8px',cursor:'pointer',
-              fontSize:12,fontWeight:700,fontFamily:tf,lineHeight:1.3}}>
-              👀{'\n'}ดูอย่างเดียว
+            <button onClick={()=>onStartSpectator&&onStartSpectator()} className="px-btn" style={{
+              flex:1,minHeight:56,fontSize:15,fontFamily:tf}}>
+              👀 ดูอย่างเดียว
             </button>
           )}
         </div>
@@ -201,9 +188,9 @@ export function LobbyScreen({ roomCode, roomInfo, roomPlayers, isHost, roomType,
         <div style={{color:'var(--c-t2)',fontSize:13,marginBottom:16,fontFamily:tf}}>
           รอเจ้าของห้องกดเริ่ม...</div>
       )}
-      <button onClick={onLeave} style={{background:'transparent',
-        border:'1.5px solid #FCA5A5',color:'#DC2626',borderRadius:8,
-        padding:'8px 16px',cursor:'pointer',fontSize:13,fontWeight:600,fontFamily:tf}}>
+      <button onClick={onLeave} style={{background:'var(--c-surf)',
+        border:'3px solid #3B2416',color:'#B3261E',
+        padding:'8px 16px',cursor:'pointer',fontSize:15,fontWeight:700,fontFamily:tf}}>
         ออกจากห้อง
       </button>
     </div>

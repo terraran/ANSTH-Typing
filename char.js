@@ -707,9 +707,9 @@
         return h('button', { key: o.id, onClick: () => onPick(o.id), title: o.name,
             style: { background: 'none', border: 'none', cursor: 'pointer', padding: 0, width: 52,
               display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, fontFamily: TF } },
-          h('span', { style: { width: 34, height: 34, borderRadius: '50%', background: rampSwatch(o, ORIGINAL[field]),
-            boxShadow: on ? '0 0 0 3px var(--c-card),0 0 0 5px #2563EB' : '0 0 0 1.5px var(--c-border2)' } }),
-          h('span', { style: { fontSize: 10, fontWeight: on ? 800 : 600, color: on ? '#2563EB' : 'var(--c-t2)', lineHeight: 1.2 } }, o.name));
+          h('span', { style: { width: 34, height: 34, background: rampSwatch(o, ORIGINAL[field]), border: '3px solid #3B2416',
+            boxShadow: on ? '0 0 0 3px #FFC23D' : 'none' } }),
+          h('span', { style: { fontSize: 11, fontWeight: on ? 800 : 600, color: '#3B2416', lineHeight: 1.2 } }, o.name));
       }));
   }
 
@@ -735,10 +735,11 @@
       try { await onSave(sanitize(cfg)); setStatus('saved'); }
       catch (e) { setStatus('error'); setErrMsg(e && e.message ? e.message : 'บันทึกไม่สำเร็จ'); }
     };
-    const pill = (on, label, onClick) => h('button', { onClick,
-      style: { flex: 1, padding: '9px 10px', borderRadius: 10, cursor: 'pointer', fontFamily: TF, fontSize: 13, fontWeight: 800,
-        border: '1.5px solid ' + (on ? '#2563EB' : 'var(--c-border)'), background: on ? '#2563EB' : 'var(--c-card)',
-        color: on ? '#fff' : 'var(--c-t1)' } }, label);
+    // Pixel look (styles in assets/ui/pixel.css): green .px-btn when chosen, parchment square otherwise.
+    const pill = (on, label, onClick) => h('button', { onClick, className: on ? 'px-btn' : undefined, 'aria-pressed': on,
+      style: on ? { flex: 1, minHeight: 46, padding: '0 6px', fontFamily: TF, fontSize: 14 }
+        : { flex: 1, minHeight: 46, padding: '6px 10px', cursor: 'pointer', fontFamily: TF, fontSize: 14, fontWeight: 700,
+          border: '3px solid #3B2416', background: '#EFE2BF', color: '#3B2416' } }, label);
 
     if (loadErr) return h('div', { style: { fontFamily: TF, textAlign: 'center', padding: 30 } },
       h('div', { style: { color: '#DC2626', fontWeight: 700, marginBottom: 12 } }, '⚠️ โหลดตัวละครไม่ได้ — ' + loadErr),
@@ -746,25 +747,25 @@
     if (!ready) return h('div', { style: { fontFamily: TF, textAlign: 'center', padding: 40, color: 'var(--c-t3)' } }, 'กำลังโหลดตัวละคร...');
 
     const preview = h('div', { style: { flex: '0 0 auto', width: 240, margin: '0 auto' } },
-      h('div', { style: { background: 'linear-gradient(180deg,#DBEAFE 0%,#EFF6FF 62%,#86EFAC 62%,#4ADE80 100%)',
-          borderRadius: 18, padding: '14px 0 10px', display: 'flex', justifyContent: 'center', border: '1.5px solid var(--c-border)' } },
+      h('div', { className: 'px-lane', style: { padding: '14px 0 6px', display: 'flex', justifyContent: 'center', border: '3px solid #3B2416' } },
         h(CharCanvas, { config: cfg, anim, scale: 4 })),
       h('div', { style: { display: 'flex', gap: 6, marginTop: 10 } },
         pill(anim === 'idle', '🧍 ยืน', () => setAnim('idle')),
         pill(anim === 'run', '🏃 วิ่ง', () => setAnim('run'))),
-      h('button', { onClick: () => { setCfg(randomize(cfg.body)); setStatus('idle'); },
-          style: { width: '100%', marginTop: 8, padding: '10px', borderRadius: 10, cursor: 'pointer', fontFamily: TF, fontSize: 13,
-            fontWeight: 800, border: '1.5px solid var(--c-border)', background: 'var(--c-surf)', color: 'var(--c-t1)' } }, '🎲 สุ่มตัวละคร'));
+      h('button', { onClick: () => { setCfg(randomize(cfg.body)); setStatus('idle'); }, className: 'px-btn',
+          style: { width: '100%', marginTop: 8, minHeight: 48, fontFamily: TF, fontSize: 15 } }, '🎲 สุ่มตัวละคร'));
 
     const hairGrid = h('div', { style: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(64px,1fr))', gap: 8 } },
       HAIRSTYLES.map(s => {
         const on = s.id === cfg.hair;
         return h('button', { key: s.id, onClick: () => set('hair', s.id),
-            style: { cursor: 'pointer', borderRadius: 12, padding: '6px 2px 4px', fontFamily: TF,
-              border: '2px solid ' + (on ? '#2563EB' : 'var(--c-border)'), background: on ? '#EFF6FF' : 'var(--c-card)',
+            'aria-pressed': on,
+            style: { cursor: 'pointer', padding: '6px 2px 4px', fontFamily: TF,
+              border: '3px solid ' + (on ? '#3B2416' : '#A9854F'), background: on ? '#FFE9A8' : '#E2CF9F',
+              boxShadow: on ? '0 0 0 3px #FFC23D' : 'none',
               display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 } },
           h(CharCanvas, { config: { ...cfg, hair: s.id }, crop: HEAD, scale: 1.5, still: true, style: { width: 51, height: 45 } }),
-          h('span', { style: { fontSize: 11, fontWeight: on ? 800 : 600, color: on ? '#1D4ED8' : 'var(--c-t2)' } }, s.name));
+          h('span', { style: { fontSize: 12, fontWeight: 700, color: '#3B2416' } }, s.name));
       }));
 
     const options = h('div', { style: { flex: '1 1 300px', minWidth: 0 } },
@@ -781,8 +782,8 @@
       h(Section, { title: 'รองเท้า · ' + byId(SHOE_COLORS, cfg.shoes).name },
         h(Swatches, { list: SHOE_COLORS, value: cfg.shoes, field: 'shoes', onPick: v => set('shoes', v) })),
       h(Section, { title: 'ชุด' },
-        h('div', { style: { display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', borderRadius: 12,
-            border: '1.5px solid var(--c-border)', background: 'var(--c-surf)' } },
+        h('div', { style: { display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px',
+            border: '3px solid #3B2416', background: 'var(--c-surf)' } },
           h('span', { style: { fontSize: 22 } }, '🏫'),
           h('div', { style: { flex: 1 } },
             h('div', { style: { fontSize: 13, fontWeight: 800, color: 'var(--c-t1)' } }, 'ชุดนักเรียน ✓'),
@@ -801,13 +802,10 @@
           'ยังไม่ได้เข้าสู่ระบบ — ตัวละครจะบันทึกไว้ในเครื่องนี้เท่านั้น')),
       h('div', { style: { display: 'flex', gap: 22, flexWrap: 'wrap', alignItems: 'flex-start' } }, preview, options),
       h('div', { style: { display: 'flex', gap: 10, marginTop: 8, alignItems: 'center', flexWrap: 'wrap' } },
-        h('button', { onClick: save, disabled: status === 'saving',
-            style: { flex: '2 1 200px', padding: '13px', borderRadius: 12, border: 'none', cursor: status === 'saving' ? 'default' : 'pointer',
-              background: '#059669', color: '#fff', fontSize: 15, fontWeight: 800, fontFamily: TF, opacity: status === 'saving' ? .6 : 1 } },
-          '💾 บันทึกตัวละคร'),
-        h('button', { onClick: onBack,
-            style: { flex: '1 1 120px', padding: '13px', borderRadius: 12, border: '1.5px solid var(--c-border)', cursor: 'pointer',
-              background: 'var(--c-surf)', color: 'var(--c-t1)', fontSize: 14, fontWeight: 700, fontFamily: TF } }, '← กลับ')),
+        h('button', { onClick: save, disabled: status === 'saving', className: 'px-btn',
+            style: { flex: '2 1 200px', minHeight: 54, fontSize: 17, fontFamily: TF } }, '💾 บันทึกตัวละคร'),
+        h('button', { onClick: onBack, className: 'px-btn',
+            style: { flex: '1 1 120px', minHeight: 54, fontSize: 16, fontFamily: TF } }, '← กลับ')),
       statusLine && h('div', { style: { marginTop: 10, fontSize: 13, fontWeight: 700, textAlign: 'center',
         color: status === 'error' ? '#DC2626' : status === 'saved' ? '#059669' : 'var(--c-t2)' } }, statusLine));
   }

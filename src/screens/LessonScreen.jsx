@@ -71,7 +71,6 @@ export function LessonScreen({ studentName, classCode, onSelect, onOpenSetup, on
   const selLesson = chLessons.find(l=>l.id===openLesson)
     || chLessons.find(l=>lessonAnyOpen(progress,l) && !lessonComplete(progress,l))
     || chLessons.find(l=>lessonAnyOpen(progress,l)) || chLessons[0];
-  const { got: stGot, max: stMax } = stageStars(progress, ch.id);
 
   return (
     <div style={{ fontFamily:TH_FONT, color:INK, display:'flex', flexDirection:'column', gap:18 }}>
@@ -79,25 +78,22 @@ export function LessonScreen({ studentName, classCode, onSelect, onOpenSetup, on
       {/* ── HUD: character head + name, stage progress, character / stats buttons ── */}
       <div style={{ display:'flex', alignItems:'center', gap:14, flexWrap:'wrap' }}>
         <button onClick={()=>onOpenCharacter&&onOpenCharacter()} title="แต่งตัวละคร" aria-label="แต่งตัวละคร"
-          style={{ position:'relative', width:252, height:90, background:'none', border:0, padding:0, cursor:'pointer', flexShrink:0 }}>
-          <span style={{ position:'absolute', left:15, top:15, width:60, height:60, borderRadius:'50%', overflow:'hidden',
-            background:'#E9D7A6', display:'flex', alignItems:'center', justifyContent:'center' }}>
-            {window.CharKit && <CharKit.Avatar config={character} size={56}/>}
-          </span>
-          <Sprite name="hud" style={{ position:'absolute', inset:0 }}/>
-          <span style={{ position:'absolute', left:90, top:24, height:6, background:'#6BC66A',
-            width: Math.round(153*(stMax?stGot/stMax:0)) }}/>
-          <span style={{ position:'absolute', left:96, top:39, height:6, background:'#5AA0E0',
-            width: Math.round(132*(CHAPTERS.filter(c=>stageOpen(progress,c.id)).length/CHAPTERS.length)) }}/>
+          style={{ position:'relative', background:'none', border:0, padding:0, cursor:'pointer', flexShrink:0,
+            display:'flex', flexDirection:'column', alignItems:'center' }}>
+          {window.CharKit && (
+            <CharKit.CharCanvas config={character || CharKit.fromName(studentName || 'ผู้เล่น')} scale={3}
+              style={{ marginBottom:-12, position:'relative' }}/>
+          )}
+          {/* small grass platform */}
+          <span style={{ width:140, height:14, background:'#6BB05A', border:'3px solid '+INK, borderBottomWidth:0 }}/>
+          <span style={{ width:140, height:10, background:'#8A5A32', border:'3px solid '+INK, borderTopWidth:0 }}/>
+          {!character && <span style={{ position:'absolute', top:-6, right:-18, fontSize:12, fontWeight:700, background:'#FFC23D',
+            border:'2px solid '+INK, padding:'0 6px', color:INK }}>สร้างตัวละคร</span>}
         </button>
         <div style={{ display:'flex', flexDirection:'column', minWidth:0, ...outlined }}>
-          <span style={{ fontSize:24, fontWeight:700 }}>
-            {studentName || 'ผู้เล่นทดลอง'} {classCode && <span style={{ fontFamily:PX_FONT, fontSize:18, color:'#F5D27A' }}>{classCode}</span>}
-          </span>
-          <span style={{ fontSize:14, fontWeight:600 }}>
-            <span style={{ color:'#9BE39A' }}>■</span> ดาวในด่าน {stGot}/{stMax}&nbsp;&nbsp;
-            <span style={{ color:'#9CC8F2' }}>■</span> ด่านที่เปิด {CHAPTERS.filter(c=>stageOpen(progress,c.id)).length}/{CHAPTERS.length}
-          </span>
+          <span style={{ fontSize:28, fontWeight:700, lineHeight:1.3 }}>{studentName || 'ผู้เล่นทดลอง'}</span>
+          {classCode && <span style={{ fontFamily:PX_FONT, fontSize:20, fontWeight:700, color:'#F5D27A' }}>{classCode}</span>}
+          {!studentName && <span style={{ fontSize:14, fontWeight:600 }}>ทดลองเล่น — ดาวและคะแนนจะไม่ถูกบันทึก</span>}
         </div>
         <div style={{ marginLeft:'auto', display:'flex', gap:10, flexWrap:'wrap' }}>
           {!studentName && SCRIPT_URL && <PxButton onClick={()=>onLogin&&onLogin()} style={{ fontSize:15 }}>เข้าสู่ระบบเพื่อบันทึกผล</PxButton>}

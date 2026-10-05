@@ -19,7 +19,7 @@ export function ProgressChart({ sessions }) {
 
   if (data.length < 2) return (
     <div style={{textAlign:'center',padding:24,color:'var(--c-t3)',fontSize:13,fontFamily:tf,
-      background:'var(--c-surf)',borderRadius:12,border:'1.5px solid var(--c-border)'}}>
+      background:'var(--c-surf)',border:'3px solid #3B2416'}}>
       ต้องมีอย่างน้อย 2 เซสชั่น จึงจะแสดงกราฟได้
     </div>
   );
@@ -159,9 +159,9 @@ function fmtDay(iso) {
 
 function Metric({ label, value, sub, color }) {
   return (
-    <div style={{background:'var(--c-surf)',border:'1.5px solid var(--c-border)',borderRadius:12,padding:'10px 14px',minWidth:0}}>
-      <div style={{fontSize:11,color:'var(--c-t3)',fontWeight:700}}>{label}</div>
-      <div style={{fontSize:22,fontWeight:800,color:color||'var(--c-t1)',lineHeight:1.3}}>{value}
+    <div className="px-wood" style={{padding:'0 2px',minWidth:0,color:'#F5E6BE'}}>
+      <div style={{fontSize:12,color:'#E8CF95',fontWeight:700}}>{label}</div>
+      <div style={{fontFamily:"'Pixelify Sans', monospace",fontSize:24,fontWeight:700,color:'#F5D27A',lineHeight:1.3}}>{value}
         {sub&&<span style={{fontSize:12,fontWeight:700,marginLeft:6,color:sub.color}}>{sub.text}</span>}</div>
     </div>
   );
@@ -170,7 +170,7 @@ const Grid = ({ children }) => (
   <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(130px,1fr))',gap:10,marginBottom:14}}>{children}</div>
 );
 const Card = ({ title, children, note }) => (
-  <div style={{background:'var(--c-card)',border:'1.5px solid var(--c-border)',borderRadius:14,padding:'14px 16px',marginBottom:14}}>
+  <div style={{background:'var(--c-card)',border:'3px solid #3B2416',padding:'14px 16px',marginBottom:14}}>
     {title&&<div style={{fontSize:14,fontWeight:800,color:'var(--c-t1)',marginBottom:8}}>{title}</div>}
     {children}
     {note&&<div style={{fontSize:11,color:'var(--c-t3)',marginTop:6}}>{note}</div>}
@@ -178,7 +178,7 @@ const Card = ({ title, children, note }) => (
 );
 const Empty = ({ children }) => (
   <div style={{textAlign:'center',padding:'28px 12px',color:'var(--c-t3)',fontSize:14,background:'var(--c-surf)',
-    borderRadius:12,border:'1.5px solid var(--c-border)'}}>{children}</div>
+    border:'3px dashed #8C6E4E'}}>{children}</div>
 );
 function Pill({ result }) {
   const r=RES[result]||RES.draw;
@@ -419,17 +419,17 @@ export function MyStatsScreen({ studentName, classCode, myCfg, onBack }) {
           <div style={{fontSize:12,color:'var(--c-t3)'}}>ห้อง {classCode} · ฝึก {S.sessions.length} รอบ · แข่ง {games} ครั้ง</div>
         </div>
       </div>
-      <div role="tablist" style={{display:'flex',gap:2,borderBottom:'1.5px solid var(--c-border)',margin:'10px 0 14px',flexWrap:'wrap'}}>
+      <div role="tablist" style={{display:'flex',gap:8,margin:'10px 0 14px',flexWrap:'wrap',alignItems:'center'}}>
         {TABS.map(([k,l])=>(
           <button key={k} role="tab" aria-selected={tab===k} onClick={()=>setTab(k)}
-            style={{background:'none',border:'none',borderBottom:`3px solid ${tab===k?'#2563EB':'transparent'}`,marginBottom:-1.5,
-              padding:'8px 12px',cursor:'pointer',fontSize:14,fontWeight:tab===k?800:600,
-              color:tab===k?'var(--c-t1)':'var(--c-t2)',fontFamily:tf}}>{l}</button>
+            className={tab===k?'px-btn':''}
+            style={tab===k?{minHeight:44,padding:'0 6px',fontSize:15,fontFamily:tf}
+              :{background:'#EFE2BF',border:'3px solid #3B2416',padding:'6px 12px',cursor:'pointer',fontSize:15,fontWeight:700,
+                color:'var(--c-t2)',fontFamily:tf}}>{l}</button>
         ))}
       </div>
       {tab==='ov'&&overview}{tab==='solo'&&solo}{tab==='duel'&&duel}{tab==='br'&&br}{tab==='h2h'&&h2h}
-      <button onClick={onBack} style={{marginTop:6,width:'100%',background:'#F1F5F9',color:'#0F172A',border:'none',
-        borderRadius:10,padding:'12px',cursor:'pointer',fontSize:14,fontWeight:600,fontFamily:tf}}>← กลับ</button>
+      <button className="px-btn" onClick={onBack} style={{marginTop:6,width:'100%',minHeight:52,fontSize:16,fontFamily:tf}}>← กลับหน้าหลัก</button>
     </div>
   );
 }

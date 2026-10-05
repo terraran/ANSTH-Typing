@@ -18,8 +18,7 @@ export function HostDashboard({ roomCode, roomPlayers, roomType, zoneWpm, zonePo
   return (
     <div style={{fontFamily:tf}}>
       {/* Header */}
-      <div style={{background:'linear-gradient(135deg,#1C1917,#D97706)',borderRadius:16,
-        padding:'16px 20px',marginBottom:16,display:'flex',alignItems:'center',gap:12}}>
+      <div className="px-wood" style={{padding:'0 6px',marginBottom:16,display:'flex',alignItems:'center',gap:12,color:'#F5E6BE'}}>
         <div>
           <div style={{fontSize:11,color:'rgba(255,255,255,.6)',fontWeight:700,letterSpacing:2}}>
             🏆 BATTLE ROYALE · ห้อง {roomCode}</div>
@@ -44,8 +43,8 @@ export function HostDashboard({ roomCode, roomPlayers, roomType, zoneWpm, zonePo
           const pct    = zonePos > 0 ? Math.max(0, Math.min(100, Math.round(((p.pos||0)-(zonePos-ZONE_GAP))/ZONE_GAP*100))) : 100;
           const danger = zonePos > 0 && (p.pos||0) < zonePos-ZONE_GAP;
           return (
-            <div key={uid} style={{background:'var(--c-card)',borderRadius:10,
-              padding:'10px 14px',border:`1.5px solid ${danger?'#FCA5A5':'var(--c-border)'}`,
+            <div key={uid} style={{background:'var(--c-card)',
+              padding:'10px 14px',border:`3px solid ${danger?'#B3261E':'#3B2416'}`,
               display:'flex',alignItems:'center',gap:10}}>
               <div style={{fontSize:16,fontWeight:800,color:'var(--c-t3)',width:24,
                 flexShrink:0,textAlign:'center'}}>{i+1}</div>
@@ -64,7 +63,7 @@ export function HostDashboard({ roomCode, roomPlayers, roomType, zoneWpm, zonePo
                 </div>
               </div>
               <button onClick={()=>onSpectate&&onSpectate(uid)}
-                style={{background:'#EFF6FF',border:'1.5px solid #BFDBFE',color:'#2563EB',
+                style={{background:'#EFF6FF',border:'3px solid #BFDBFE',color:'#2563EB',
                   borderRadius:7,padding:'5px 10px',cursor:'pointer',fontSize:11,
                   fontWeight:700,fontFamily:tf,flexShrink:0}}>
                 👁 ดู
@@ -75,8 +74,8 @@ export function HostDashboard({ roomCode, roomPlayers, roomType, zoneWpm, zonePo
         {dead.map(([uid,p]) => {
           const st=stOf(p);
           return (
-          <div key={uid} style={{background:'var(--c-surf)',borderRadius:10,
-            padding:'10px 14px',border:'1.5px solid var(--c-border)',
+          <div key={uid} style={{background:'var(--c-surf)',
+            padding:'10px 14px',border:'3px solid #3B2416',
             display:'flex',alignItems:'center',gap:10,opacity:.6}}>
             <div style={{fontSize:14,fontWeight:700,color:'var(--c-t3)',flex:1}}>
               {st==='done'?'🏁':st==='eliminated'?'💀':'🚪'} {p.name||'ผู้เล่น'}</div>
@@ -88,7 +87,7 @@ export function HostDashboard({ roomCode, roomPlayers, roomType, zoneWpm, zonePo
 
       <button onClick={onBack}
         style={{marginTop:16,width:'100%',background:'transparent',
-          border:'1.5px solid var(--c-border)',color:'var(--c-t2)',
+          border:'3px solid var(--c-border)',color:'var(--c-t2)',
           borderRadius:8,padding:'10px',cursor:'pointer',fontSize:13,fontFamily:tf}}>
         ออกจากห้อง
       </button>
@@ -114,7 +113,7 @@ export function SpectatorView({ playerName, targetChars, progress, onBack }) {
     <div style={{fontFamily:tf}}>
       <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:12}}>
         <button onClick={onBack}
-          style={{background:'var(--c-surf)',border:'1.5px solid var(--c-border)',
+          style={{background:'var(--c-surf)',border:'3px solid var(--c-border)',
             color:'var(--c-t2)',borderRadius:7,padding:'5px 10px',cursor:'pointer',
             fontSize:12,fontFamily:tf}}>← กลับ</button>
         <div style={{fontSize:14,fontWeight:800,color:'var(--c-t1)'}}>
@@ -124,7 +123,7 @@ export function SpectatorView({ playerName, targetChars, progress, onBack }) {
         </div>
       </div>
       <div style={{background:'var(--c-surf)',borderRadius:14,padding:'22px 18px',
-        border:'1.5px solid var(--c-border)',minHeight:96,
+        border:'3px solid var(--c-border)',minHeight:96,
         display:'flex',alignItems:'center',justifyContent:'center'}}>
         <TextDisplay displayChars={chunkChars} displayPos={chunkPos}/>
       </div>
@@ -142,14 +141,14 @@ export function BattleRoyaleResults({ roomCode, roomPlayers, rows: lockedRows, o
   };
   return (
     <div style={{fontFamily:tf}}>
-      <div style={{textAlign:'center',padding:'24px 12px 18px',background:'linear-gradient(135deg,#1C1917,#D97706)',borderRadius:16,color:'#fff',marginBottom:14}}>
+      <div className="px-wood" style={{textAlign:'center',padding:'4px 12px',color:'#F5E6BE',marginBottom:14}}>
         <div style={{fontSize:42}}>🏆</div>
         <div style={{fontSize:22,fontWeight:800}}>จบการแข่งขัน Battle Royale</div>
         <div style={{fontSize:13,opacity:.8}}>ห้อง {roomCode} · สรุปผลผู้เล่น</div>
       </div>
       <div style={{display:'flex',flexDirection:'column',gap:8}}>
         {rows.map(([uid,p],i)=>(
-          <div key={uid} style={{display:'flex',alignItems:'center',gap:12,padding:'12px 14px',borderRadius:12,border:'1.5px solid var(--c-border)',background:'var(--c-surf)'}}>
+          <div key={uid} style={{display:'flex',alignItems:'center',gap:12,padding:'10px 14px',border:'3px solid #3B2416',background:i===0?'#FFE9A8':'var(--c-surf)'}}>
             <div style={{fontSize:19,fontWeight:800,width:32,textAlign:'center',color:i===0?'#D97706':'var(--c-t3)'}}>{i===0?'🥇':i===1?'🥈':i===2?'🥉':i+1}</div>
             <div style={{flex:1,minWidth:0}}>
               <div style={{fontSize:14,fontWeight:800,color:'var(--c-t1)'}}>{p.name||'ผู้เล่น'}</div>
@@ -159,7 +158,7 @@ export function BattleRoyaleResults({ roomCode, roomPlayers, rows: lockedRows, o
           </div>
         ))}
       </div>
-      <button onClick={onBack} style={{marginTop:16,width:'100%',background:'transparent',border:'1.5px solid var(--c-border)',color:'var(--c-t2)',borderRadius:8,padding:10,cursor:'pointer',fontSize:13,fontFamily:tf}}>{backLabel}</button>
+      <button onClick={onBack} className="px-btn" style={{marginTop:16,width:'100%',minHeight:52,fontSize:16,fontFamily:tf}}>{backLabel}</button>
     </div>
   );
 }

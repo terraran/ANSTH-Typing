@@ -71,7 +71,7 @@ export function StatPill({ label, value, color }) {
   return (
     <div style={{background:'var(--c-surf)',border:'3px solid #3B2416',
       padding:'6px 14px',textAlign:'center',minWidth:80}}>
-      <div style={{fontFamily:"'Pixelify Sans', monospace",fontSize:22,fontWeight:700,color:color??'var(--c-t1)'}}>{value}</div>
+      <div style={{fontFamily:"'Press Start 2P', monospace",fontSize:16,fontWeight:400,color:color??'var(--c-t1)'}}>{value}</div>
       <div style={{fontSize:10,color:'var(--c-t3)',marginTop:2,fontWeight:600,letterSpacing:.5,
         fontFamily:"'Noto Sans Thai Looped','Sarabun','Noto Sans Thai',sans-serif"}}>{label}</div>
     </div>
@@ -92,7 +92,7 @@ export function PenaltyScreen({ countdown }) {
         <div style={{fontSize:16,fontWeight:600,lineHeight:1.6}}>
           เหมือนกดมั่ว ๆ — พักก่อน {SPAM_PENALTY} วินาที<br/>แล้วค่อย ๆ พิมพ์ทีละตัวให้ถูกนะ</div>
         <div className="px-wood" style={{padding:'0 14px'}}>
-          <span style={{fontFamily:"'Pixelify Sans', monospace",fontSize:56,fontWeight:700,color:'#F5D27A',lineHeight:1.1}}>{countdown}</span>
+          <span style={{fontFamily:"'Press Start 2P', monospace",fontSize:48,fontWeight:400,color:'#F5D27A',lineHeight:1.1}}>{countdown}</span>
         </div>
         <div style={{fontSize:14,color:'#6A4A30'}}>จะกลับไปพิมพ์ต่อเองอัตโนมัติ</div>
       </div>
@@ -124,7 +124,7 @@ export function TestTimer({ startTime, now, endTime, total: totalSecs = TEST_SEC
         </svg>
         <div style={{position:'absolute',inset:0,display:'flex',alignItems:'center',justifyContent:'center'}}>
           <span key={finalTen ? left : 'clock'} className={finalTen ? 'timer-beat' : ''}
-            style={{fontFamily:"'Pixelify Sans', monospace",fontSize:left<=10?28:19,fontWeight:700,color}}>
+            style={{fontFamily:"'Press Start 2P', monospace",fontSize:left<=10?24:16,fontWeight:400,color}}>
             {label}
           </span>
         </div>

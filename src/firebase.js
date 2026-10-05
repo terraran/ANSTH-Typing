@@ -25,9 +25,18 @@ export async function ensureFirebaseUser() {
   return result.user;
 }
 
-// Room codes: 5 characters from 32 unambiguous symbols (no 0/O, 1/I) ≈ 33 million
-// combinations. Rooms cannot be listed, so a code must be known to join.
-export const ROOM_CODE_CHARS='ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+// Room codes: 5 characters from 29 symbols that never look alike — no 0/O, 1/I, and
+// no S/B/Z (which look like 5/8/2 in game fonts) ≈ 20 million combinations.
+// Rooms cannot be listed, so a code must be known to join. (The Firebase rules accept
+// the wider old set, so this needs no rules change.)
+export const ROOM_CODE_CHARS='ACDEFGHJKLMNPQRTUVWXY23456789';
+
+// What a student types → a room code: upper-case, S/B/Z read as 5/8/2,
+// anything that can never be in a code dropped.
+export function normalizeRoomCode(v) {
+  return [...String(v||'').toUpperCase().replace(/S/g,'5').replace(/B/g,'8').replace(/Z/g,'2')]
+    .filter(c=>ROOM_CODE_CHARS.includes(c)).join('').slice(0,5);
+}
 
 export const ROOM_CODE_LEN=5;
 

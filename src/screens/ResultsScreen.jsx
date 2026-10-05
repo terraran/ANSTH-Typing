@@ -173,7 +173,7 @@ export function ResultsScreen({ cpm, accuracy, errors, totalChars, lesson, saveS
             {isTest?'คะแนนภารกิจประจำสัปดาห์':'คะแนนรอบนี้'}</div>
           <div style={{display:'flex',alignItems:'center',justifyContent:'center',gap:8}}>
             <Sprite name="i_coin"/>
-            <span style={{fontFamily:"'Pixelify Sans', monospace",fontSize:40,fontWeight:700,color:'#F5D27A',lineHeight:1.2}}>{fmtScore(score)}</span>
+            <span style={{fontFamily:"'Press Start 2P', monospace",fontSize:32,fontWeight:400,color:'#F5D27A',lineHeight:1.2}}>{fmtScore(score)}</span>
           </div>
           {isTest ? (
             <div style={{marginTop:4}}>

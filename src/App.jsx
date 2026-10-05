@@ -3,7 +3,7 @@ import { buildChunks, cleanTypingWords, generateBRText, generateStoryText, gener
 import { CHAR_CLASS, CLASS_NAMES, KEY_META, findKeyForChar, resolveKey, validateInput } from './engine/keymap';
 import { KEYS_ON, KeyTester } from './ui/KeyTester';
 import { ERROR_BURST, ERROR_WINDOW_MS, PRESSURE_SECS, SPAM_PENALTY, SPAM_WINDOW_KEYS, SPAM_WRONG_SHARE, SPEED_CPM, TEST_MIN_CHARS, TEST_SECS, HW_SECS, charBasePoints, comboMultiplier, fmtScore, hsKey, lessonStars, netThaiWpmOf, readGuestHighScores, stageTarget, thaiWpmOf, speedMultiplier, testTargetScore, writeGuestHighScores } from './engine/scoring';
-import { ROOM_CODE_LEN, ROOM_CODE_RE, ZONE_GAP, ZONE_GRACE, ZONE_TICK, currentFirebaseUid, ensureFirebaseUser, fbArmLobby, fbArmRace, fbClearActiveRoom, fbCreate, fbDisarm, fbGet, fbGetActiveRoom, fbJoin, fbListen, fbRemove, fbServerOffset, fbSetActiveRoom, fbSetChar, fbSetStatus, fbUpdatePlayer, getDB, getZonePos, getZoneSpeed, makeFreeCode, zonePosAt } from './firebase';
+import { ROOM_CODE_LEN, ROOM_CODE_RE, ZONE_GAP, ZONE_GRACE, ZONE_TICK, currentFirebaseUid, ensureFirebaseUser, fbArmLobby, fbArmRace, fbClearActiveRoom, fbCreate, fbDisarm, fbGet, fbGetActiveRoom, fbJoin, fbListen, fbRemove, fbServerOffset, fbSetActiveRoom, fbSetChar, fbSetStatus, fbUpdatePlayer, getDB, getZonePos, getZoneSpeed, makeFreeCode, normalizeRoomCode, zonePosAt } from './firebase';
 import { brOrder, brRaceOver, dcLeftMs, graceMs, isOutState, playerState } from './race/presence';
 import { LeaveConfirm, RejoinBanner } from './race/PresenceUI';
 import { apiGetHomework, apiGetStudentStats, apiGetWeeklyBoard, apiGetWeeklyPast, apiSubmitHomework, apiRequest, apiSaveMatch, apiSubmitWeekly, describeApiError, saveSession } from './api';
@@ -922,7 +922,7 @@ export function ThaiTypingApp() {
 
   // Join an existing room by code
   const handleJoin = useCallback(async (code) => {
-    const roomId=String(code||'').trim().toUpperCase();
+    const roomId=normalizeRoomCode(code);
     if (!ROOM_CODE_RE.test(roomId)) { setJoinError('รหัสห้องต้องมี '+ROOM_CODE_LEN+' ตัวอักษร'); return; }
     setMpBusy(true); setJoinError('');
     try {
@@ -1543,14 +1543,14 @@ export function ThaiTypingApp() {
                 <div style={{marginLeft:'auto',display:'flex',alignItems:'center',gap:18}}>
                   <div style={{display:'flex',alignItems:'center',gap:6}} aria-label="คะแนน">
                     <Sprite name="i_coin"/>
-                    <span style={{fontFamily:PX_FONT,fontSize:30,fontWeight:700,color:'#F5D27A'}}>{fmtScore(score)}</span>
+                    <span style={{fontFamily:PX_FONT,fontSize:24,fontWeight:400,color:'#F5D27A'}}>{fmtScore(score)}</span>
                     {lastGain&&(
                       <span key={lastGain.id} className="score-pop"
-                        style={{fontFamily:PX_FONT,fontSize:18,fontWeight:700,color:lastGain.v>=400?'#FFC23D':'#9BE39A'}}>+{lastGain.v}</span>
+                        style={{fontFamily:PX_FONT,fontSize:16,fontWeight:400,color:lastGain.v>=400?'#FFC23D':'#9BE39A'}}>+{lastGain.v}</span>
                     )}
                   </div>
                   {comboMultiplier(scoreStreak)>1&&(
-                    <span style={{fontFamily:PX_FONT,fontSize:22,fontWeight:700,color:'#FF9A5C'}} aria-label="คอมโบ">
+                    <span style={{fontFamily:PX_FONT,fontSize:16,fontWeight:400,color:'#FF9A5C'}} aria-label="คอมโบ">
                       COMBO x{comboMultiplier(scoreStreak).toFixed(1)}</span>
                   )}
                 </div>
@@ -1589,7 +1589,7 @@ export function ThaiTypingApp() {
                   fontFamily:"'Noto Sans Thai Looped','Sarabun','Noto Sans Thai',sans-serif"}}>
                   {CLASS_NAMES[CHAR_CLASS[nextChar]]??''}</span>
                 {nextKey&&showHints&&(
-                  <span style={{marginLeft:'auto',fontFamily:PX_FONT,fontSize:14,color:'#6A4A30',fontWeight:700}}>
+                  <span style={{marginLeft:'auto',fontFamily:PX_FONT,fontSize:12,color:'#6A4A30',fontWeight:400}}>
                     {needsShift?'⇧ + ':''}
                     {nextKey.code.replace('Key','').replace('Digit','')
                       .replace('BracketLeft','[').replace('BracketRight',']')
@@ -1621,7 +1621,7 @@ export function ThaiTypingApp() {
             {pressureSecs>0&&(
               <div role="alert" style={{background:'#FBD3CC',border:'3px solid #3B2416',
                 padding:'8px 16px',marginBottom:12,display:'flex',alignItems:'center',gap:14}}>
-                <span style={{fontFamily:PX_FONT,fontSize:36,fontWeight:700,color:'#B3261E',minWidth:48,
+                <span style={{fontFamily:PX_FONT,fontSize:24,fontWeight:400,color:'#B3261E',minWidth:48,
                   textAlign:'center'}}>{pressureSecs}</span>
                 <div style={{flex:1}}>
                   <div style={{fontFamily:"'Noto Sans Thai Looped','Sarabun','Noto Sans Thai',sans-serif",

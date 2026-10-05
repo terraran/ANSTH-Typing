@@ -2,7 +2,7 @@ import { CHAPTERS, LESSONS } from '../data/lessons';
 import { SCRIPT_URL } from '../config';
 import { fmtScore, hsKey } from '../engine/scoring';
 import { emptyProgress, lessonAnyOpen, lessonComplete, stageDone, stageOpen, stageStars, starsOf as progStars, stepState } from '../engine/progress';
-import { ROOM_CODE_LEN } from '../firebase';
+import { ROOM_CODE_LEN, normalizeRoomCode } from '../firebase';
 import { INK, PX_FONT, PxButton, PxPanel, Sprite, TH_FONT } from '../ui/pixel';
 
 const { useEffect, useRef, useState } = React;
@@ -60,7 +60,7 @@ export function LessonScreen({ studentName, classCode, onSelect, onOpenSetup, on
     : !weekly.grade ? 'ห้องนี้ยังไม่มีภารกิจประจำสัปดาห์'
     : !t ? 'สัปดาห์นี้ครูยังไม่ได้ตั้งภารกิจ'
     : me ? `อันดับ ${me.rank} จาก ${weekly.total} คน` : 'ยังไม่ได้ทำ · จับเวลา 2 นาที';
-  const badge = (txt) => <span style={{ position:'absolute', top:-10, right:-8, fontFamily:PX_FONT, fontSize:14, fontWeight:700,
+  const badge = (txt) => <span style={{ position:'absolute', top:-10, right:-8, fontFamily:PX_FONT, fontSize:12, fontWeight:400,
     background:'#C0392B', color:'#FFFFFF', border:'2px solid '+INK, padding:'0 6px', textShadow:'none' }}>{txt}</span>;
   const outlined = { color:'#FFF6D8', textShadow:'2px 2px 0 '+INK };
 
@@ -92,7 +92,7 @@ export function LessonScreen({ studentName, classCode, onSelect, onOpenSetup, on
         </button>
         <div style={{ display:'flex', flexDirection:'column', minWidth:0, ...outlined }}>
           <span style={{ fontSize:28, fontWeight:700, lineHeight:1.3 }}>{studentName || 'ผู้เล่นทดลอง'}</span>
-          {classCode && <span style={{ fontFamily:PX_FONT, fontSize:20, fontWeight:700, color:'#F5D27A' }}>{classCode}</span>}
+          {classCode && <span style={{ fontFamily:PX_FONT, fontSize:16, fontWeight:400, color:'#F5D27A' }}>{classCode}</span>}
           {!studentName && <span style={{ fontSize:14, fontWeight:600 }}>ทดลองเล่น — ดาวและคะแนนจะไม่ถูกบันทึก</span>}
         </div>
         <div style={{ marginLeft:'auto', display:'flex', gap:10, flexWrap:'wrap' }}>
@@ -126,9 +126,9 @@ export function LessonScreen({ studentName, classCode, onSelect, onOpenSetup, on
           <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
             <label htmlFor="join-code" style={{ fontSize:14, fontWeight:700 }}>รหัสห้องจากเพื่อน</label>
             <div style={{ display:'flex', gap:8 }}>
-              <input id="join-code" value={joinCode||''} onChange={e=>setJoinCode&&setJoinCode(e.target.value.toUpperCase())}
+              <input id="join-code" value={joinCode||''} onChange={e=>setJoinCode&&setJoinCode(normalizeRoomCode(e.target.value))}
                 onKeyDown={e=>e.key==='Enter'&&onJoin&&onJoin(joinCode)} placeholder="A7K2M" maxLength={ROOM_CODE_LEN}
-                style={{ flex:1, minWidth:0, fontFamily:PX_FONT, fontSize:20, letterSpacing:3, padding:'6px 10px', minHeight:48,
+                style={{ flex:1, minWidth:0, fontFamily:PX_FONT, fontSize:16, letterSpacing:1, padding:'6px 10px', minHeight:48,
                   boxSizing:'border-box', background:'#FFF9E6', border:'3px solid '+INK, color:INK, outline:'none' }}/>
               <PxButton onClick={()=>onJoin&&onJoin(joinCode)} disabled={!joinCode||joinCode.length<ROOM_CODE_LEN||mpBusy} style={{ fontSize:16 }}>
                 {mpBusy?'...':'เข้า'}</PxButton>
@@ -200,12 +200,12 @@ export function LessonScreen({ studentName, classCode, onSelect, onOpenSetup, on
                           <span style={{ position:'relative', width:90, height:93, display:'flex', alignItems:'center', justifyContent:'center' }}>
                             <Sprite name={open?'circle':'circle_dark'} style={{ position:'absolute', inset:0 }}/>
                             <Sprite name={open?'door_open':'door_lock'} style={{ position:'relative' }}/>
-                            <span style={{ position:'absolute', top:2, left:4, fontFamily:PX_FONT, fontSize:20, fontWeight:700 }}>{lesson.num}</span>
+                            <span style={{ position:'absolute', top:2, left:4, fontFamily:PX_FONT, fontSize:16, fontWeight:400 }}>{lesson.num}</span>
                             {done && <Sprite name="i_check" style={{ position:'absolute', right:-4, bottom:0 }}/>}
                           </span>
                           <Stars3 n={max?Math.floor(got/max*3+1e-9):0}/>
                           <span style={{ fontSize:15, fontWeight:700, lineHeight:1.3 }}>{lesson.thaiName}</span>
-                          <span style={{ fontFamily:PX_FONT, fontSize:14, fontWeight:700, color:'#6A4A30' }}>
+                          <span style={{ fontFamily:PX_FONT, fontSize:12, fontWeight:400, color:'#6A4A30' }}>
                             ★ {got}/{max}{progress.cleared?.[lesson.id]?' · RUSH':''}</span>
                         </button>
                       );
@@ -236,7 +236,7 @@ export function LessonScreen({ studentName, classCode, onSelect, onOpenSetup, on
                                 <span style={{ fontSize:13, fontWeight:700, lineHeight:1.3 }}>{ex.title}</span>
                                 {stt.rush && <span style={{ fontSize:12, fontWeight:700, color:'#FFC23D' }}>⚔️ Rush</span>}
                                 {skipped && <span style={{ fontSize:12, fontWeight:600, color:'#BDE7B0' }}>ข้ามแล้ว</span>}
-                                {hs>0 && <span style={{ fontFamily:PX_FONT, fontSize:13, fontWeight:700, color:'#F5D27A' }}>{fmtScore(hs)}</span>}
+                                {hs>0 && <span style={{ fontFamily:PX_FONT, fontSize:12, fontWeight:400, color:'#F5D27A' }}>{fmtScore(hs)}</span>}
                                 {!stt.open && <span style={{ fontSize:11, fontWeight:600, color:'#D9C49A' }}>{stt.reason}</span>}
                               </button>
                             );
@@ -259,12 +259,12 @@ export function LessonScreen({ studentName, classCode, onSelect, onOpenSetup, on
                         style={{ background:'none', border:0, padding:'2px 0', cursor:'pointer', fontFamily:TH_FONT, color:'#F5E6BE',
                           display:'flex', flexDirection:'column', alignItems:'center', gap:3, textAlign:'center' }}>
                         <span className={'sp sp-'+(open?'slot':'slot_dark')} style={{ display:'flex', alignItems:'center', justifyContent:'center',
-                          fontFamily:PX_FONT, fontSize:20, fontWeight:700, color:INK,
+                          fontFamily:PX_FONT, fontSize:16, fontWeight:400, color:INK,
                           outline: sel?'3px solid #FFC23D':'none', outlineOffset:2 }}>
                           {open ? c.id : <Sprite name="i_lock" style={{ transform:'scale(.75)' }}/>}
                         </span>
                         <span style={{ fontSize:11, fontWeight:600, lineHeight:1.25 }}>{c.title}</span>
-                        {(open||got>0) && <span style={{ fontFamily:PX_FONT, fontSize:12, fontWeight:700, color: done?'#FFC23D':'#E8CF95' }}>★{got}/{max}</span>}
+                        {(open||got>0) && <span style={{ fontFamily:PX_FONT, fontSize:12, fontWeight:400, color: done?'#FFC23D':'#E8CF95' }}>★{got}/{max}</span>}
                       </button>
                     );
                   })}

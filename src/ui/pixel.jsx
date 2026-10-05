@@ -2,7 +2,7 @@
 // Panels and buttons are 9-slice images, so they stretch to any size with crisp edges.
 const { useEffect, useRef } = React;
 
-export const PX_FONT = "'Pixelify Sans', monospace";
+export const PX_FONT = "'Press Start 2P', monospace";
 export const TH_FONT = "'Noto Sans Thai Looped', 'Sarabun', sans-serif";
 export const INK = '#3B2416';
 

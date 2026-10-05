@@ -161,7 +161,7 @@ function Metric({ label, value, sub, color }) {
   return (
     <div className="px-wood" style={{padding:'0 2px',minWidth:0,color:'#F5E6BE'}}>
       <div style={{fontSize:12,color:'#E8CF95',fontWeight:700}}>{label}</div>
-      <div style={{fontFamily:"'Pixelify Sans', monospace",fontSize:24,fontWeight:700,color:'#F5D27A',lineHeight:1.3}}>{value}
+      <div style={{fontFamily:"'Press Start 2P', monospace",fontSize:16,fontWeight:400,color:'#F5D27A',lineHeight:1.3}}>{value}
         {sub&&<span style={{fontSize:12,fontWeight:700,marginLeft:6,color:sub.color}}>{sub.text}</span>}</div>
     </div>
   );

@@ -44,19 +44,19 @@ export function WeeklyBoardScreen({ data, status, onRefresh, onStart, onLoadPast
   const me = data.me;
   const medal = r => r<=3
     ? <span style={{position:'relative',display:'inline-flex'}}><Sprite name="i_trophy" style={{filter:r===1?'none':r===2?'grayscale(1) brightness(1.3)':'sepia(1) hue-rotate(-20deg) saturate(1.6)'}}/>
-        <span style={{position:'absolute',right:-4,bottom:-4,fontFamily:PX_FONT,fontSize:13,fontWeight:700,color:INK}}>{r}</span></span>
+        <span style={{position:'absolute',right:-4,bottom:-4,fontFamily:PX_FONT,fontSize:12,fontWeight:400,color:INK}}>{r}</span></span>
     : r;
   const row = (e, key) => (
     <div key={key} style={{display:'flex',alignItems:'center',gap:10,padding:'7px 12px',
       background:e.me?'#FFE9A8':'transparent',border:e.me?'3px solid '+INK:'3px solid transparent'}}>
-      <span style={{width:52,textAlign:'center',fontFamily:PX_FONT,fontSize:18,fontWeight:700,color:'var(--c-t2)'}}>{medal(e.rank)}</span>
+      <span style={{width:52,textAlign:'center',fontFamily:PX_FONT,fontSize:16,fontWeight:400,color:'var(--c-t2)'}}>{medal(e.rank)}</span>
       <span style={{flex:1,minWidth:0}}>
         <span style={{display:'block',fontSize:14,fontWeight:800,color:'var(--c-t1)',
           whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{e.name}{e.me?' (ฉัน)':''}</span>
         <span style={{display:'block',fontSize:11,color:'var(--c-t3)'}}>{e.room}</span>
       </span>
       <Stars n={starsFor(e.score,e.max)} size={12}/>
-      <span style={{minWidth:80,textAlign:'right',fontFamily:PX_FONT,fontSize:18,fontWeight:700,color:'#9A5B12'}}>{fmtScore(e.score)}</span>
+      <span style={{minWidth:80,textAlign:'right',fontFamily:PX_FONT,fontSize:16,fontWeight:400,color:'#9A5B12'}}>{fmtScore(e.score)}</span>
     </div>
   );
 
@@ -102,7 +102,7 @@ export function WeeklyBoardScreen({ data, status, onRefresh, onStart, onLoadPast
           marginBottom:16,background:'var(--c-surf)',border:'3px solid '+INK}}>
           {me ? (
             <>
-              <div style={{fontFamily:PX_FONT,fontSize:38,fontWeight:700,color:INK,minWidth:60,textAlign:'center'}}>#{me.rank}</div>
+              <div style={{fontFamily:PX_FONT,fontSize:32,fontWeight:400,color:INK,minWidth:60,textAlign:'center'}}>#{me.rank}</div>
               <div style={{flex:1}}>
                 <div style={{fontSize:15,fontWeight:800,color:'var(--c-t1)'}}>
                   อันดับของฉัน: {me.rank} จาก {data.total} คนใน {data.grade}</div>

@@ -176,7 +176,7 @@ export function DeadScreen({ standings, onLeave, onSpectate }) {
           <div key={uid} style={{display:'flex',alignItems:'center',gap:10,
             padding:'6px 12px',marginBottom:6,border:'3px solid #3B2416',
             background:isAliveState(playerState(p,'royale',Date.now()))&&(p.lives??0)>0?'#DDF0C8':'#F8EED2'}}>
-            <div style={{fontFamily:"'Pixelify Sans', monospace",fontSize:16,fontWeight:700,color:'#6A4A30',width:22}}>{i+1}</div>
+            <div style={{fontFamily:"'Press Start 2P', monospace",fontSize:12,fontWeight:400,color:'#6A4A30',width:22}}>{i+1}</div>
             <div style={{fontSize:15,fontWeight:700,color:'#3B2416',flex:1}}>{p.name||'ผู้เล่น'}</div>
             <div style={{fontSize:14,fontWeight:700,color:(p.lives??0)>0?'#2E7D32':'#8C6E4E'}}>
               {p.status==='done'?'🏁':p.status==='left'||p.status==='disconnected'?'🚪':(p.lives??0)>0?`${p.wpm||0} WPM`:'💀'}</div>

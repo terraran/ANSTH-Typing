@@ -24,7 +24,7 @@ export function MPSetupScreen({ mode, onSelect, onBack, busy }) {
           <button onClick={()=>setPickedLesson(null)} className="px-btn"
             style={{position:'absolute',top:0,left:0,minHeight:40,padding:'0 4px',fontSize:14,fontFamily:tf}}>← กลับ</button>
           <div style={{fontSize:34,marginBottom:6}}>💀</div>
-          <div style={{fontFamily:"'Pixelify Sans', monospace",fontSize:14,color:'#E8CF95',fontWeight:700,letterSpacing:2,marginBottom:3}}>
+          <div style={{fontFamily:"'Press Start 2P', monospace",fontSize:12,color:'#E8CF95',fontWeight:400,letterSpacing:1,marginBottom:3}}>
             {MODE.label} · {pickedLesson.thaiName}</div>
           <div style={{fontSize:22,fontWeight:700,color:'#FFF6D8',fontFamily:tf}}>เลือกความยาก</div>
           <div style={{fontSize:12,color:'#E8CF95',marginTop:4}}>ยิ่งชีวิตน้อย ยิ่งท้าทาย</div>
@@ -63,8 +63,8 @@ export function MPSetupScreen({ mode, onSelect, onBack, busy }) {
         <button onClick={onBack} className="px-btn"
           style={{position:'absolute',top:0,left:0,minHeight:40,padding:'0 4px',fontSize:14,fontFamily:tf}}>← ออก</button>
         <div style={{fontSize:34,marginBottom:6}}>{MODE.icon}</div>
-        <div style={{fontFamily:"'Pixelify Sans', monospace",fontSize:14,color:'#E8CF95',fontWeight:700,
-          letterSpacing:2,marginBottom:3}}>{MODE.label}</div>
+        <div style={{fontFamily:"'Press Start 2P', monospace",fontSize:12,color:'#E8CF95',fontWeight:400,
+          letterSpacing:1,marginBottom:3}}>{MODE.label}</div>
         <div style={{fontSize:22,fontWeight:700,color:'#FFF6D8',fontFamily:tf}}>เลือก Arena</div>
         <div style={{fontSize:12,color:'#E8CF95',marginTop:4}}>{MODE.hint}</div>
       </div>
@@ -117,8 +117,8 @@ export function LobbyScreen({ roomCode, roomInfo, roomPlayers, isHost, roomType,
         <div style={{fontSize:11,color:'var(--c-t3)',letterSpacing:2,marginBottom:6,fontWeight:700}}>
           {roomType==='royale'?'🏆 BATTLE ROYALE':'⚡ 1V1'} — รหัสห้อง</div>
         <div className="px-wood" style={{display:'inline-block',padding:'0 18px'}}>
-          <div style={{fontSize:60,fontWeight:700,letterSpacing:12,color:'#F5D27A',
-            fontFamily:"'Pixelify Sans', monospace",lineHeight:1.2}}>{roomCode}</div></div>
+          <div style={{fontSize:48,fontWeight:400,letterSpacing:6,color:'#F5D27A',
+            fontFamily:"'Press Start 2P', monospace",lineHeight:1.2}}>{roomCode}</div></div>
         <div style={{fontSize:12,color:'var(--c-t3)',marginTop:6,fontFamily:tf}}>
           แจ้งรหัสนี้ให้เพื่อนพิมพ์เพื่อเข้าร่วม</div>
       </div>
@@ -203,9 +203,9 @@ export function CountdownScreen({ num, roomCode, roomType, roomPlayers, myCfg, m
   const tf = "'Noto Sans Thai Looped','Sarabun','Noto Sans Thai',sans-serif";
   return (
     <div style={{textAlign:'center',padding:'48px 20px',fontFamily:tf}}>
-      <div style={{fontFamily:"'Pixelify Sans', monospace",fontSize:16,color:'var(--c-t2)',letterSpacing:3,marginBottom:20,fontWeight:700}}>
+      <div style={{fontFamily:"'Press Start 2P', monospace",fontSize:12,color:'var(--c-t2)',letterSpacing:1,marginBottom:20,fontWeight:400}}>
         {roomType==='royale'?'BATTLE ROYALE':'1 VS 1'} · {roomCode}</div>
-      <div key={num} className="timeup-pop" style={{fontFamily:"'Pixelify Sans', monospace",fontSize:130,fontWeight:700,lineHeight:1,color:'#FFC23D',
+      <div key={num} className="timeup-pop" style={{fontFamily:"'Press Start 2P', monospace",fontSize:96,fontWeight:400,lineHeight:1,color:'#FFC23D',
         textShadow:'5px 0 0 #3B2416,-5px 0 0 #3B2416,0 5px 0 #3B2416,0 -5px 0 #3B2416,8px 8px 0 #3B2416'}}>
         {num>0?num:'GO!'}
       </div>

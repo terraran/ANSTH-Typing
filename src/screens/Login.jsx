@@ -65,7 +65,7 @@ export function ClassPickerScreen({ googleUser, onSelect, onBack }) {
               <div style={{ display:'flex', alignItems:'center', gap:8, fontSize:20, fontWeight:700, color:'#2E7D32' }}>
                 <Sprite name="i_check"/> เจอห้องเรียนแล้ว!</div>
               <div style={{ fontSize:16, fontWeight:600 }}>
-                ห้อง <span style={{ fontFamily:PX_FONT, fontWeight:700 }}>{result.classCode}</span> · {result.studentName}</div>
+                ห้อง <span style={{ fontFamily:PX_FONT, fontWeight:400 }}>{result.classCode}</span> · {result.studentName}</div>
               <div style={{ fontSize:14, color:'#6A4A30' }}>กำลังพาเข้าสู่หน้าหลัก...</div>
             </div>
           )}
@@ -236,8 +236,8 @@ export function GoogleSignInScreen({ onSignIn, onSolo }) {
           <h1 className="px-logo" style={{ margin: 0, fontFamily: "'Kanit', sans-serif", fontStyle: 'italic', fontWeight: 800,
             fontSize: small ? 'clamp(40px, min(8vw, 9vh), 76px)' : 'clamp(40px, min(10vw, 10.5vh), 104px)', lineHeight: 1.25, padding: '0 20px' }}>
             แป้นพิมพ์ผจญภัย</h1>
-          <div className="px-panel" style={{ padding: '0 10px', fontFamily: PX_FONT, fontSize: small ? 16 : 20, fontWeight: 700,
-            letterSpacing: 4, marginTop: -8 }}>ANSTH TYPING QUEST</div>
+          <div className="px-panel" style={{ padding: '0 10px', fontFamily: PX_FONT, fontSize:small ? 12 : 16, fontWeight:400,
+            letterSpacing:2, marginTop: -8 }}>ANSTH TYPING QUEST</div>
         </div>
 
         {stage === 'title' ? (
@@ -293,7 +293,7 @@ export function GoogleSignInScreen({ onSignIn, onSolo }) {
             <PxPanel title="วิธีเล่น" bodyStyle={{ padding: '8px 14px 14px', display: 'flex', flexDirection: 'column', gap: 12 }}>
               {HELP_LINES.map((t, i) => (
                 <div key={i} style={{ display: 'flex', gap: 10, alignItems: 'flex-start', fontSize: 16, fontWeight: 600, lineHeight: 1.6 }}>
-                  <span style={{ fontFamily: PX_FONT, fontSize: 20, fontWeight: 700, color: '#2E7D32' }}>{i + 1}</span>{t}
+                  <span style={{ fontFamily: PX_FONT, fontSize:16, fontWeight:400, color: '#2E7D32' }}>{i + 1}</span>{t}
                 </div>
               ))}
               <PxButton onClick={() => setHelp(false)}>เข้าใจแล้ว</PxButton>

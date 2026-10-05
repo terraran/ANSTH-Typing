@@ -1346,6 +1346,27 @@ export function ThaiTypingApp() {
 
   if (KEYS_ON) return <KeyTester/>;   // ?keys=1 keyboard tester
 
+  // After Google sign-in: find the student's class (full-screen, same scene as the title).
+  if (screen==='class-picker' && googleUser) return (
+          <ClassPickerScreen
+            googleUser={googleUser}
+            onSelect={(code, foundName, serverChar) => {
+              setClassCode(code);
+              if (window.CharKit) {
+                const who = googleUser?.email || 'guest';
+                const ch = CharKit.sanitize(serverChar) || CharKit.loadLocal(who);
+                setCharacter(ch);
+                if (ch) CharKit.saveLocal(who, ch);
+              }
+              const name = foundName || (googleUser ? googleUser.name : '');
+              setStudentName(name);
+              setDisplayName(name);
+              setScreen('lessons');
+            }}
+            onBack={() => setScreen('google-login')}
+          />
+  );
+
   // Title screen (before sign-in) is full-screen, outside the app frame.
   if (screen==='google-login') return (
     <GoogleSignInScreen
@@ -1405,12 +1426,11 @@ export function ThaiTypingApp() {
         padding:screen==='lessons'?0:'10px 8px'}}>
 
         {notice&&(
-          <div style={{display:'flex',alignItems:'center',gap:10,background:'#EFF6FF',border:'1.5px solid #BFDBFE',
-            borderRadius:12,padding:'10px 14px',marginBottom:14,fontSize:14,fontWeight:700,color:'#1E3A8A',
+          <div role="status" style={{display:'flex',alignItems:'center',gap:10,background:'#F8EED2',border:'3px solid #3B2416',
+            padding:'8px 14px',marginBottom:14,fontSize:15,fontWeight:700,color:'#3B2416',
             fontFamily:"'Noto Sans Thai Looped','Sarabun','Noto Sans Thai',sans-serif"}}>
-            <span style={{flex:1}}>ℹ️ {notice}</span>
-            <button onClick={()=>setNotice('')} aria-label="ปิด"
-              style={{background:'none',border:'none',cursor:'pointer',color:'#1E3A8A',fontSize:15}}>✕</button>
+            <Sprite name="i_help"/><span style={{flex:1}}>{notice}</span>
+            <button onClick={()=>setNotice('')} aria-label="ปิด" className="sp sp-i_x px-icon-btn"/>
           </div>
         )}
         {rejoinOffer&&!roomCode&&['google-login','class-picker','lessons'].includes(screen)&&(
@@ -1420,26 +1440,6 @@ export function ThaiTypingApp() {
           <LeaveConfirm roomType={roomType} onStay={()=>setLeaveAsk(false)}
             onLeave={()=>{ setLeaveAsk(false); handleLeaveRoom(); }}/>
         )}
-        {screen==='class-picker' && googleUser && (
-          <ClassPickerScreen
-            googleUser={googleUser}
-            onSelect={(code, foundName, serverChar) => {
-              setClassCode(code);
-              if (window.CharKit) {
-                const who = googleUser?.email || 'guest';
-                const ch = CharKit.sanitize(serverChar) || CharKit.loadLocal(who);
-                setCharacter(ch);
-                if (ch) CharKit.saveLocal(who, ch);
-              }
-              const name = foundName || (googleUser ? googleUser.name : '');
-              setStudentName(name);
-              setDisplayName(name);
-              setScreen('lessons');
-            }}
-            onBack={() => setScreen('google-login')}
-          />
-        )}
-
         {screen==='my-stats' && studentName && (
           <MyStatsScreen
             studentName={studentName}
@@ -1565,17 +1565,14 @@ export function ThaiTypingApp() {
               <OnScreenKeyboard nextCode={showHints?nextCode:null} needsShift={showHints&&needsShift}
                 flashCode={flashCode} shiftHeld={shiftHeld} correctShiftCode={showHints?correctShiftCode:null}/>
               {capsLockOn&&(
-                <div style={{marginTop:8,padding:'7px 14px',background:'#FEF9C3',
-                  border:'1.5px solid #FDE047',borderRadius:8,
-                  display:'flex',alignItems:'center',gap:8}}>
-                  <span style={{fontSize:15}}>⚠️</span>
+                <div role="alert" style={{marginTop:8,padding:'6px 12px',background:'#FFE9A8',
+                  border:'3px solid #3B2416',display:'flex',alignItems:'center',gap:8}}>
+                  <Sprite name="i_help"/>
                   <span style={{fontFamily:"'Noto Sans Thai Looped','Sarabun','Noto Sans Thai',sans-serif",
-                    fontSize:12,color:'#713F12',fontWeight:600}}>
+                    fontSize:14,color:'#3B2416',fontWeight:700}}>
                     Caps Lock เปิดอยู่ — ภาษาไทยไม่ใช้ Caps Lock กรุณากด Caps Lock เพื่อปิด แล้วใช้ Shift แทน
                   </span>
-                  <button onClick={()=>setCapsLockOn(false)}
-                    style={{marginLeft:'auto',background:'none',border:'none',cursor:'pointer',
-                      fontSize:14,color:'#92400E',fontWeight:800,padding:'0 4px'}}>✕</button>
+                  <button onClick={()=>setCapsLockOn(false)} aria-label="ปิด" className="sp sp-i_x px-icon-btn" style={{marginLeft:'auto'}}/>
                 </div>
               )}
             </div>
@@ -1604,36 +1601,35 @@ export function ThaiTypingApp() {
             )}
 
             {hint&&(
-              <div style={{padding:'9px 14px',background:'#FEF3C7',borderRadius:9,
-                border:'1.5px solid #FCD34D',marginBottom:10,
+              <div style={{padding:'6px 12px',background:'#FFE9A8',border:'3px solid #3B2416',marginBottom:10,
                 display:'flex',alignItems:'center',gap:8}}>
-                <span style={{fontSize:16}}>💡</span>
+                <Sprite name="i_help"/>
                 <span style={{fontFamily:"'Noto Sans Thai Looped','Sarabun','Noto Sans Thai',sans-serif",
-                  fontSize:13,color:'#92400E',fontWeight:600}}>{hint}</span>
+                  fontSize:15,color:'#3B2416',fontWeight:700}}>{hint}</span>
               </div>
             )}
 
             {/* 1v1 — opponent dropped out: they have a few seconds to come back */}
             {rivalDcSecs>0&&pressureSecs<=0&&(
-              <div style={{background:'#FFFBEB',border:'2px solid #F59E0B',borderRadius:12,padding:'10px 16px',
-                marginBottom:12,fontFamily:"'Noto Sans Thai Looped','Sarabun','Noto Sans Thai',sans-serif",fontSize:14,fontWeight:800,color:'#92400E'}}>
+              <div role="status" style={{background:'#FFE9A8',border:'3px solid #3B2416',padding:'8px 16px',
+                marginBottom:12,fontFamily:"'Noto Sans Thai Looped','Sarabun','Noto Sans Thai',sans-serif",fontSize:15,fontWeight:700,color:'#3B2416'}}>
                 📶 คู่แข่งหลุดการเชื่อมต่อ — รออีก {rivalDcSecs} วินาที ถ้าไม่กลับมา คุณชนะ
               </div>
             )}
 
             {/* 1v1 pressure timer — opponent already finished */}
             {pressureSecs>0&&(
-              <div style={{background:'#FEF2F2',border:'2px solid #EF4444',borderRadius:12,
-                padding:'12px 16px',marginBottom:12,display:'flex',alignItems:'center',gap:14}}>
-                <span style={{fontSize:30,fontWeight:800,color:'#DC2626',minWidth:44,
+              <div role="alert" style={{background:'#FBD3CC',border:'3px solid #3B2416',
+                padding:'8px 16px',marginBottom:12,display:'flex',alignItems:'center',gap:14}}>
+                <span style={{fontFamily:PX_FONT,fontSize:36,fontWeight:700,color:'#B3261E',minWidth:48,
                   textAlign:'center'}}>{pressureSecs}</span>
                 <div style={{flex:1}}>
                   <div style={{fontFamily:"'Noto Sans Thai Looped','Sarabun','Noto Sans Thai',sans-serif",
-                    fontSize:14,fontWeight:800,color:'#DC2626'}}>
+                    fontSize:15,fontWeight:700,color:'#7A1D14'}}>
                     คู่แข่งพิมพ์จบแล้ว! เหลือ {pressureSecs} วินาที — เก็บคะแนนให้ได้มากที่สุด!</div>
-                  <div style={{background:'#FECACA',borderRadius:6,height:6,marginTop:6,overflow:'hidden'}}>
+                  <div style={{background:'#F5E6BE',border:'2px solid #3B2416',height:12,marginTop:6,overflow:'hidden'}}>
                     <div style={{width:`${(pressureSecs/PRESSURE_SECS)*100}%`,height:'100%',
-                      background:'#DC2626',borderRadius:6,transition:'width 1s linear'}}/>
+                      background:'#D9452F',transition:'width 1s steps(4)'}}/>
                   </div>
                 </div>
               </div>

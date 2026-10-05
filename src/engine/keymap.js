@@ -83,6 +83,15 @@ const isThaiChar = c => c >= '\u0E00' && c <= '\u0E7F';
 // symbols ( / - , . " ( ) ? ) in the fallback path.
 let lastLayout = 'us';
 
+// A typed character as the Kedmanee character of the same key: Thai stays as is,
+// English letters/symbols (layout left on English) become the Thai char on that key.
+export function thaiOfTyped(ch) {
+  if (!ch) return null;
+  if (isThaiChar(ch)) return ch;
+  const hit = US_INDEX[ch];
+  return hit ? (KEYMAP[hit.code]?.[hit.shift ? 1 : 0] ?? null) : null;
+}
+
 // Returns {code, char, via} — via: 'code' (normal) | 'th' / 'us' (fallback from e.key).
 // Some machines report an unknown / empty e.code for a key (seen with ช = Equal),
 // so when e.code is not in KEYMAP we read e.key instead.

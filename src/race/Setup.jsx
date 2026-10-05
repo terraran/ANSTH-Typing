@@ -203,17 +203,17 @@ export function CountdownScreen({ num, roomCode, roomType, roomPlayers, myCfg, m
   const tf = "'Noto Sans Thai Looped','Sarabun','Noto Sans Thai',sans-serif";
   return (
     <div style={{textAlign:'center',padding:'48px 20px',fontFamily:tf}}>
-      <div style={{fontSize:11,color:'var(--c-t3)',letterSpacing:2,marginBottom:24,fontWeight:700}}>
-        {roomType==='royale'?'🏆 BATTLE ROYALE':'⚡ 1V1'} — ห้อง {roomCode}</div>
-      <div style={{fontSize:96,fontWeight:800,lineHeight:1,color:'#1D4ED8',
-        transition:'transform .2s',transform:num===1?'scale(1.3)':'scale(1)'}}>
-        {num}
+      <div style={{fontFamily:"'Pixelify Sans', monospace",fontSize:16,color:'var(--c-t2)',letterSpacing:3,marginBottom:20,fontWeight:700}}>
+        {roomType==='royale'?'BATTLE ROYALE':'1 VS 1'} · {roomCode}</div>
+      <div key={num} className="timeup-pop" style={{fontFamily:"'Pixelify Sans', monospace",fontSize:130,fontWeight:700,lineHeight:1,color:'#FFC23D',
+        textShadow:'5px 0 0 #3B2416,-5px 0 0 #3B2416,0 5px 0 #3B2416,0 -5px 0 #3B2416,8px 8px 0 #3B2416'}}>
+        {num>0?num:'GO!'}
       </div>
-      <div style={{fontSize:18,color:'var(--c-t2)',marginTop:20}}>
+      <div style={{fontSize:20,fontWeight:700,color:'var(--c-t1)',marginTop:20}}>
         {num>0?'วางนิ้วบน Home Row...':'🏃 พิมพ์เลย!'}</div>
       {window.CharKit&&(
         <div style={{maxWidth:560,margin:'28px auto 0'}}>
-          <CharKit.RaceTrack mode={roomType==='royale'?'royale':'1v1'}
+          <CharKit.RaceTrack mode={roomType==='royale'?'royale':'1v1'} scene style={{border:'3px solid #3B2416'}}
             runners={raceRunners(roomPlayers,{myCfg,
               myLabel:roomType==='royale'?'คุณ':(myName||'คุณ')+' (คุณ)',
               limit:roomType==='royale'?0:1})

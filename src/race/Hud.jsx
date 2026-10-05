@@ -163,40 +163,38 @@ export function DeadScreen({ standings, onLeave, onSpectate }) {
   const tf = "'Noto Sans Thai Looped','Sarabun','Noto Sans Thai',sans-serif";
   const sorted = brOrder(standings||{});
   return (
-    <div style={{position:'absolute',inset:0,background:'rgba(15,23,42,.92)',
+    <div style={{position:'absolute',inset:0,background:'rgba(10,30,40,.78)',
       display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',
-      zIndex:100,borderRadius:16,padding:24,fontFamily:tf}}>
-      <div style={{fontSize:48,marginBottom:8}}>💀</div>
-      <div style={{fontSize:22,fontWeight:800,color:'#fff',marginBottom:4}}>
-        คุณถูกคัดออก</div>
-      <div style={{fontSize:13,color:'rgba(255,255,255,.6)',marginBottom:20}}>
-        ดูการแข่งขันต่อได้จนจบ</div>
+      zIndex:100,padding:16,fontFamily:tf}}>
+      <div className="px-panel" style={{width:'100%',maxWidth:420,padding:'4px 8px 8px',color:'#3B2416',
+        display:'flex',flexDirection:'column',alignItems:'center'}}>
+      <span className="sp sp-xmark" style={{marginBottom:6}}/>
+      <div style={{fontSize:24,fontWeight:700,marginBottom:2}}>คุณถูกคัดออก</div>
+      <div style={{fontSize:14,fontWeight:600,color:'#6A4A30',marginBottom:14}}>ดูการแข่งขันต่อได้จนจบ</div>
       <div style={{width:'100%',maxWidth:340}}>
         {sorted.slice(0,8).map(([uid,p],i)=>(
           <div key={uid} style={{display:'flex',alignItems:'center',gap:10,
-            padding:'8px 12px',marginBottom:6,borderRadius:8,
-            background:isAliveState(playerState(p,'royale',Date.now()))&&(p.lives??0)>0?'rgba(5,150,105,.2)':'rgba(255,255,255,.06)'}}>
-            <div style={{fontSize:14,fontWeight:800,color:'rgba(255,255,255,.4)',width:20}}>{i+1}</div>
-            <div style={{fontSize:14,fontWeight:700,color:'#fff',flex:1}}>{p.name||'ผู้เล่น'}</div>
-            <div style={{fontSize:13,color:(p.lives??0)>0?'#34D399':'rgba(255,255,255,.4)'}}>
+            padding:'6px 12px',marginBottom:6,border:'3px solid #3B2416',
+            background:isAliveState(playerState(p,'royale',Date.now()))&&(p.lives??0)>0?'#DDF0C8':'#F8EED2'}}>
+            <div style={{fontFamily:"'Pixelify Sans', monospace",fontSize:16,fontWeight:700,color:'#6A4A30',width:22}}>{i+1}</div>
+            <div style={{fontSize:15,fontWeight:700,color:'#3B2416',flex:1}}>{p.name||'ผู้เล่น'}</div>
+            <div style={{fontSize:14,fontWeight:700,color:(p.lives??0)>0?'#2E7D32':'#8C6E4E'}}>
               {p.status==='done'?'🏁':p.status==='left'||p.status==='disconnected'?'🚪':(p.lives??0)>0?`${p.wpm||0} WPM`:'💀'}</div>
           </div>
         ))}
       </div>
       <div style={{display:'flex',gap:10,marginTop:16}}>
         {onSpectate&&(
-          <button onClick={onSpectate}
-            style={{background:'#7C3AED',border:'none',color:'#fff',borderRadius:8,padding:'10px 20px',
-              cursor:'pointer',fontSize:13,fontWeight:800,fontFamily:tf}}>
+          <button onClick={onSpectate} className="px-btn"
+            style={{minHeight:50,padding:'0 6px',fontSize:15,fontFamily:tf}}>
             👀 ดูการแข่งขันต่อ
           </button>
         )}
-        <button onClick={onLeave}
-          style={{background:'rgba(255,255,255,.1)',border:'1.5px solid rgba(255,255,255,.2)',
-            color:'#fff',borderRadius:8,padding:'10px 20px',cursor:'pointer',
-            fontSize:13,fontWeight:700,fontFamily:tf}}>
+        <button onClick={onLeave} className="px-btn"
+          style={{minHeight:50,padding:'0 6px',fontSize:15,fontFamily:tf}}>
           ออกจากห้อง
         </button>
+      </div>
       </div>
     </div>
   );

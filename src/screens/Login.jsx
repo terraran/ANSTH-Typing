@@ -1,6 +1,6 @@
 import { apiRequest, apiTitleRunners, describeApiError } from '../api';
-import { resolveKey } from '../engine/keymap';
-import { INK, PX_FONT, PxButton, PxIconButton, PxPanel, Runners, Scene, TH_FONT } from '../ui/pixel';
+import { resolveKey, thaiOfTyped } from '../engine/keymap';
+import { INK, PX_FONT, PxButton, PxIconButton, PxPanel, Runners, Scene, Sprite, TH_FONT } from '../ui/pixel';
 import { auth, parseJwt } from '../auth';
 import { GOOGLE_CLIENT_ID } from '../config';
 
@@ -13,8 +13,6 @@ export function ClassPickerScreen({ googleUser, onSelect, onBack }) {
   const [result, setResult] = useState(null); // {classCode, studentName}
   const [errMsg, setErrMsg] = useState('');
   const [attempt, setAttempt] = useState(0);
-  const tf = "'Noto Sans Thai Looped','Sarabun','Noto Sans Thai',sans-serif";
-
   // Look up the signed-in Google account in Roster (re-runs on "ลองอีกครั้ง").
   useEffect(() => {
     let cancelled=false;
@@ -36,64 +34,60 @@ export function ClassPickerScreen({ googleUser, onSelect, onBack }) {
     return () => { cancelled=true; };
   }, [attempt]);
 
-  const btn = {width:'100%',border:'none',borderRadius:10,padding:'13px',cursor:'pointer',
-    fontSize:15,fontWeight:700,fontFamily:tf};
-
+  // Full-screen, same scene as the title: a parchment panel with the account and what is happening.
+  const look = window.CharKit ? (CharKit.loadLocal(googleUser?.email) || CharKit.fromName(googleUser?.name || 'ผู้เล่น')) : null;
   return (
-    <div style={{fontFamily:tf}}>
-      {/* Profile */}
-      <div style={{display:'flex',alignItems:'center',gap:12,background:'var(--c-surf)',
-        borderRadius:14,padding:'14px 16px',marginBottom:20,border:'1.5px solid var(--c-border)'}}>
-        <img src={googleUser.picture} alt="" referrerPolicy="no-referrer"
-          style={{width:44,height:44,borderRadius:'50%',flexShrink:0}}/>
-        <div>
-          <div style={{fontSize:15,fontWeight:800,color:'var(--c-t1)'}}>{googleUser.name}</div>
-          <div style={{fontSize:11,color:'var(--c-t3)'}}>{googleUser.email}</div>
-        </div>
-      </div>
-
-      {status==='looking' && (
-        <div style={{textAlign:'center',padding:'32px 0',color:'var(--c-t2)'}}>
-          🔍 กำลังค้นหาห้องเรียน...
-        </div>
-      )}
-
-      {status==='found' && result && (
-        <div style={{background:'#D1FAE5',border:'2px solid #059669',borderRadius:14,
-          padding:'20px',textAlign:'center'}}>
-          <div style={{fontSize:32,marginBottom:8}}>✅</div>
-          <div style={{fontSize:18,fontWeight:800,color:'#065F46'}}>พบห้องเรียนแล้ว!</div>
-          <div style={{fontSize:14,color:'#047857',marginTop:6}}>
-            ห้อง <strong>{result.classCode}</strong> · {result.studentName}
+    <div style={{ position:'fixed', inset:0, overflowY:'auto', fontFamily:TH_FONT, color:INK }}>
+      <div style={{ position:'fixed', inset:0 }}><Scene dim={0.35}/></div>
+      <div style={{ position:'relative', minHeight:'100%', boxSizing:'border-box', display:'flex', alignItems:'center', justifyContent:'center', padding:16 }}>
+        <PxPanel title="เข้าเล่นด้วยบัญชีโรงเรียน" style={{ width:'100%', maxWidth:480 }}
+          bodyStyle={{ padding:'8px 14px 14px', display:'flex', flexDirection:'column', gap:14 }}>
+          {/* Account */}
+          <div style={{ display:'flex', alignItems:'center', gap:12, background:'#F8EED2', border:'3px solid '+INK, padding:'8px 12px' }}>
+            {googleUser.picture && <img src={googleUser.picture} alt="" referrerPolicy="no-referrer"
+              style={{ width:44, height:44, border:'3px solid '+INK, flexShrink:0 }}/>}
+            <div style={{ minWidth:0 }}>
+              <div style={{ fontSize:16, fontWeight:700 }}>{googleUser.name}</div>
+              <div style={{ fontSize:13, color:'#6A4A30', overflow:'hidden', textOverflow:'ellipsis' }}>{googleUser.email}</div>
+            </div>
           </div>
-          <div style={{fontSize:12,color:'#6EE7B7',marginTop:8}}>กำลังเข้าเรียน...</div>
-        </div>
-      )}
 
-      {(status==='notfound'||status==='error') && (
-        <div>
-          <div style={{background:'#FEF3C7',border:'1.5px solid #FCD34D',borderRadius:12,
-            padding:'14px 16px',marginBottom:16,fontSize:13,color:'#92400E',lineHeight:1.6}}>
-            ⚠️ {errMsg}
-            {status==='notfound' && (
-              <div style={{marginTop:6,fontSize:12}}>
-                ตรวจว่าเข้าสู่ระบบด้วยบัญชีโรงเรียน หรือแจ้งครูให้เพิ่ม email นี้ใน Roster
+          {status==='looking' && (
+            <div style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:6, padding:'6px 0' }}>
+              {look && <CharKit.CharCanvas config={look} anim="run" scale={2}/>}
+              <div style={{ fontSize:17, fontWeight:700 }} className="px-blink">กำลังค้นหาห้องเรียนของเธอ...</div>
+            </div>
+          )}
+
+          {status==='found' && result && (
+            <div style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:6, padding:'6px 0', textAlign:'center' }}>
+              {look && <CharKit.CharCanvas config={CharKit.sanitize(result.character) || look} anim="cheer" scale={2}/>}
+              <div style={{ display:'flex', alignItems:'center', gap:8, fontSize:20, fontWeight:700, color:'#2E7D32' }}>
+                <Sprite name="i_check"/> เจอห้องเรียนแล้ว!</div>
+              <div style={{ fontSize:16, fontWeight:600 }}>
+                ห้อง <span style={{ fontFamily:PX_FONT, fontWeight:700 }}>{result.classCode}</span> · {result.studentName}</div>
+              <div style={{ fontSize:14, color:'#6A4A30' }}>กำลังพาเข้าสู่หน้าหลัก...</div>
+            </div>
+          )}
+
+          {(status==='notfound'||status==='error') && (
+            <>
+              <div role="alert" style={{ display:'flex', gap:10, alignItems:'flex-start', background:'#FFE9A8', border:'3px solid '+INK,
+                padding:'10px 12px', fontSize:15, fontWeight:600, lineHeight:1.6 }}>
+                <Sprite name="i_help" style={{ flexShrink:0 }}/>
+                <div>
+                  {errMsg}
+                  {status==='notfound' && <div style={{ marginTop:4, fontSize:14 }}>
+                    ตรวจว่าเข้าด้วยบัญชีโรงเรียน หรือแจ้งครูให้เพิ่มอีเมลนี้ในรายชื่อห้อง</div>}
+                </div>
               </div>
-            )}
-          </div>
-          <button onClick={()=>setAttempt(n=>n+1)}
-            style={{...btn,background:'#0F172A',color:'#fff'}}>
-            ↻ ลองอีกครั้ง
-          </button>
-        </div>
-      )}
+              <PxButton onClick={()=>setAttempt(n=>n+1)}>↻ ลองอีกครั้ง</PxButton>
+            </>
+          )}
 
-      <button onClick={onBack}
-        style={{background:'transparent',border:'none',color:'var(--c-t3)',
-          cursor:'pointer',fontSize:12,fontFamily:tf,textDecoration:'underline',marginTop:14,
-          display:'block'}}>
-        ← เปลี่ยน account
-      </button>
+          <PxButton onClick={onBack} style={{ fontSize:15, minHeight:46 }}>← เปลี่ยนบัญชี</PxButton>
+        </PxPanel>
+      </div>
     </div>
   );
 }
@@ -133,24 +127,50 @@ export function GoogleSignInScreen({ onSignIn, onSolo }) {
     return () => { off = true; };
   }, []);
 
-  // Type เริ่ม (physical Kedmanee keys, so it works even with the English layout on).
+  // Type เริ่ม. Keys arrive two ways and both are handled:
+  //  • keydown with a physical key code (normal keyboards, Thai or English layout on);
+  //  • text typed into a hidden, focused input (input methods / virtual keyboards that send no usable keydown).
+  // The vowel ิ and tone mark ่ may come in either order.
+  const inputRef = useRef(null);
+  const lastKeyAt = useRef(0);
+  const swapRef = useRef(null);
+  const feed = (ch) => {
+    const i = typedRef.current;
+    if (i >= START_WORD.length || !ch) return;
+    let ok = ch === START_WORD[i];
+    if (!ok && (i === 2 || i === 3)) {        // ิ / ่ in either order
+      const pair = [START_WORD[2], START_WORD[3]];
+      ok = pair.includes(ch) && ch !== swapRef.current;
+    }
+    if (ok) {
+      if (i === 2) swapRef.current = ch;
+      typedRef.current = i + 1;
+      setTyped(i + 1);
+      if (i + 1 >= START_WORD.length) setTimeout(() => setStage('signin'), 350);
+    } else setShake(n => n + 1);
+  };
   useEffect(() => {
     if (stage !== 'title') return;
+    const focus = () => { if (!help) inputRef.current?.focus({ preventScroll: true }); };
+    focus();
     const onKey = (e) => {
       if (help) { if (e.key === 'Escape') setHelp(false); return; }
+      if (e.key === 'Enter' || e.key === ' ' || e.key === 'Tab') return;   // let buttons work
       const r = resolveKey(e);
-      if (!r || !r.char) return;
+      if (!r || !r.char) return;                // e.g. key = "Process": wait for the input event
       e.preventDefault();
-      const want = START_WORD[typedRef.current];
-      if (r.char === want) {
-        typedRef.current++;
-        setTyped(typedRef.current);
-        if (typedRef.current >= START_WORD.length) setTimeout(() => setStage('signin'), 350);
-      } else setShake(n => n + 1);
+      lastKeyAt.current = performance.now();
+      feed(r.char);
     };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
+    window.addEventListener('keydown', onKey, true);
+    window.addEventListener('focus', focus);
+    return () => { window.removeEventListener('keydown', onKey, true); window.removeEventListener('focus', focus); };
   }, [stage, help]);
+  const onHiddenInput = (e) => {
+    const text = e.target.value; e.target.value = '';
+    if (performance.now() - lastKeyAt.current < 120) return;     // already counted by keydown
+    for (const c of [...text]) feed(thaiOfTyped(c));
+  };
 
   // Google's own button, drawn into the sign-in panel.
   useEffect(() => {
@@ -190,21 +210,31 @@ export function GoogleSignInScreen({ onSignIn, onSolo }) {
   }, [stage]);
 
   const goSignIn = () => { typedRef.current = START_WORD.length; setTyped(START_WORD.length); setStage('signin'); };
-  const back = () => { typedRef.current = 0; setTyped(0); setStage('title'); };
+  const back = () => { typedRef.current = 0; swapRef.current = null; setTyped(0); setStage('title'); };
   const outline = { color: '#FFFFFF', textShadow: '3px 3px 0 #1E3A4C, -2px 0 0 #1E3A4C, 2px 0 0 #1E3A4C, 0 -2px 0 #1E3A4C, 0 2px 0 #1E3A4C' };
   const small = stage === 'signin';
 
   return (
-    <div style={{ position: 'fixed', inset: 0, overflow: 'auto', fontFamily: TH_FONT, color: INK }}>
-      <Scene dim={small ? 0.35 : 0}>
-        <Runners queue={runners}/>
-      </Scene>
-      <div style={{ position: 'relative', minHeight: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center',
-        padding: small ? '40px 16px 120px' : '64px 16px 220px', gap: small ? 30 : 42 }}>
+    <div style={{ position: 'fixed', inset: 0, overflowY: 'auto', overflowX: 'hidden', fontFamily: TH_FONT, color: INK }}
+      onMouseDown={e => { if (stage === 'title' && !e.target.closest('button,a')) setTimeout(() => inputRef.current?.focus({ preventScroll: true }), 0); }}>
+      {/* Scene and runners stay put while the content scrolls (short screens only) */}
+      <div style={{ position: 'fixed', inset: 0 }}>
+        <Scene dim={small ? 0.35 : 0}>
+          <Runners queue={runners} bottom={'max(16px, 3vh)'}/>
+        </Scene>
+      </div>
+      {stage === 'title' && (
+        <input ref={inputRef} onInput={onHiddenInput} aria-label="พิมพ์คำว่า เริ่ม" autoComplete="off" autoCapitalize="off" spellCheck={false}
+          style={{ position: 'fixed', left: 0, top: 0, width: 1, height: 1, opacity: 0, border: 0, padding: 0 }}/>
+      )}
+      <div style={{ position: 'relative', minHeight: '100%', boxSizing: 'border-box', display: 'flex', flexDirection: 'column', alignItems: 'center',
+        justifyContent: small ? 'flex-start' : 'center',
+        padding: small ? 'clamp(20px, 5vh, 40px) 16px 40px' : 'clamp(12px, 3vh, 40px) 16px clamp(80px, 16vh, 190px)',
+        gap: small ? 'clamp(16px, 3.5vh, 30px)' : 'clamp(10px, 2.6vh, 34px)' }}>
         {/* Logo */}
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10, textAlign: 'center' }}>
           <h1 className="px-logo" style={{ margin: 0, fontFamily: "'Kanit', sans-serif", fontStyle: 'italic', fontWeight: 800,
-            fontSize: small ? 'clamp(44px, 8vw, 76px)' : 'clamp(52px, 10vw, 104px)', lineHeight: 1.25, padding: '0 20px' }}>
+            fontSize: small ? 'clamp(40px, min(8vw, 9vh), 76px)' : 'clamp(40px, min(10vw, 10.5vh), 104px)', lineHeight: 1.25, padding: '0 20px' }}>
             แป้นพิมพ์ผจญภัย</h1>
           <div className="px-panel" style={{ padding: '0 10px', fontFamily: PX_FONT, fontSize: small ? 16 : 20, fontWeight: 700,
             letterSpacing: 4, marginTop: -8 }}>ANSTH TYPING QUEST</div>
@@ -212,11 +242,11 @@ export function GoogleSignInScreen({ onSignIn, onSolo }) {
 
         {stage === 'title' ? (
           <>
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 'clamp(4px, 1.2vh, 12px)' }}>
               <div className="px-blink" style={{ fontSize: 26, fontWeight: 700, ...outline }}>พิมพ์คำว่า</div>
-              <button key={shake} className={'px-panel' + (shake ? ' px-shake' : '')} onClick={goSignIn}
+              <button key={shake} className={'px-panel' + (shake ? ' px-shake' : '')} onClick={goSignIn} tabIndex={-1}
                 aria-label="พิมพ์คำว่า เริ่ม หรือแตะเพื่อเริ่ม"
-                style={{ padding: '0 22px', fontFamily: TH_FONT, fontSize: 54, fontWeight: 700, lineHeight: 1.4,
+                style={{ padding: '0 22px', fontFamily: TH_FONT, fontSize: 'clamp(40px, 6.5vh, 54px)', fontWeight: 700, lineHeight: 1.4,
                   letterSpacing: 2, cursor: 'pointer', color: INK }}>
                 {START_PARTS.map(([t, n]) => <span key={n} style={{ color: typed >= n ? '#2E7D32' : INK }}>{t}</span>)}
               </button>

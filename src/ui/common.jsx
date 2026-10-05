@@ -82,26 +82,19 @@ export function StatPill({ label, value, color }) {
 
 export function PenaltyScreen({ countdown }) {
   return (
-    <div style={{position:'fixed',inset:0,background:'rgba(185,28,28,.96)',
-      display:'flex',flexDirection:'column',alignItems:'center',
-      justifyContent:'center',zIndex:1000,gap:16,
+    <div role="alertdialog" aria-label="หยุดพัก" style={{position:'fixed',inset:0,background:'rgba(60,10,10,.72)',
+      display:'flex',alignItems:'center',justifyContent:'center',zIndex:1000,padding:16,
       fontFamily:"'Noto Sans Thai Looped','Sarabun','Noto Sans Thai',sans-serif"}}>
-      <div style={{fontSize:72}}>⚠️</div>
-      <div style={{fontSize:30,fontWeight:800,color:'#fff',textAlign:'center',lineHeight:1.3}}>
-        กดแป้นพิมพ์เร็วเกินไป!
-      </div>
-      <div style={{fontSize:16,color:'rgba(255,255,255,.8)',textAlign:'center',lineHeight:1.7}}>
-        ตรวจพบการกดแป้นแบบสุ่ม — หยุดพัก {SPAM_PENALTY} วินาที<br/>
-        <span style={{fontSize:13,opacity:.7}}>Spam detected — {SPAM_PENALTY} second penalty</span>
-      </div>
-      <div style={{marginTop:8,width:96,height:96,borderRadius:'50%',
-        border:'5px solid rgba(255,255,255,.35)',
-        display:'flex',alignItems:'center',justifyContent:'center',
-        background:'rgba(255,255,255,.12)'}}>
-        <span style={{fontSize:48,fontWeight:800,color:'#fff'}}>{countdown}</span>
-      </div>
-      <div style={{fontSize:14,color:'rgba(255,255,255,.6)'}}>
-        จะกลับไปพิมพ์ต่ออัตโนมัติ...
+      <div className="px-panel" style={{maxWidth:440,width:'100%',textAlign:'center',color:'#3B2416',
+        display:'flex',flexDirection:'column',alignItems:'center',gap:10,padding:'4px 8px 8px'}}>
+        <span className="sp sp-xmark"/>
+        <div style={{fontSize:26,fontWeight:700,lineHeight:1.3}}>กดแป้นเร็วเกินไป!</div>
+        <div style={{fontSize:16,fontWeight:600,lineHeight:1.6}}>
+          เหมือนกดมั่ว ๆ — พักก่อน {SPAM_PENALTY} วินาที<br/>แล้วค่อย ๆ พิมพ์ทีละตัวให้ถูกนะ</div>
+        <div className="px-wood" style={{padding:'0 14px'}}>
+          <span style={{fontFamily:"'Pixelify Sans', monospace",fontSize:56,fontWeight:700,color:'#F5D27A',lineHeight:1.1}}>{countdown}</span>
+        </div>
+        <div style={{fontSize:14,color:'#6A4A30'}}>จะกลับไปพิมพ์ต่อเองอัตโนมัติ</div>
       </div>
     </div>
   );
@@ -115,7 +108,7 @@ export function TestTimer({ startTime, now, endTime, total: totalSecs = TEST_SEC
   const leftMs = total - used;
   const left = Math.ceil(leftMs / 1000);
   const frac = leftMs / total;
-  const color = left <= 10 ? '#DC2626' : left <= 30 ? '#F59E0B' : '#059669';
+  const color = left <= 10 ? '#FF8A70' : left <= 30 ? '#FFC23D' : '#9BE39A';
   const R = 30, C = 2 * Math.PI * R;
   const finalTen = !!startTime && !endTime && left <= 10 && left > 0;
   const label = left <= 10 ? String(left) : `${Math.floor(left/60)}:${String(left%60).padStart(2,'0')}`;
@@ -124,20 +117,20 @@ export function TestTimer({ startTime, now, endTime, total: totalSecs = TEST_SEC
       <div style={{position:'relative',width:72,height:72,flexShrink:0}}
         role="timer" aria-label={`เหลือเวลา ${left} วินาที`}>
         <svg width="72" height="72" viewBox="0 0 72 72" style={{transform:'rotate(-90deg)',display:'block'}}>
-          <circle cx="36" cy="36" r={R} fill="none" stroke="var(--c-border)" strokeWidth="6"/>
-          <circle cx="36" cy="36" r={R} fill="none" stroke={color} strokeWidth="6" strokeLinecap="round"
+          <circle cx="36" cy="36" r={R} fill="#3B2416" stroke="#5A3A22" strokeWidth="8"/>
+          <circle cx="36" cy="36" r={R} fill="none" stroke={color} strokeWidth="8" strokeLinecap="butt"
             strokeDasharray={C} strokeDashoffset={C * (1 - frac)}
             style={{transition:'stroke-dashoffset .25s linear, stroke .4s'}}/>
         </svg>
         <div style={{position:'absolute',inset:0,display:'flex',alignItems:'center',justifyContent:'center'}}>
           <span key={finalTen ? left : 'clock'} className={finalTen ? 'timer-beat' : ''}
-            style={{fontSize:left<=10?26:17,fontWeight:800,color,fontVariantNumeric:'tabular-nums'}}>
+            style={{fontFamily:"'Pixelify Sans', monospace",fontSize:left<=10?28:19,fontWeight:700,color}}>
             {label}
           </span>
         </div>
       </div>
       {!startTime && (
-        <span style={{fontSize:12,color:'var(--c-t2)',fontWeight:700,lineHeight:1.4,
+        <span style={{fontSize:13,color:'inherit',fontWeight:700,lineHeight:1.4,
           fontFamily:"'Noto Sans Thai Looped','Sarabun','Noto Sans Thai',sans-serif"}}>
           {totalSecs % 60 ? `${totalSecs} วินาที` : `${totalSecs / 60} นาที`}<br/>เริ่มนับเมื่อกดปุ่มแรก
         </span>
@@ -148,18 +141,20 @@ export function TestTimer({ startTime, now, endTime, total: totalSecs = TEST_SEC
 
 export function TimeUpOverlay() {
   return (
-    <div style={{position:'fixed',inset:0,background:'rgba(15,23,42,.55)',zIndex:1001,
+    <div style={{position:'fixed',inset:0,background:'rgba(10,30,40,.5)',zIndex:1001,
       display:'flex',alignItems:'center',justifyContent:'center',
       fontFamily:"'Noto Sans Thai Looped','Sarabun','Noto Sans Thai',sans-serif"}}>
-      <div className="timeup-pop" style={{background:'#DC2626',color:'#fff',borderRadius:24,
-        padding:'28px 44px',textAlign:'center',boxShadow:'0 20px 60px rgba(0,0,0,.35)'}}>
-        <div style={{fontSize:64,lineHeight:1}}>⏰</div>
-        <div style={{fontSize:36,fontWeight:800,marginTop:8}}>หมดเวลา!</div>
+      <div className="timeup-pop px-wood" style={{padding:'6px 40px',textAlign:'center'}}>
+        <div style={{fontFamily:"'Kanit',sans-serif",fontStyle:'italic',fontWeight:800,fontSize:56,lineHeight:1.25,color:'#FFC23D',
+          textShadow:'3px 0 0 #3B2416,-3px 0 0 #3B2416,0 3px 0 #3B2416,0 -3px 0 #3B2416,5px 5px 0 #3B2416'}}>หมดเวลา!</div>
       </div>
     </div>
   );
 }
 
+// 0–3 pixel stars (atlas pieces star_s = 21 px, star_m = 51 px)
 export function Stars({ n, size=16 }) {
-  return <span style={{fontSize:size,letterSpacing:1}}>{[0,1,2].map(i=>i<n?'⭐':'☆').join('')}</span>;
+  const name = size >= 24 ? 'star_m' : 'star_s';
+  return <span role="img" aria-label={`${n} ดาว`} style={{display:'inline-flex',gap:2,verticalAlign:'middle'}}>
+    {[0,1,2].map(i=><span key={i} className={'sp sp-'+name+(i<n?'':'_off')}/>)}</span>;
 }

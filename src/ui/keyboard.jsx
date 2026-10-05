@@ -65,7 +65,7 @@ export const OnScreenKeyboard = React.memo(function OnScreenKeyboard({ nextCode,
   const isActive = c => nextCode===c || ((c==='ShiftLeft'||c==='ShiftRight') && needsShift && (correctShiftCode ? c===correctShiftCode : true));
   return (
     <div style={{display:'flex',flexDirection:'column',gap:'var(--kg)',width:'100%',
-      '--kh':'clamp(30px, 5.4vh, 50px)','--kg':'clamp(3px, .7vh, 5px)'}}>
+      '--kh':'clamp(30px, 5.2vh, 50px)','--kg':'clamp(3px, .7vh, 5px)'}}>
       {KB_ROWS.map((row,ri)=>(
         <div key={ri} style={{display:'flex',gap:'var(--kg)'}}>
           {row.map(kdef=><Key key={kdef.c} kdef={kdef} active={isActive(kdef.c)}

@@ -28,8 +28,10 @@ export const TextDisplay = React.memo(function TextDisplay({ displayChars, displ
   return (
     <div style={{fontFamily:"'Noto Sans Thai Looped','Sarabun','Noto Sans Thai',sans-serif",
       fontSize:'var(--tf)',lineHeight:compact?1.75:2,display:'flex',flexWrap:'wrap',
-      alignContent:'flex-start',gap:'0 2px',minHeight:compact?'calc(var(--tf) * 3.5)':'calc(var(--tf) * 4)',
-      '--tf':'clamp(24px, 4.3vh, 34px)'}}>
+      alignContent:'flex-start',gap:'0 2px',
+      // always room for 3 lines (a chunk is ≤ ~86 chars), so a 3-line chunk never grows the panel
+      minHeight:compact?'calc(var(--tf) * 5.25)':'calc(var(--tf) * 6)',
+      '--tf':'clamp(22px, 4vh, 34px)'}}>
       {tokens.map((tok,ti) => {
         if (tok.type==='space') {
           const done=tok.start<displayPos,cur=tok.start===displayPos;
@@ -37,7 +39,7 @@ export const TextDisplay = React.memo(function TextDisplay({ displayChars, displ
             <span key={ti} style={{display:'inline-block',width:14,textAlign:'center',
               color:done?'#059669':'#CBD5E1',
               background:cur?'#FEF08A':'transparent',
-              borderBottom:cur?'3px solid #F59E0B':'none'}}>
+              boxShadow:cur?'inset 0 -3px 0 #F59E0B':'none'}}>
               {done?'·':cur?'⎵':' '}
             </span>
           );
@@ -55,7 +57,8 @@ export const TextDisplay = React.memo(function TextDisplay({ displayChars, displ
                 <span key={idx} style={{
                   color:done?'#059669':cur?'var(--c-t1)':'var(--c-txt-future)',
                   background:showHighlight?'#FEF08A':'transparent',
-                  borderBottom:showHighlight?'3px solid #F59E0B':'none',
+                  // underline drawn as a shadow: a real border would make the line 3px taller and shift the screen
+                  boxShadow:showHighlight?'inset 0 -3px 0 #F59E0B':'none',
                 }}>{ch}</span>
               );
             })}

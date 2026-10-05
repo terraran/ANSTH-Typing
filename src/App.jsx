@@ -1489,16 +1489,20 @@ export function ThaiTypingApp() {
             .replace('Semicolon',';').replace('Quote',"'")
             .replace('Comma',',').replace('Period','.').replace('Slash','/') : '';
           // "now typing" box — inside the solo HUD, or its own slim row in a race room
-          const nowTyping = nextChar && (
-            <div style={{display:'flex',alignItems:'center',gap:8,minWidth:0}}>
-              <span style={{fontSize:12,fontWeight:700,fontFamily:TF,color:roomCode?'#3B2416':'#E8CF95'}}>กำลังพิมพ์</span>
-              <span style={{fontFamily:TF,fontSize:24,fontWeight:700,lineHeight:1.3,color:'#3B2416',background:'#FFC23D',
-                border:'3px solid #3B2416',padding:'0 8px',minWidth:40,textAlign:'center'}}>
-                {nextChar===' '?'เว้นวรรค':nextChar}</span>
-              <span style={{display:'flex',flexDirection:'column',lineHeight:1.3,minWidth:0}}>
-                <span style={{fontSize:12,fontWeight:600,fontFamily:TF,color:roomCode?'#6A4A30':'#F5E6BE',whiteSpace:'nowrap'}}>
-                  {CLASS_NAMES[CHAR_CLASS[nextChar]]??''}</span>
-                {nextKey&&showHints&&<span style={{fontFamily:PX_FONT,fontSize:11,fontWeight:400,color:roomCode?'#6A4A30':'#F5D27A'}}>{keyLabel}</span>}
+          // Fixed widths everywhere: the box must not change size between "ว" and "เว้นวรรค",
+          // otherwise the HUD reflows and the whole typing screen jumps.
+          const oneLine = {whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'};
+          const nowTyping = (
+            <div style={{display:'flex',alignItems:'center',gap:8,flex:'none',visibility:nextChar?'visible':'hidden'}} aria-hidden={!nextChar}>
+              <span style={{fontSize:12,fontWeight:700,fontFamily:TF,color:roomCode?'#3B2416':'#E8CF95',whiteSpace:'nowrap'}}>กำลังพิมพ์</span>
+              <span style={{fontFamily:TF,fontSize:nextChar===' '?18:24,fontWeight:700,lineHeight:'34px',height:40,width:104,flex:'none',
+                color:'#3B2416',background:'#FFC23D',border:'3px solid #3B2416',textAlign:'center',...oneLine}}>
+                {nextChar===' '?'เว้นวรรค':(nextChar||'')}</span>
+              <span style={{display:'flex',flexDirection:'column',lineHeight:1.3,width:84,flex:'none'}}>
+                <span style={{fontSize:12,fontWeight:600,fontFamily:TF,color:roomCode?'#6A4A30':'#F5E6BE',...oneLine}}>
+                  {nextChar?(CLASS_NAMES[CHAR_CLASS[nextChar]]??''):''}</span>
+                <span style={{fontFamily:PX_FONT,fontSize:11,fontWeight:400,color:roomCode?'#6A4A30':'#F5D27A',height:14,...oneLine}}>
+                  {nextKey&&showHints?keyLabel:''}</span>
               </span>
             </div>
           );
@@ -1553,39 +1557,42 @@ export function ThaiTypingApp() {
               </div>
             )}
             {!roomCode&&(
-              <div className="px-wood" style={{display:'flex',alignItems:'center',gap:14,padding:'0 4px',color:'#F5E6BE',flex:'none'}}>
+              <div className="px-wood" style={{display:'flex',alignItems:'center',gap:14,padding:'0 4px',color:'#F5E6BE',flex:'none',
+                boxSizing:'border-box',height:timeLimit>0?'var(--hud-t)':'var(--hud)'}}>
                 <PxButton onClick={()=>setScreen('lessons')} style={{minHeight:'var(--hb)',fontSize:14,flex:'none'}}>← กลับ</PxButton>
                 {timeLimit>0&&<TestTimer startTime={startTime} now={now} endTime={endTime} total={timeLimit}/>}
                 <div style={{display:'flex',flexDirection:'column',lineHeight:1.35,minWidth:0,flex:'1 1 0'}}>
-                  {activeTest&&<><span style={{fontSize:13,fontWeight:600,color:'#E8CF95'}}>ภารกิจประจำสัปดาห์</span>
-                    <span style={{fontSize:18,fontWeight:700}}>{activeTest.exerciseTitle}</span></>}
-                  {activeHw&&<><span style={{fontSize:13,fontWeight:600,color:'#E8CF95'}}>การบ้าน · ต้องได้ {activeHw.minStars} ดาว</span>
-                    <span style={{fontSize:18,fontWeight:700}}>{activeHw.title}</span></>}
-                  {!activeTest&&!activeHw&&lesson?.curriculum&&exercise&&<><span style={{fontSize:13,fontWeight:600,color:'#E8CF95'}}>ด่าน {lesson.stage} · บท {lesson.num}</span>
-                    <span style={{fontSize:18,fontWeight:700}}>{exercise.title}</span></>}
-                  {!activeTest&&!activeHw&&!lesson?.curriculum&&exercise&&<span style={{fontSize:18,fontWeight:700}}>{exercise.title}</span>}
+                  {activeTest&&<><span style={{fontSize:13,fontWeight:600,color:'#E8CF95',...oneLine}}>ภารกิจประจำสัปดาห์</span>
+                    <span style={{fontSize:18,fontWeight:700,...oneLine}} title={activeTest.exerciseTitle}>{activeTest.exerciseTitle}</span></>}
+                  {activeHw&&<><span style={{fontSize:13,fontWeight:600,color:'#E8CF95',...oneLine}}>การบ้าน · ต้องได้ {activeHw.minStars} ดาว</span>
+                    <span style={{fontSize:18,fontWeight:700,...oneLine}} title={activeHw.title}>{activeHw.title}</span></>}
+                  {!activeTest&&!activeHw&&lesson?.curriculum&&exercise&&<><span style={{fontSize:13,fontWeight:600,color:'#E8CF95',...oneLine}}>ด่าน {lesson.stage} · บท {lesson.num}</span>
+                    <span style={{fontSize:18,fontWeight:700,...oneLine}} title={exercise.title}>{exercise.title}</span></>}
+                  {!activeTest&&!activeHw&&!lesson?.curriculum&&exercise&&<span style={{fontSize:18,fontWeight:700,...oneLine}} title={exercise.title}>{exercise.title}</span>}
                 </div>
                 {nowTyping}
                 <div style={{marginLeft:'auto',display:'flex',alignItems:'center',gap:14,flex:'none'}}>
-                  <div style={{display:'flex',alignItems:'center',gap:6}} aria-label="คะแนน">
+                  <div style={{display:'flex',alignItems:'center',gap:6,position:'relative'}} aria-label="คะแนน">
                     <Sprite name="i_coin" className="px-z"/>
-                    <span style={{fontFamily:PX_FONT,fontSize:22,fontWeight:400,color:'#F5D27A'}}>{fmtScore(score)}</span>
+                    {/* room for 100,000 so a new digit never pushes the HUD */}
+                    <span style={{fontFamily:PX_FONT,fontSize:22,fontWeight:400,color:'#F5D27A',minWidth:'7ch',whiteSpace:'nowrap'}}>{fmtScore(score)}</span>
                     {lastGain&&(
                       <span key={lastGain.id} className="score-pop"
-                        style={{fontFamily:PX_FONT,fontSize:16,fontWeight:400,color:lastGain.v>=400?'#FFC23D':'#9BE39A'}}>+{lastGain.v}</span>
+                        style={{position:'absolute',right:0,bottom:'100%',marginBottom:-4,whiteSpace:'nowrap',pointerEvents:'none',
+                          fontFamily:PX_FONT,fontSize:16,fontWeight:400,color:lastGain.v>=400?'#FFC23D':'#9BE39A'}}>+{lastGain.v}</span>
                     )}
                   </div>
-                  {comboMultiplier(scoreStreak)>1&&(
-                    <span style={{fontFamily:PX_FONT,fontSize:14,fontWeight:400,color:'#FF9A5C'}} aria-label="คอมโบ">
-                      COMBO x{comboMultiplier(scoreStreak).toFixed(1)}</span>
-                  )}
+                  {/* always takes its place; only shown while the combo is on */}
+                  <span style={{fontFamily:PX_FONT,fontSize:14,fontWeight:400,color:'#FF9A5C',whiteSpace:'nowrap',
+                    visibility:comboMultiplier(scoreStreak)>1?'visible':'hidden'}} aria-label="คอมโบ" aria-hidden={comboMultiplier(scoreStreak)<=1}>
+                    COMBO x{Math.max(1,comboMultiplier(scoreStreak)).toFixed(1)}</span>
                 </div>
               </div>
             )}
-            {roomCode&&nowTyping&&(
+            {roomCode&&nextChar&&(
               <div style={{padding:'4px 12px',background:'#F8EED2',border:'3px solid #3B2416',flex:'none'}}>{nowTyping}</div>
             )}
-            <div className="px-panel" style={{padding:roomCode?'0 8px':'4px 10px',flex:'1 1 auto',minHeight:0,
+            <div className="px-panel" style={{padding:roomCode?'0 8px':'2px 10px',flex:'1 1 auto',minHeight:0,
               display:'flex',alignItems:'center',justifyContent:'center',overflow:'hidden'}}>
               <TextDisplay displayChars={displayChars} displayPos={displayPos} compact={!!roomCode}/>
             </div>

@@ -1,5 +1,5 @@
 const { useEffect, useState } = React;
-const tf = "'Sarabun','Noto Sans Thai',sans-serif";
+const tf = "'Noto Sans Thai Looped','Sarabun','Noto Sans Thai',sans-serif";
 
 // Asked before leaving a race that is still running.
 export function LeaveConfirm({ roomType, onStay, onLeave }) {

@@ -30,7 +30,7 @@ export function KeyTester() {
     window.addEventListener('keydown', h);
     return () => window.removeEventListener('keydown', h);
   }, []);
-  const tf = "'Sarabun','Noto Sans Thai',sans-serif";
+  const tf = "'Noto Sans Thai Looped','Sarabun','Noto Sans Thai',sans-serif";
   const cell = { padding:'4px 8px', borderBottom:'1px solid #E2E8F0', fontSize:13, textAlign:'left' };
   return (
     <div style={{ fontFamily:tf, maxWidth:860, margin:'0 auto', padding:16, color:'#0F172A' }}>

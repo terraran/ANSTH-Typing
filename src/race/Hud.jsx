@@ -58,7 +58,7 @@ export function OneVsOneHud({ roomCode, roomPlayers, myName, pos, totalChars, sc
     {label:rivalName,value:rivalScore,color:'#E79035',bg:'#FEF5EA',lead:lead<0},
   ];
   return (
-    <div style={{fontFamily:"'Sarabun','Noto Sans Thai',sans-serif",border:'1px solid #DBE7F2',borderRadius:12,overflow:'hidden',marginBottom:8}}>
+    <div style={{fontFamily:"'Noto Sans Thai Looped','Sarabun','Noto Sans Thai',sans-serif",border:'1px solid #DBE7F2',borderRadius:12,overflow:'hidden',marginBottom:8}}>
       <div style={{height:28,padding:'0 10px',display:'flex',alignItems:'center',gap:8,background:'linear-gradient(100deg,#234D91,#377FD0)',color:'#fff'}}>
         <span style={{fontSize:10,fontWeight:800,letterSpacing:.5,whiteSpace:'nowrap'}}>⚡ 1V1 · {roomCode}</span>
         <span style={{height:16,width:1,background:'#ffffff50'}}/>
@@ -76,7 +76,7 @@ export function OneVsOneHud({ roomCode, roomPlayers, myName, pos, totalChars, sc
         ))}
       </div>
       {window.CharKit ? (
-        <CharKit.RaceTrack mode="1v1" info={`${myPos} / ${totalChars} ตัว`}
+        <CharKit.RaceTrack mode="1v1" scene info={`${myPos} / ${totalChars} ตัว`}
           runners={raceRunners(roomPlayers,{myCfg,myLabel:'คุณ',
             myPos,myKpm:kpm,totalChars,limit:1})
             .map((r,i)=>({...r,color:i===0?'#1D4ED8':'#C2620A'}))}/>
@@ -122,7 +122,7 @@ export function BattleRoyaleHud({ roomCode, roomPlayers, myName, pos, totalChars
     ? {icon:'⏳',text:`วงเริ่มเคลื่อนใน ${untilZone} วินาที`,bg:'#EFF7FF',fg:'#2B659A'}
     : {icon:'🛡️',text:'อยู่ใน Safezone',bg:'#EFF9F2',fg:'#277449'};
   return (
-    <div style={{fontFamily:"'Sarabun','Noto Sans Thai',sans-serif",border:'1px solid #DCE8F3',borderRadius:12,overflow:'hidden',marginBottom:8}}>
+    <div style={{fontFamily:"'Noto Sans Thai Looped','Sarabun','Noto Sans Thai',sans-serif",border:'1px solid #DCE8F3',borderRadius:12,overflow:'hidden',marginBottom:8}}>
       <div style={{height:30,padding:'0 8px 0 10px',display:'flex',alignItems:'center',gap:8,background:'linear-gradient(100deg,#1C477F,#2A73C7)',color:'#fff'}}>
         <span style={{fontSize:10,fontWeight:800,letterSpacing:.5,whiteSpace:'nowrap'}}>🏆 BR · {roomCode}</span>
         <span style={{height:16,width:1,background:'#ffffff50'}}/>
@@ -140,7 +140,7 @@ export function BattleRoyaleHud({ roomCode, roomPlayers, myName, pos, totalChars
         </div>
       )}
       {window.CharKit ? (
-        <CharKit.RaceTrack mode="royale" zonePct={totalChars?dangerPos/totalChars:0} hitAt={hitAt}
+        <CharKit.RaceTrack mode="royale" scene zonePct={totalChars?dangerPos/totalChars:0} hitAt={hitAt}
           info={`คุณ ${progress}% · ขอบวง ${edge}% · ${pos} / ${totalChars} ตัว`}
           runners={brTrackRunners(roomPlayers,{myCfg,myPos:pos,myKpm:kpm,totalChars,myOut:playerLives<=0,
             showLeader:elapsed>=ZONE_GRACE})}/>
@@ -160,7 +160,7 @@ export function BattleRoyaleHud({ roomCode, roomPlayers, myName, pos, totalChars
 
 // DEAD SCREEN — shown to eliminated BR players
 export function DeadScreen({ standings, onLeave, onSpectate }) {
-  const tf = "'Sarabun','Noto Sans Thai',sans-serif";
+  const tf = "'Noto Sans Thai Looped','Sarabun','Noto Sans Thai',sans-serif";
   const sorted = brOrder(standings||{});
   return (
     <div style={{position:'absolute',inset:0,background:'rgba(15,23,42,.92)',

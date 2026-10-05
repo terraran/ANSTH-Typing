@@ -33,27 +33,26 @@ export const Key = React.memo(function Key({ kdef, active, isFlash, shiftHeld })
   const shifted   = shiftHeld && chars && chars.length>1 && chars[1]!==chars[0];
   const mainChar  = chars ? (shifted ? chars[1] : chars[0]) : '';
   const smallChar = chars ? (shifted ? chars[0] : chars[1]) : '';
-  const bg=isFlash?'#FCA5A5':active?'#1D4ED8':sp?'var(--c-key-sp)':meta?FINGER_COLORS[meta.f]:'var(--c-key-def)';
-  const shadow=active?'0 0 0 2px #1D4ED8,0 0 16px #93C5FD':'0 1px 3px rgba(0,0,0,.2)';
+  const bg=sp?'var(--c-key-sp)':meta?FINGER_COLORS[meta.f]:'var(--c-key-def)';
   return (
-    <div style={{ flex:w,height:44,background:bg,boxShadow:shadow,borderRadius:6,
+    <div className={'px-key'+(isFlash?' flash':active?' on':'')} style={{ flex:w,height:44,background:bg,
       display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',
       position:'relative',cursor:'default',userSelect:'none',
       transition:'background .1s,box-shadow .1s',minWidth:0 }}>
       {sp ? (
-        <span style={{fontSize:11,fontWeight:700,color:active?'#fff':'#475569'}}>{lbl}</span>
+        <span style={{fontSize:11,fontWeight:700,color:'#3B2416'}}>{lbl}</span>
       ) : chars ? (
         <>
           <span style={{position:'absolute',
             top:shifted?'auto':3, bottom:shifted?3:'auto',
             right:shifted?'auto':5, left:shifted?4:'auto',
-            fontSize:9,color:active?'rgba(255,255,255,.5)':'#94A3B8',fontWeight:600,
-            fontFamily:"'Sarabun','Noto Sans Thai',sans-serif"}}>{smallChar}</span>
+            fontSize:9,color:'rgba(59,36,22,.55)',fontWeight:600,
+            fontFamily:"'Noto Sans Thai Looped','Sarabun','Noto Sans Thai',sans-serif"}}>{smallChar}</span>
           <span style={{fontSize:18,fontWeight:700,lineHeight:1,
-            color:active?'#fff':'var(--c-t1)',
-            fontFamily:"'Sarabun','Noto Sans Thai',sans-serif"}}>{mainChar}</span>
+            color:'#3B2416',
+            fontFamily:"'Noto Sans Thai Looped','Sarabun','Noto Sans Thai',sans-serif"}}>{mainChar}</span>
           {meta?.home&&!shifted&&<span style={{position:'absolute',bottom:3,width:4,height:4,
-            borderRadius:'50%',background:active?'#BFDBFE':'rgba(0,0,0,.25)'}}/>}
+            background:'#3B2416'}}/>}
         </>
       ) : null}
     </div>
@@ -65,9 +64,9 @@ export const Key = React.memo(function Key({ kdef, active, isFlash, shiftHeld })
 export const OnScreenKeyboard = React.memo(function OnScreenKeyboard({ nextCode, needsShift, flashCode, shiftHeld, correctShiftCode }) {
   const isActive = c => nextCode===c || ((c==='ShiftLeft'||c==='ShiftRight') && needsShift && (correctShiftCode ? c===correctShiftCode : true));
   return (
-    <div style={{display:'flex',flexDirection:'column',gap:3,width:'100%'}}>
+    <div style={{display:'flex',flexDirection:'column',gap:5,width:'100%'}}>
       {KB_ROWS.map((row,ri)=>(
-        <div key={ri} style={{display:'flex',gap:3}}>
+        <div key={ri} style={{display:'flex',gap:5}}>
           {row.map(kdef=><Key key={kdef.c} kdef={kdef} active={isActive(kdef.c)}
             isFlash={flashCode===kdef.c} shiftHeld={shiftHeld}/>)}
         </div>
@@ -75,8 +74,8 @@ export const OnScreenKeyboard = React.memo(function OnScreenKeyboard({ nextCode,
       <div style={{display:'flex',gap:10,marginTop:6,flexWrap:'wrap',justifyContent:'center'}}>
         {[['LP','ซ้ายก้อย'],['LR','ซ้ายนาง'],['LM','ซ้ายกลาง'],['LI','ซ้ายชี้'],
           ['RI','ขวาชี้'],['RM','ขวากลาง'],['RR','ขวานาง'],['RP','ขวาก้อย']].map(([f,lbl])=>(
-          <div key={f} style={{display:'flex',alignItems:'center',gap:4,fontSize:10,color:'var(--c-t2)',
-            fontFamily:"'Sarabun','Noto Sans Thai',sans-serif"}}>
+          <div key={f} style={{display:'flex',alignItems:'center',gap:4,fontSize:11,fontWeight:600,color:'inherit',
+            fontFamily:"'Noto Sans Thai Looped','Sarabun','Noto Sans Thai',sans-serif"}}>
             <span style={{width:11,height:11,borderRadius:2,background:FINGER_COLORS[f],
               display:'inline-block',flexShrink:0}}/>
             {lbl}

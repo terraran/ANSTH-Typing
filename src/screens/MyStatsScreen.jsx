@@ -7,7 +7,7 @@ const { useEffect, useMemo, useState } = React;
 
 export function ProgressChart({ sessions }) {
   const [tab, setTab] = useState('wpm'); // 'wpm' | 'both'
-  const tf = "'Sarabun','Noto Sans Thai',sans-serif";
+  const tf = "'Noto Sans Thai Looped','Sarabun','Noto Sans Thai',sans-serif";
 
   // Reverse to chronological order, take last 20
   const data = [...sessions].reverse().slice(-20).map((s, i) => ({
@@ -140,7 +140,7 @@ export function ProgressChart({ sessions }) {
 
 // MY STATS — overview · solo practice · 1v1 · Battle Royale · head-to-head (like chess.com)
 
-const tf = "'Sarabun','Noto Sans Thai',sans-serif";
+const tf = "'Noto Sans Thai Looped','Sarabun','Noto Sans Thai',sans-serif";
 const TABS = [['ov','ภาพรวม'],['solo','ฝึกเดี่ยว'],['duel','1v1'],['br','Battle Royale'],['h2h','คู่แข่ง']];
 const RES = { win:{t:'ชนะ',bg:'#DCFCE7',fg:'#166534'}, lose:{t:'แพ้',bg:'#FEE2E2',fg:'#991B1B'}, draw:{t:'เสมอ',bg:'#F1F5F9',fg:'#475569'} };
 const NOTE = { left:'ออกกลางคัน', 'opp-left':'คู่แข่งออกกลางคัน', eliminated:'ตกรอบ', finished:'พิมพ์จบ', survived:'รอดจนจบ' };

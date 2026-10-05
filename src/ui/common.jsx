@@ -26,7 +26,7 @@ export const TextDisplay = React.memo(function TextDisplay({ displayChars, displ
   }
 
   return (
-    <div style={{fontFamily:"'Sarabun','Noto Sans Thai',sans-serif",
+    <div style={{fontFamily:"'Noto Sans Thai Looped','Sarabun','Noto Sans Thai',sans-serif",
       fontSize:34,lineHeight:compact?1.75:2,display:'flex',flexWrap:'wrap',
       alignContent:'flex-start',gap:'0 2px',minHeight:compact?119:130}}>
       {tokens.map((tok,ti) => {
@@ -73,7 +73,7 @@ export function StatPill({ label, value, color }) {
       borderRadius:12,padding:'8px 16px',textAlign:'center',minWidth:80}}>
       <div style={{fontSize:21,fontWeight:800,color:color??'var(--c-t1)'}}>{value}</div>
       <div style={{fontSize:10,color:'var(--c-t3)',marginTop:2,fontWeight:600,letterSpacing:.5,
-        fontFamily:"'Sarabun','Noto Sans Thai',sans-serif"}}>{label}</div>
+        fontFamily:"'Noto Sans Thai Looped','Sarabun','Noto Sans Thai',sans-serif"}}>{label}</div>
     </div>
   );
 }
@@ -85,7 +85,7 @@ export function PenaltyScreen({ countdown }) {
     <div style={{position:'fixed',inset:0,background:'rgba(185,28,28,.96)',
       display:'flex',flexDirection:'column',alignItems:'center',
       justifyContent:'center',zIndex:1000,gap:16,
-      fontFamily:"'Sarabun','Noto Sans Thai',sans-serif"}}>
+      fontFamily:"'Noto Sans Thai Looped','Sarabun','Noto Sans Thai',sans-serif"}}>
       <div style={{fontSize:72}}>⚠️</div>
       <div style={{fontSize:30,fontWeight:800,color:'#fff',textAlign:'center',lineHeight:1.3}}>
         กดแป้นพิมพ์เร็วเกินไป!
@@ -138,7 +138,7 @@ export function TestTimer({ startTime, now, endTime, total: totalSecs = TEST_SEC
       </div>
       {!startTime && (
         <span style={{fontSize:12,color:'var(--c-t2)',fontWeight:700,lineHeight:1.4,
-          fontFamily:"'Sarabun','Noto Sans Thai',sans-serif"}}>
+          fontFamily:"'Noto Sans Thai Looped','Sarabun','Noto Sans Thai',sans-serif"}}>
           {totalSecs % 60 ? `${totalSecs} วินาที` : `${totalSecs / 60} นาที`}<br/>เริ่มนับเมื่อกดปุ่มแรก
         </span>
       )}
@@ -150,7 +150,7 @@ export function TimeUpOverlay() {
   return (
     <div style={{position:'fixed',inset:0,background:'rgba(15,23,42,.55)',zIndex:1001,
       display:'flex',alignItems:'center',justifyContent:'center',
-      fontFamily:"'Sarabun','Noto Sans Thai',sans-serif"}}>
+      fontFamily:"'Noto Sans Thai Looped','Sarabun','Noto Sans Thai',sans-serif"}}>
       <div className="timeup-pop" style={{background:'#DC2626',color:'#fff',borderRadius:24,
         padding:'28px 44px',textAlign:'center',boxShadow:'0 20px 60px rgba(0,0,0,.35)'}}>
         <div style={{fontSize:64,lineHeight:1}}>⏰</div>

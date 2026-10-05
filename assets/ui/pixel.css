@@ -61,3 +61,8 @@
 @keyframes px-shake{0%,100%{transform:translateX(0)}25%{transform:translateX(-8px)}75%{transform:translateX(8px)}}
 .px-shake{animation:px-shake .25s linear 2}
 @media (prefers-reduced-motion:reduce){.scene>.l-cl,.px-blink,.px-shake{animation:none}}
+.px-lane{background:url(../bg/front.png) repeat-x left bottom/576px 324px,url(../bg/fields.png) repeat-x left bottom/576px 324px,url(../bg/sky.png) left bottom/100% 324px;image-rendering:pixelated}
+/* On-screen keyboard keys: pixel blocks */
+.px-key{border:2px solid #3B2416;box-shadow:0 3px 0 #3B2416}
+.px-key.on{background:#FFC23D!important;box-shadow:0 1px 0 #3B2416;transform:translateY(2px)}
+.px-key.flash{background:#F28B82!important}

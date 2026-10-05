@@ -16,12 +16,13 @@
 <link href="https://fonts.googleapis.com/css2?family=Kanit:ital,wght@1,800&family=Noto+Sans+Thai+Looped:wght@500;600;700&family=Pixelify+Sans:wght@500;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="assets/ui/pixel.css?v=__BUILD__">
 <style>
+/* Parchment palette (matches the pixel panels in assets/ui) */
 :root,[data-theme="light"]{
-  --c-bg:#F1F5F9;--c-card:#ffffff;--c-surf:#F8FAFC;
-  --c-border:#E2E8F0;--c-border2:#CBD5E1;
-  --c-t1:#0F172A;--c-t2:#64748B;--c-t3:#94A3B8;--c-t4:#475569;
-  --c-key-sp:#CBD5E1;--c-key-def:#E2E8F0;
-  --c-txt-future:#CBD5E1;--c-input-bg:#ffffff;
+  --c-bg:#05638F;--c-card:#F3E6C0;--c-surf:#F8EED2;
+  --c-border:#C9A66B;--c-border2:#A9854F;
+  --c-t1:#3B2416;--c-t2:#6A4A30;--c-t3:#8C6E4E;--c-t4:#5A3A22;
+  --c-key-sp:#D9C49A;--c-key-def:#EFE2BF;
+  --c-txt-future:#B9A27E;--c-input-bg:#FFF9E6;
 }
 
 [data-theme="dark"]{
@@ -31,9 +32,9 @@
   --c-key-sp:#334155;--c-key-def:#2D3F55;
   --c-txt-future:#64748B;--c-input-bg:#1E293B;
 }
-*{box-sizing:border-box;margin:0;padding:0}body{background:var(--c-bg);font-family:system-ui,sans-serif;color:var(--c-t1);transition:background .3s,color .3s;}
+*{box-sizing:border-box;margin:0;padding:0}body{background:var(--c-bg);font-family:'Noto Sans Thai Looped','Sarabun',sans-serif;color:var(--c-t1);transition:background .3s,color .3s;}
 #loading{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;
-flex-direction:column;gap:12px;font-family:'Sarabun',sans-serif;font-size:18px;color:#64748B;background:#F1F5F9;z-index:9999}
+flex-direction:column;gap:12px;font-family:'Noto Sans Thai Looped','Sarabun',sans-serif;font-size:18px;color:#FFF6D8;background:#05638F;z-index:9999}
 #loading span{font-size:40px}
   /* +points pop-up while typing */
   @keyframes scorePop { 0%{opacity:0;transform:translateY(6px) scale(.8)} 25%{opacity:1;transform:translateY(0) scale(1.15)} 100%{opacity:0;transform:translateY(-14px) scale(1)} }

@@ -10,7 +10,7 @@
   const { useState, useEffect, useRef } = React;
   const BASE = 'assets/char/';
   const VER = '2';               // bump after replacing any asset file (cache-busting)
-  const TF = "'Sarabun','Noto Sans Thai',sans-serif";
+  const TF = "'Noto Sans Thai Looped','Sarabun','Noto Sans Thai',sans-serif";
 
   // ── Choices ─────────────────────────────────────────────────
   // ramp = [darkest, lightest] target colours; null = keep the original art colours.
@@ -372,7 +372,7 @@
       cv.width = Math.round(width * dpr); cv.height = Math.round(height * dpr);
       const ctx = cv.getContext('2d');
       const xOf = pct => PAD_L + Math.max(0, Math.min(1, pct)) * (width - PAD_L - PAD_R);
-      const font = (w, px) => w + ' ' + px + "px 'Sarabun','Noto Sans Thai',sans-serif";
+      const font = (w, px) => w + ' ' + px + "px 'Noto Sans Thai Looped','Sarabun','Noto Sans Thai',sans-serif";
       const feetY = height - 9;
 
       // Ghost runner: position replayed from recorded keystroke gaps, computed here
@@ -447,9 +447,12 @@
 
       function paint(now, dt, o) {
         const rs = o.runners || [];
-        ctx.fillStyle = '#F4F8FC'; ctx.fillRect(0, 0, width, height);
-        ctx.fillStyle = '#DDE7F0'; ctx.fillRect(0, feetY - 3, width, 9);
-        ctx.fillStyle = '#94A3B8'; ctx.fillRect(PAD_L - 2, feetY - 12, 2, 18);
+        if (o.scene) ctx.clearRect(0, 0, width, height);     // pixel scene is the wrapper's CSS background
+        else {
+          ctx.fillStyle = '#F4F8FC'; ctx.fillRect(0, 0, width, height);
+          ctx.fillStyle = '#DDE7F0'; ctx.fillRect(0, feetY - 3, width, 9);
+        }
+        ctx.fillStyle = o.scene ? '#3B2416' : '#94A3B8'; ctx.fillRect(PAD_L - 2, feetY - 12, 2, 18);
         drawFlag();
         // Storm wall (Battle Royale): everything left of the safe-zone edge
         const zonePct = Number(o.zonePct) || 0;
@@ -545,7 +548,7 @@
       return () => cancelAnimationFrame(raf);
     }, [width, height, isDuel]);
 
-    return h('div', { ref: wrapRef, style: Object.assign({ width: '100%', overflow: 'hidden' }, style) },
+    return h('div', { ref: wrapRef, className: props.scene ? 'px-lane' : undefined, style: Object.assign({ width: '100%', overflow: 'hidden' }, style) },
       h('canvas', { ref: cvRef, style: { width: (width || 0) + 'px', height: height + 'px', display: 'block', imageRendering: 'pixelated' } }));
   }
 
@@ -591,7 +594,7 @@
       const cv = cvRef.current, dpr = Math.min(2, window.devicePixelRatio || 1);
       cv.width = Math.round(width * dpr); cv.height = Math.round(height * dpr);
       const ctx = cv.getContext('2d');
-      const font = (w, px) => w + ' ' + px + "px 'Sarabun','Noto Sans Thai',sans-serif";
+      const font = (w, px) => w + ' ' + px + "px 'Noto Sans Thai Looped','Sarabun','Noto Sans Thai',sans-serif";
       const groundY = height - 6;
 
       function spawnConfetti(now) {

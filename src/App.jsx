@@ -15,6 +15,7 @@ import { RUSH_STARS, emptyProgress, readLocalProgress, stepKey, stepState, write
 import { PenaltyScreen, TestTimer, TextDisplay, TimeUpOverlay } from './ui/common';
 import { NameModal, StoryChoiceScreen } from './screens/Story';
 import { ClassPickerScreen, GoogleSignInScreen } from './screens/Login';
+import { PX_FONT, PxButton, PxIconButton, Scene, Sprite, TH_FONT } from './ui/pixel';
 import { MyStatsScreen } from './screens/MyStatsScreen';
 import { LessonScreen } from './screens/LessonScreen';
 import { WeeklyBoardScreen } from './screens/WeeklyBoardScreen';
@@ -112,7 +113,7 @@ export function ThaiTypingApp() {
   const [afkLeft, setAfkLeft] = useState(null);   // BR: seconds until the next AFK life loss (warning)
   // Theme: 'light' | 'dark' | 'auto'
   const [themeMode, setThemeMode] = useState(()=>{ try{return localStorage.getItem('theme')||'light';}catch{return 'light';} });
-  const isDark = themeMode==='dark';
+  const isDark = false;   // dark theme paused: the pixel scene is a daytime scene
 
   const keystrokeTimes = useRef([]);
   const errorTimes     = useRef([]);
@@ -1359,9 +1360,10 @@ export function ThaiTypingApp() {
   );
 
   return (
-    <div style={{minHeight:'100vh',background:'var(--c-bg)',fontFamily:'system-ui,sans-serif',
-      display:'flex',flexDirection:'column',alignItems:'center',padding:'24px 16px 40px',background:'var(--c-bg)',color:'var(--c-t1)'}}>
-      <style>{`@import url('https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600;700;800&display=swap');`}</style>
+    <div style={{minHeight:'100vh',fontFamily:TH_FONT,position:'relative',
+      display:'flex',flexDirection:'column',alignItems:'center',padding:'14px 16px 40px',color:'var(--c-t1)'}}>
+      {/* Pixel scene behind every screen (dimmer while typing so the text stands out) */}
+      <div style={{position:'fixed',inset:0,zIndex:0}}><Scene dim={screen==='practice'?0.25:screen==='lessons'?0.08:0.18}/></div>
 
       {PERF_ON && <PerfMeter/>}
       {penaltySecs>0 && <PenaltyScreen countdown={penaltySecs}/>}
@@ -1378,62 +1380,34 @@ export function ThaiTypingApp() {
         }}/>
       )}
 
-      {/* Header */}
-      <div style={{width:'100%',maxWidth:860,display:'flex',
-        justifyContent:'space-between',alignItems:'center',marginBottom:22}}>
-        <div style={{display:'flex',alignItems:'center',gap:10}}>
-          <span style={{fontSize:26}}>⌨️</span>
-          <div>
-            <div style={{fontWeight:800,fontSize:15,color:'var(--c-t1)',
-              fontFamily:"'Sarabun','Noto Sans Thai',sans-serif"}}>แบบฝึกพิมพ์ภาษาไทย</div>
-            <div style={{fontSize:10,color:'var(--c-t3)'}}>Thai Typing Practice — Kedmanee (TIS 820-2538)</div>
-          </div>
-        </div>
-        <div style={{display:'flex',gap:8,alignItems:'center'}}>
-          {/* Student badge */}
-          {studentName && (
-            <div style={{background:'#F1F5F9',border:'1.5px solid var(--c-border)',
-              borderRadius:8,padding:'5px 10px',fontSize:11,color:'#475569',
-              fontFamily:"'Sarabun','Noto Sans Thai',sans-serif"}}>
-              ห้อง {classCode} | <strong>{studentName}</strong>
-            </div>
-          )}
-          {/* Back to lessons */}
+      {/* Header: small logo + navigation, on a wooden bar */}
+      <div className="px-wood" style={{width:'100%',maxWidth:1120,display:'flex',justifyContent:'space-between',alignItems:'center',
+        gap:10,flexWrap:'wrap',marginBottom:16,padding:'0 4px',position:'relative',zIndex:1}}>
+        <button onClick={()=>!roomCode&&setScreen('lessons')} aria-label="หน้าหลัก"
+          style={{background:'none',border:0,padding:0,cursor:'pointer',display:'flex',flexDirection:'column',alignItems:'flex-start'}}>
+          <span className="px-logo" style={{fontFamily:"'Kanit',sans-serif",fontStyle:'italic',fontWeight:800,fontSize:26,lineHeight:1.2,
+            filter:'drop-shadow(2px 0 0 #3B2416) drop-shadow(-2px 0 0 #3B2416) drop-shadow(0 2px 0 #3B2416) drop-shadow(0 -2px 0 #3B2416) drop-shadow(3px 3px 0 #3B2416)'}}>
+            แป้นพิมพ์ผจญภัย</span>
+        </button>
+        <div style={{display:'flex',gap:8,alignItems:'center',flexWrap:'wrap'}}>
           {screen!=='lessons'&&screen!=='spam'&&(
-            <button onClick={()=>roomCode?requestLeave():setScreen('lessons')} style={{background:'transparent',
-              border:'1.5px solid #CBD5E1',borderRadius:8,padding:'6px 12px',cursor:'pointer',
-              fontSize:11,color:'var(--c-t2)',fontWeight:600,
-              fontFamily:"'Sarabun','Noto Sans Thai',sans-serif"}}>← บทเรียน</button>
+            <PxButton onClick={()=>roomCode?requestLeave():setScreen('lessons')} style={{minHeight:44,fontSize:14}}>← หน้าหลัก</PxButton>
           )}
-          {/* Logout (class mode only) */}
           {studentName && (
-            <button onClick={handleLogout} style={{background:'transparent',
-              border:'1.5px solid #FCA5A5',borderRadius:8,padding:'6px 12px',cursor:'pointer',
-              fontSize:11,color:'#DC2626',fontWeight:600,
-              fontFamily:"'Sarabun','Noto Sans Thai',sans-serif"}}>ออกจากระบบ</button>
+            <PxButton onClick={handleLogout} style={{minHeight:44,fontSize:14}}>ออกจากระบบ</PxButton>
           )}
-          {/* Theme toggle */}
-          <button onClick={()=>setThemeMode(m=>m==='dark'?'light':'dark')}
-            title={isDark?'Switch to Light Mode':'Switch to Dark Mode'}
-            style={{fontSize:16,background:'transparent',border:'1.5px solid var(--c-border)',
-              borderRadius:8,padding:'5px 9px',cursor:'pointer',lineHeight:1}}>
-            {isDark?'☀️':'🌙'}
-          </button>
-          {/* Link to teacher panel */}
-          <a href="teacher.html" style={{fontSize:11,color:'var(--c-t3)',textDecoration:'none',
-            fontWeight:600,padding:'6px 10px',border:'1.5px solid var(--c-border)',borderRadius:8,
-            display:'flex',alignItems:'center',gap:3}}>🎓 ครู</a>
+          <PxIconButton icon="i_person" label="สำหรับครู" href="teacher.html"/>
         </div>
       </div>
 
       {/* Card */}
-      <div style={{width:'100%',maxWidth:860,background:'var(--c-card)',borderRadius:20,
-        boxShadow:'0 4px 24px rgba(0,0,0,.12)',padding:'30px 26px'}}>
+      <div className={screen==='lessons'?'':'px-panel'} style={{width:'100%',maxWidth:screen==='lessons'?1120:900,position:'relative',zIndex:1,
+        padding:screen==='lessons'?0:'10px 8px'}}>
 
         {notice&&(
           <div style={{display:'flex',alignItems:'center',gap:10,background:'#EFF6FF',border:'1.5px solid #BFDBFE',
             borderRadius:12,padding:'10px 14px',marginBottom:14,fontSize:14,fontWeight:700,color:'#1E3A8A',
-            fontFamily:"'Sarabun','Noto Sans Thai',sans-serif"}}>
+            fontFamily:"'Noto Sans Thai Looped','Sarabun','Noto Sans Thai',sans-serif"}}>
             <span style={{flex:1}}>ℹ️ {notice}</span>
             <button onClick={()=>setNotice('')} aria-label="ปิด"
               style={{background:'none',border:'none',cursor:'pointer',color:'#1E3A8A',fontSize:15}}>✕</button>
@@ -1546,8 +1520,8 @@ export function ThaiTypingApp() {
 
             {/* Solo practice (untimed only): my character runs as I type; races my best run (ghost) if there is one */}
             {!roomCode&&!activeTest&&!activeHw&&!timeLimit&&window.CharKit&&myCfg&&(
-              <div style={{marginBottom:8,border:'1px solid var(--c-border)',borderRadius:12,overflow:'hidden'}}>
-                <CharKit.RaceTrack mode="1v1" info={`${pos} / ${totalChars} ตัว`} runners={[
+              <div style={{marginBottom:10,border:'3px solid #3B2416',overflow:'hidden'}}>
+                <CharKit.RaceTrack mode="1v1" scene info={`${pos} / ${totalChars} ตัว`} runners={[
                   {id:'me',me:true,label:'คุณ',cfg:myCfg,pct:totalChars?pos/totalChars:0,kpm,finished:pos>=totalChars,color:'#1D4ED8'},
                   ...(ghostData?[{id:'ghost',label:'👻 สถิติ '+fmtScore(ghostData.score||0)+' คะแนน',cfg:myCfg,alpha:.38,color:'#64748B',kpm:ghostData.cpm,
                     track:{timings:ghostData.timings,start:startTime,total:totalChars}}]:[]),
@@ -1555,44 +1529,39 @@ export function ThaiTypingApp() {
               </div>
             )}
             {!roomCode&&(
-              <div style={{display:'flex',alignItems:'center',gap:12,marginBottom:10,
-                fontFamily:"'Sarabun','Noto Sans Thai',sans-serif"}}>
+              <div className="px-wood" style={{display:'flex',alignItems:'center',gap:14,marginBottom:10,padding:'0 4px',flexWrap:'wrap',color:'#F5E6BE'}}>
                 {timeLimit>0&&<TestTimer startTime={startTime} now={now} endTime={endTime} total={timeLimit}/>}
-                <div style={{display:'flex',flexDirection:'column',gap:2}}>
-                  {activeTest&&(
-                    <span style={{alignSelf:'flex-start',background:'#EDE9FE',color:'#6D28D9',borderRadius:8,
-                      padding:'3px 10px',fontSize:12,fontWeight:800}}>📝 แบบทดสอบประจำสัปดาห์ · {activeTest.exerciseTitle}</span>
-                  )}
-                  {activeHw&&(
-                    <span style={{alignSelf:'flex-start',background:'#FEF3C7',color:'#B45309',borderRadius:8,
-                      padding:'3px 10px',fontSize:12,fontWeight:800}}>📚 การบ้าน · {activeHw.title} · ต้องได้ {'⭐'.repeat(activeHw.minStars)}</span>
-                  )}
-                  {!activeTest&&!activeHw&&lesson?.curriculum&&exercise&&(
-                    <span style={{alignSelf:'flex-start',background:lesson.al,color:lesson.accent,borderRadius:8,
-                      padding:'3px 10px',fontSize:12,fontWeight:800}}>ด่าน {lesson.stage} · บท {lesson.num} · {exercise.title}</span>
-                  )}
-                  <div style={{display:'flex',alignItems:'center',gap:10}}>
-                    <span style={{fontSize:22,fontWeight:800,color:'var(--c-t1)'}}>⭐ {fmtScore(score)}</span>
+                <div style={{display:'flex',flexDirection:'column',lineHeight:1.35,minWidth:0}}>
+                  {activeTest&&<><span style={{fontSize:13,fontWeight:600,color:'#E8CF95'}}>ภารกิจประจำสัปดาห์</span>
+                    <span style={{fontSize:18,fontWeight:700}}>{activeTest.exerciseTitle}</span></>}
+                  {activeHw&&<><span style={{fontSize:13,fontWeight:600,color:'#E8CF95'}}>การบ้าน · ต้องได้ {activeHw.minStars} ดาว</span>
+                    <span style={{fontSize:18,fontWeight:700}}>{activeHw.title}</span></>}
+                  {!activeTest&&!activeHw&&lesson?.curriculum&&exercise&&<><span style={{fontSize:13,fontWeight:600,color:'#E8CF95'}}>ด่าน {lesson.stage} · บท {lesson.num}</span>
+                    <span style={{fontSize:18,fontWeight:700}}>{exercise.title}</span></>}
+                  {!activeTest&&!activeHw&&!lesson?.curriculum&&exercise&&<span style={{fontSize:18,fontWeight:700}}>{exercise.title}</span>}
+                </div>
+                <div style={{marginLeft:'auto',display:'flex',alignItems:'center',gap:18}}>
+                  <div style={{display:'flex',alignItems:'center',gap:6}} aria-label="คะแนน">
+                    <Sprite name="i_coin"/>
+                    <span style={{fontFamily:PX_FONT,fontSize:30,fontWeight:700,color:'#F5D27A'}}>{fmtScore(score)}</span>
                     {lastGain&&(
                       <span key={lastGain.id} className="score-pop"
-                        style={{fontSize:15,fontWeight:800,color:lastGain.v>=400?'#D97706':'#059669'}}>
-                        +{lastGain.v}</span>
+                        style={{fontFamily:PX_FONT,fontSize:18,fontWeight:700,color:lastGain.v>=400?'#FFC23D':'#9BE39A'}}>+{lastGain.v}</span>
                     )}
                   </div>
+                  {comboMultiplier(scoreStreak)>1&&(
+                    <span style={{fontFamily:PX_FONT,fontSize:22,fontWeight:700,color:'#FF9A5C'}} aria-label="คอมโบ">
+                      COMBO x{comboMultiplier(scoreStreak).toFixed(1)}</span>
+                  )}
                 </div>
-                {comboMultiplier(scoreStreak)>1&&(
-                  <span style={{marginLeft:'auto',background:'#FFF7ED',color:'#EA580C',borderRadius:8,
-                    padding:'4px 10px',fontSize:13,fontWeight:800}}>
-                    🔥 x{comboMultiplier(scoreStreak).toFixed(1)}</span>
-                )}
               </div>
             )}
-            <div style={{background:'var(--c-surf)',borderRadius:14,padding:roomCode?'8px 16px':'22px 18px',
-              marginBottom:roomCode?8:14,border:'1.5px solid var(--c-border)',minHeight:96,
+            <div className="px-panel" style={{padding:roomCode?'0 8px':'6px 10px',
+              marginBottom:roomCode?8:12,minHeight:96,
               display:'flex',alignItems:'center',justifyContent:'center'}}>
               <TextDisplay displayChars={displayChars} displayPos={displayPos} compact={!!roomCode}/>
             </div>
-            <div style={{marginTop:8}}>
+            <div className="px-wood" style={{marginTop:4,padding:'0 2px',color:'#F5E6BE'}}>
               <OnScreenKeyboard nextCode={showHints?nextCode:null} needsShift={showHints&&needsShift}
                 flashCode={flashCode} shiftHeld={shiftHeld} correctShiftCode={showHints?correctShiftCode:null}/>
               {capsLockOn&&(
@@ -1600,7 +1569,7 @@ export function ThaiTypingApp() {
                   border:'1.5px solid #FDE047',borderRadius:8,
                   display:'flex',alignItems:'center',gap:8}}>
                   <span style={{fontSize:15}}>⚠️</span>
-                  <span style={{fontFamily:"'Sarabun','Noto Sans Thai',sans-serif",
+                  <span style={{fontFamily:"'Noto Sans Thai Looped','Sarabun','Noto Sans Thai',sans-serif",
                     fontSize:12,color:'#713F12',fontWeight:600}}>
                     Caps Lock เปิดอยู่ — ภาษาไทยไม่ใช้ Caps Lock กรุณากด Caps Lock เพื่อปิด แล้วใช้ Shift แทน
                   </span>
@@ -1612,19 +1581,18 @@ export function ThaiTypingApp() {
             </div>
 
             {nextChar&&(
-              <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:10,
-                padding:'9px 14px',background:'#EFF6FF',borderRadius:9,
-                border:'1.5px solid #BFDBFE'}}>
-                <span style={{fontSize:10,color:'#2563EB',fontWeight:700,
-                  fontFamily:"'Sarabun','Noto Sans Thai',sans-serif"}}>กำลังพิมพ์:</span>
-                <span style={{fontFamily:"'Sarabun','Noto Sans Thai',sans-serif",
-                  fontSize:22,fontWeight:800,color:'#1D4ED8'}}>
+              <div style={{display:'flex',alignItems:'center',gap:10,margin:'10px 0',
+                padding:'6px 14px',background:'#F8EED2',border:'3px solid #3B2416'}}>
+                <span style={{fontSize:13,color:'#3B2416',fontWeight:700,
+                  fontFamily:"'Noto Sans Thai Looped','Sarabun','Noto Sans Thai',sans-serif"}}>กำลังพิมพ์:</span>
+                <span style={{fontFamily:"'Noto Sans Thai Looped','Sarabun','Noto Sans Thai',sans-serif",
+                  fontSize:26,fontWeight:700,color:'#3B2416',background:'#FFC23D',border:'3px solid #3B2416',padding:'0 8px',minWidth:40,textAlign:'center'}}>
                   {nextChar===' '?'(เว้นวรรค)':nextChar}</span>
-                <span style={{fontSize:10,color:'#64748B',
-                  fontFamily:"'Sarabun','Noto Sans Thai',sans-serif"}}>
+                <span style={{fontSize:13,color:'#6A4A30',fontWeight:600,
+                  fontFamily:"'Noto Sans Thai Looped','Sarabun','Noto Sans Thai',sans-serif"}}>
                   {CLASS_NAMES[CHAR_CLASS[nextChar]]??''}</span>
                 {nextKey&&showHints&&(
-                  <span style={{marginLeft:'auto',fontSize:10,color:'#64748B',fontWeight:700}}>
+                  <span style={{marginLeft:'auto',fontFamily:PX_FONT,fontSize:14,color:'#6A4A30',fontWeight:700}}>
                     {needsShift?'⇧ + ':''}
                     {nextKey.code.replace('Key','').replace('Digit','')
                       .replace('BracketLeft','[').replace('BracketRight',']')
@@ -1640,7 +1608,7 @@ export function ThaiTypingApp() {
                 border:'1.5px solid #FCD34D',marginBottom:10,
                 display:'flex',alignItems:'center',gap:8}}>
                 <span style={{fontSize:16}}>💡</span>
-                <span style={{fontFamily:"'Sarabun','Noto Sans Thai',sans-serif",
+                <span style={{fontFamily:"'Noto Sans Thai Looped','Sarabun','Noto Sans Thai',sans-serif",
                   fontSize:13,color:'#92400E',fontWeight:600}}>{hint}</span>
               </div>
             )}
@@ -1648,7 +1616,7 @@ export function ThaiTypingApp() {
             {/* 1v1 — opponent dropped out: they have a few seconds to come back */}
             {rivalDcSecs>0&&pressureSecs<=0&&(
               <div style={{background:'#FFFBEB',border:'2px solid #F59E0B',borderRadius:12,padding:'10px 16px',
-                marginBottom:12,fontFamily:"'Sarabun','Noto Sans Thai',sans-serif",fontSize:14,fontWeight:800,color:'#92400E'}}>
+                marginBottom:12,fontFamily:"'Noto Sans Thai Looped','Sarabun','Noto Sans Thai',sans-serif",fontSize:14,fontWeight:800,color:'#92400E'}}>
                 📶 คู่แข่งหลุดการเชื่อมต่อ — รออีก {rivalDcSecs} วินาที ถ้าไม่กลับมา คุณชนะ
               </div>
             )}
@@ -1660,7 +1628,7 @@ export function ThaiTypingApp() {
                 <span style={{fontSize:30,fontWeight:800,color:'#DC2626',minWidth:44,
                   textAlign:'center'}}>{pressureSecs}</span>
                 <div style={{flex:1}}>
-                  <div style={{fontFamily:"'Sarabun','Noto Sans Thai',sans-serif",
+                  <div style={{fontFamily:"'Noto Sans Thai Looped','Sarabun','Noto Sans Thai',sans-serif",
                     fontSize:14,fontWeight:800,color:'#DC2626'}}>
                     คู่แข่งพิมพ์จบแล้ว! เหลือ {pressureSecs} วินาที — เก็บคะแนนให้ได้มากที่สุด!</div>
                   <div style={{background:'#FECACA',borderRadius:6,height:6,marginTop:6,overflow:'hidden'}}>

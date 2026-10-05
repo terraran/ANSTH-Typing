@@ -6,7 +6,7 @@ import { TextDisplay } from '../ui/common';
 // HOST DASHBOARD — shown to host who chose "Watch" mode
 
 export function HostDashboard({ roomCode, roomPlayers, roomType, zoneWpm, zonePos, onSpectate, onBack, sOffset=0, watcherNote }) {
-  const tf = "'Sarabun','Noto Sans Thai',sans-serif";
+  const tf = "'Noto Sans Thai Looped','Sarabun','Noto Sans Thai',sans-serif";
   const sNow = Date.now()+sOffset;
   const players = Object.entries(roomPlayers || {}).filter(([,p])=>!p.isSpectator);
   const stOf = p => playerState(p, 'royale', sNow);
@@ -98,7 +98,7 @@ export function HostDashboard({ roomCode, roomPlayers, roomType, zoneWpm, zonePo
 
 // SPECTATOR VIEW — render the selected player's text, not the host's local chunk.
 export function SpectatorView({ playerName, targetChars, progress, onBack }) {
-  const tf = "'Sarabun','Noto Sans Thai',sans-serif";
+  const tf = "'Noto Sans Thai Looped','Sarabun','Noto Sans Thai',sans-serif";
   // Apply same chunking logic as practice screen so page scrolls with player
   const chunks = buildChunks(targetChars);
   const pos    = progress || 0;
@@ -133,7 +133,7 @@ export function SpectatorView({ playerName, targetChars, progress, onBack }) {
 }
 
 export function BattleRoyaleResults({ roomCode, roomPlayers, rows: lockedRows, onBack, sOffset=0, backLabel='ออกจากห้อง' }) {
-  const tf = "'Sarabun','Noto Sans Thai',sans-serif";
+  const tf = "'Noto Sans Thai Looped','Sarabun','Noto Sans Thai',sans-serif";
   const sNow = Date.now()+sOffset;
   const rows = lockedRows || brOrder(roomPlayers, sNow);   // locked final order once available
   const label = p => {

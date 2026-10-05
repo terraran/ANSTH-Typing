@@ -7,7 +7,7 @@ const { useEffect, useState } = React;
 // WEEKLY TEST BOARD — opens straight onto the grade leaderboard, with the start button
 
 export function WeeklyBoardScreen({ data, status, onRefresh, onStart, onLoadPast, onBack }) {
-  const tf = "'Sarabun','Noto Sans Thai',sans-serif";
+  const tf = "'Noto Sans Thai Looped','Sarabun','Noto Sans Thai',sans-serif";
   const [, setTick] = useState(0);
   useEffect(()=>{ const id=setInterval(()=>setTick(t=>t+1),30000); return ()=>clearInterval(id); },[]);
   // Earlier weeks' boards: picked from data.past, loaded on demand and kept for this visit

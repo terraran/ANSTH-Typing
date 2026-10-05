@@ -13,7 +13,7 @@ export function ClassPickerScreen({ googleUser, onSelect, onBack }) {
   const [result, setResult] = useState(null); // {classCode, studentName}
   const [errMsg, setErrMsg] = useState('');
   const [attempt, setAttempt] = useState(0);
-  const tf = "'Sarabun','Noto Sans Thai',sans-serif";
+  const tf = "'Noto Sans Thai Looped','Sarabun','Noto Sans Thai',sans-serif";
 
   // Look up the signed-in Google account in Roster (re-runs on "ลองอีกครั้ง").
   useEffect(() => {

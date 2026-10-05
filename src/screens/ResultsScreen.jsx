@@ -3,6 +3,8 @@ import { PRESSURE_SECS, fmtScore, pctOf, starsFor } from '../engine/scoring';
 import { Stars, StatPill } from '../ui/common';
 import { brOrder, isOutState, playerState } from '../race/presence';
 
+import { PxButton, Sprite } from '../ui/pixel';
+
 const { useEffect, useRef, useState } = React;
 
 // 1v1 RESULT — decided by score; equal score → whoever finished the text first
@@ -64,8 +66,19 @@ export function resultStage({ roomType, roomCode, roomPlayers, myCfg, myName, du
 
 // RESULTS SCREEN
 
+// Three pixel stars like a game's WIN screen: the middle one bigger.
+function BigStars({ n }) {
+  return (
+    <div style={{display:'flex',alignItems:'flex-end',justifyContent:'center',gap:4}} aria-label={`${n} ดาว`}>
+      <Sprite name={n>=1?'star_m':'star_m_off'} style={{marginBottom:6}}/>
+      <Sprite name={n>=2?'star_l':'star_l_off'}/>
+      <Sprite name={n>=3?'star_m':'star_m_off'} style={{marginBottom:6}}/>
+    </div>
+  );
+}
+
 export function ResultsScreen({ cpm, accuracy, errors, totalChars, lesson, saveStatus, saveError, studentName, ghostData, newRecord, roomCode, roomType, roomPlayers, myName, myCfg, bestCombo, score, maxScore, isTest, testBoard, prevBest, sOffset=0, brFinal, onDuelSettled, onRestart, onBack, curResult, nextStep, onNext, hwResult }) {
-  const tf="'Sarabun','Noto Sans Thai',sans-serif";
+  const tf="'Noto Sans Thai Looped','Sarabun','Noto Sans Thai',sans-serif";
   const isDuel = roomType==='1v1' && !!roomCode;
   const [waited, setWaited] = useState(false);
   useEffect(()=>{
@@ -155,11 +168,13 @@ export function ResultsScreen({ cpm, accuracy, errors, totalChars, lesson, saveS
 
       {/* Solo score / weekly test */}
       {!roomCode && (
-        <div style={{marginBottom:18,padding:'16px 20px',borderRadius:14,
-          background:isTest?'#EDE9FE':'#FFFBEB',border:`1.5px solid ${isTest?'#8B5CF6':'#F59E0B'}`}}>
-          <div style={{fontSize:12,fontWeight:800,color:isTest?'#6D28D9':'#B45309',letterSpacing:1}}>
-            {isTest?'📝 คะแนนแบบทดสอบประจำสัปดาห์':'⭐ คะแนนรอบนี้'}</div>
-          <div style={{fontSize:38,fontWeight:800,color:'#0F172A',lineHeight:1.2}}>{fmtScore(score)}</div>
+        <div className="px-wood" style={{marginBottom:18,padding:'0 8px',color:'#F5E6BE'}}>
+          <div style={{fontSize:13,fontWeight:700,color:'#E8CF95',letterSpacing:1}}>
+            {isTest?'คะแนนภารกิจประจำสัปดาห์':'คะแนนรอบนี้'}</div>
+          <div style={{display:'flex',alignItems:'center',justifyContent:'center',gap:8}}>
+            <Sprite name="i_coin"/>
+            <span style={{fontFamily:"'Pixelify Sans', monospace",fontSize:40,fontWeight:700,color:'#F5D27A',lineHeight:1.2}}>{fmtScore(score)}</span>
+          </div>
           {isTest ? (
             <div style={{marginTop:4}}>
               <Stars n={starsFor(score,maxScore)} size={26}/>
@@ -181,7 +196,7 @@ export function ResultsScreen({ cpm, accuracy, errors, totalChars, lesson, saveS
             </div>
           ) : (
             <div style={{fontSize:14,fontWeight:700,marginTop:6,
-              color:score>prevBest?'#059669':'#64748B'}}>
+              color:score>prevBest?'#9BE39A':'#E8CF95'}}>
               {score>prevBest
                 ? (prevBest>0 ? `🎉 สถิติใหม่! (เดิม ${fmtScore(prevBest)})` : '🏆 High Score แรกของแบบฝึกนี้!')
                 : `🏆 High Score: ${fmtScore(prevBest)} — ขาดอีก ${fmtScore(prevBest-score+1)} คะแนน`}
@@ -197,11 +212,9 @@ export function ResultsScreen({ cpm, accuracy, errors, totalChars, lesson, saveS
           : stars===2 ? `เก่งมาก! ${Math.round(target*1.5*10)/10} คำ/นาที และแม่นยำ 95% ขึ้นไป = ⭐⭐⭐`
           : 'สุดยอด! ได้ครบ 3 ดาว';
         return (
-          <div style={{marginBottom:18,padding:'14px 18px',borderRadius:14,background:'#F0FDF4',
-            border:'1.5px solid #22C55E',fontFamily:tf}}>
-            <div style={{fontSize:34,letterSpacing:4,lineHeight:1.1}}>
-              {[0,1,2].map(i=><span key={i} style={{color:i<stars?'#F59E0B':'#CBD5E1'}}>★</span>)}
-            </div>
+          <div style={{marginBottom:18,padding:'14px 18px',background:'#F8EED2',
+            border:'3px solid #3B2416',fontFamily:tf}}>
+            <BigStars n={stars}/>
             <div style={{fontSize:15,fontWeight:800,color:'#14532D',marginTop:4}}>
               {net?'คำสุทธิ':'ความเร็ว'} {wpm} คำ/นาที · เป้าด่านนี้ {target} คำ/นาที</div>
             <div style={{fontSize:12,color:'#166534',marginTop:2}}>{tip}</div>
@@ -222,9 +235,7 @@ export function ResultsScreen({ cpm, accuracy, errors, totalChars, lesson, saveS
           <div style={{marginBottom:18,padding:'14px 18px',borderRadius:14,fontFamily:tf,
             background:passed?'#F0FDF4':'#FFFBEB',border:`1.5px solid ${passed?'#22C55E':'#F59E0B'}`}}>
             <div style={{fontSize:12,fontWeight:800,color:passed?'#166534':'#B45309',letterSpacing:1}}>📚 การบ้าน</div>
-            <div style={{fontSize:34,letterSpacing:4,lineHeight:1.1}}>
-              {[0,1,2].map(i=><span key={i} style={{color:i<stars?'#F59E0B':'#CBD5E1'}}>★</span>)}
-            </div>
+            {passed ? <BigStars n={stars}/> : <Sprite name="xmark" label="ยังไม่ผ่าน"/>}
             <div style={{fontSize:18,fontWeight:800,color:passed?'#14532D':'#92400E',marginTop:4}}>
               {passed ? (late ? '✅ ผ่านแล้ว (ส่งช้า)' : '✅ ผ่านแล้ว! ส่งการบ้านเรียบร้อย') : `ยังไม่ผ่าน — ต้องได้ ${'⭐'.repeat(minStars)}`}
             </div>
@@ -299,19 +310,16 @@ export function ResultsScreen({ cpm, accuracy, errors, totalChars, lesson, saveS
       )}
       <div style={{display:'flex',gap:12,justifyContent:'center',flexWrap:'wrap'}}>
         {nextStep&&(
-          <button onClick={onNext} style={{background:'#15803D',color:'#fff',border:'none',
-            borderRadius:10,padding:'11px 22px',cursor:'pointer',fontSize:14,fontWeight:800,fontFamily:tf}}>
+          <PxButton onClick={onNext} style={{fontSize:16}}>
             ขั้นต่อไป: {nextStep.lesson.num!==lesson?.num?`บท ${nextStep.lesson.num} · `:''}{nextStep.exercise.title} ▶
-          </button>
+          </PxButton>
         )}
-        <button onClick={onRestart} style={{background:'#0F172A',color:'#fff',border:'none',
-          borderRadius:10,padding:'11px 26px',cursor:'pointer',fontSize:14,fontWeight:700,fontFamily:tf}}>
-          {isTest?'↻ ทำแบบทดสอบอีกครั้ง':hwResult?'↻ ทำการบ้านอีกครั้ง':roomCode?'ออกจากห้อง':'สุ่มคำใหม่ / ลองอีกครั้ง'}
-        </button>
-        <button onClick={onBack} style={{background:'#F1F5F9',color:'#0F172A',border:'none',
-          borderRadius:10,padding:'11px 26px',cursor:'pointer',fontSize:14,fontWeight:600,fontFamily:tf}}>
-          {isTest?'🏆 ดูกระดานอันดับ':'เลือกบทเรียน'}
-        </button>
+        <PxButton onClick={onRestart} style={{fontSize:16}}>
+          {isTest?'↻ ทำภารกิจอีกครั้ง':hwResult?'↻ ทำการบ้านอีกครั้ง':roomCode?'ออกจากห้อง':'↻ เล่นอีกครั้ง'}
+        </PxButton>
+        <PxButton onClick={onBack} style={{fontSize:16}}>
+          {isTest?'ดูกระดานอันดับ':'กลับหน้าหลัก'}
+        </PxButton>
       </div>
       {studentName && !isTest && (
         <div style={{marginTop:18,fontSize:12,color:'var(--c-t3)',fontFamily:tf}}>

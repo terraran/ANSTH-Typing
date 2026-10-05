@@ -14,15 +14,28 @@ const SUB = { fontSize: 12, fontWeight: 600, opacity: .9, display: 'block', line
 
 // Star count as a small pixel badge (same style as the class-code badge): pixel star + number.
 // Gold when every star is collected.
+// small = compact version for the 9-stage strip: mini star + collected count only
+// (the full got/max is in the tooltip and on each lesson door).
 function StarBadge({ got, max, small }) {
   const full = max > 0 && got >= max;
+  const label = `ได้ ${got} จาก ${max} ดาว`;
+  const look = { border:'2px solid #3B2416',
+    background: full ? '#FFC23D' : '#5A3A22', color: full ? '#3B2416' : '#FFF6D8',
+    boxShadow: full ? 'inset -2px -2px 0 #D9922B, inset 2px 2px 0 #FFE08A' : 'inset -2px -2px 0 #3B2416, inset 2px 2px 0 #7A5233' };
+  if (small) return (
+    <span aria-label={label} title={label} style={{ ...look, display:'inline-flex', alignItems:'center', gap:2, lineHeight:1,
+      padding:'2px 4px 2px 2px', maxWidth:'100%', boxSizing:'border-box', overflow:'hidden' }}>
+      {/* star_s is 21 px; scale 2/3 → 14 px keeps pixels whole */}
+      <span style={{ width:14, height:14, flex:'none', display:'inline-block' }} aria-hidden="true">
+        <span className="sp sp-star_s" style={{ transform:'scale(.6667)', transformOrigin:'0 0' }}/>
+      </span>
+      <span style={{ fontFamily:PX_FONT, fontSize:8, fontWeight:400 }}>{got}</span>
+    </span>
+  );
   return (
-    <span aria-label={`ได้ ${got} จาก ${max} ดาว`} style={{ display:'inline-flex', alignItems:'center', gap:4, lineHeight:1,
-      padding: small ? '2px 6px 2px 3px' : '3px 7px 3px 4px', border:'2px solid #3B2416',
-      background: full ? '#FFC23D' : '#5A3A22', color: full ? '#3B2416' : '#FFF6D8',
-      boxShadow: full ? 'inset -2px -2px 0 #D9922B, inset 2px 2px 0 #FFE08A' : 'inset -2px -2px 0 #3B2416, inset 2px 2px 0 #7A5233' }}>
+    <span aria-label={label} style={{ ...look, display:'inline-flex', alignItems:'center', gap:4, lineHeight:1, padding:'3px 7px 3px 4px' }}>
       <span className="sp sp-star_s" style={{ flex:'none' }} aria-hidden="true"/>
-      <span style={{ fontFamily:PX_FONT, fontSize: small ? 11 : 12, fontWeight:400 }}>{got}<span style={{ opacity:.7 }}>/{max}</span></span>
+      <span style={{ fontFamily:PX_FONT, fontSize:12, fontWeight:400 }}>{got}<span style={{ opacity:.7 }}>/{max}</span></span>
     </span>
   );
 }

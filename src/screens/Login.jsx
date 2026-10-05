@@ -8,6 +8,15 @@ const { useEffect, useRef, useState } = React;
 
 // CLASS PICKER — auto-lookup by email, fallback to manual entry
 
+// Quiet text link for teachers — bottom corner, low contrast, so students are not drawn to it.
+function TeacherLink() {
+  return (
+    <a href="teacher.html" style={{ position: 'fixed', right: 12, bottom: 8, zIndex: 2, fontSize: 12, fontWeight: 600,
+      color: 'rgba(255,255,255,.75)', textDecoration: 'none', fontFamily: TH_FONT, textShadow: '1px 1px 0 rgba(0,0,0,.35)' }}>
+      สำหรับครู ›</a>
+  );
+}
+
 export function ClassPickerScreen({ googleUser, onSelect, onBack }) {
   const [status, setStatus] = useState('looking'); // looking|found|notfound|error
   const [result, setResult] = useState(null); // {classCode, studentName}
@@ -39,6 +48,7 @@ export function ClassPickerScreen({ googleUser, onSelect, onBack }) {
   return (
     <div style={{ position:'fixed', inset:0, overflowY:'auto', fontFamily:TH_FONT, color:INK }}>
       <div style={{ position:'fixed', inset:0 }}><Scene dim={0.35}/></div>
+      <TeacherLink/>
       <div style={{ position:'relative', minHeight:'100%', boxSizing:'border-box', display:'flex', alignItems:'center', justifyContent:'center', padding:16 }}>
         <PxPanel title="เข้าเล่นด้วยบัญชีโรงเรียน" style={{ width:'100%', maxWidth:480 }}
           bodyStyle={{ padding:'8px 14px 14px', display:'flex', flexDirection:'column', gap:14 }}>
@@ -218,6 +228,7 @@ export function GoogleSignInScreen({ onSignIn, onSolo }) {
     <div style={{ position: 'fixed', inset: 0, overflowY: 'auto', overflowX: 'hidden', fontFamily: TH_FONT, color: INK }}
       onMouseDown={e => { if (stage === 'title' && !e.target.closest('button,a')) setTimeout(() => inputRef.current?.focus({ preventScroll: true }), 0); }}>
       {/* Scene and runners stay put while the content scrolls (short screens only) */}
+      <TeacherLink/>
       <div style={{ position: 'fixed', inset: 0 }}>
         <Scene dim={small ? 0.35 : 0}>
           <Runners queue={runners} bottom={'max(16px, 3vh)'}/>
@@ -258,7 +269,7 @@ export function GoogleSignInScreen({ onSignIn, onSolo }) {
               <div style={{ fontSize: 14, fontWeight: 600, ...outline, textShadow: '2px 2px 0 #1E3A4C' }}>(หรือแตะที่คำ)</div>
             </div>
             <div style={{ display: 'flex', gap: 46, alignItems: 'flex-end', flexWrap: 'wrap', justifyContent: 'center' }}>
-              {[['สำหรับครู', 'i_person', null, 'teacher.html'], ['วิธีเล่น', 'i_help', () => setHelp(true)], ['ทดลองเล่น', 'i_play', onSolo]]
+              {[['วิธีเล่น', 'i_help', () => setHelp(true)], ['ทดลองเล่น', 'i_play', onSolo]]
                 .map(([label, icon, onClick, href]) => (
                   <div key={label} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
                     <span style={{ fontSize: 17, fontWeight: 700, ...outline }}>{label}</span>

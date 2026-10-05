@@ -3,7 +3,7 @@ import { buildChunks, cleanTypingWords, generateBRText, generateStoryText, gener
 import { CHAR_CLASS, CLASS_NAMES, KEY_META, findKeyForChar, resolveKey, validateInput } from './engine/keymap';
 import { KEYS_ON, KeyTester } from './ui/KeyTester';
 import { ERROR_BURST, ERROR_WINDOW_MS, PRESSURE_SECS, SPAM_PENALTY, SPAM_WINDOW_KEYS, SPAM_WRONG_SHARE, SPEED_CPM, TEST_MIN_CHARS, TEST_SECS, HW_SECS, charBasePoints, comboMultiplier, fmtScore, hsKey, lessonStars, netThaiWpmOf, readGuestHighScores, stageTarget, thaiWpmOf, speedMultiplier, testTargetScore, writeGuestHighScores } from './engine/scoring';
-import { ROOM_CODE_LEN, ROOM_CODE_RE, ZONE_GAP, ZONE_GRACE, ZONE_TICK, currentFirebaseUid, ensureFirebaseUser, fbArmLobby, fbArmRace, fbClearActiveRoom, fbCreate, fbDisarm, fbGet, fbGetActiveRoom, fbJoin, fbListen, fbRemove, fbServerOffset, fbSetActiveRoom, fbSetChar, fbSetStatus, fbUpdatePlayer, getDB, getZonePos, getZoneSpeed, makeFreeCode, normalizeRoomCode, zonePosAt } from './firebase';
+import { ROOM_CODE_LEN, ROOM_CODE_RE, ZONE_GAP, ZONE_GRACE, ZONE_TICK, currentFirebaseUid, ensureFirebaseUser, fbArmLobby, fbArmRace, fbClearActiveRoom, fbCreate, fbDisarm, fbGet, fbGetActiveRoom, fbJoin, fbKeepSeat, fbListen, fbRemove, fbServerOffset, fbSetActiveRoom, fbSetChar, fbSetStatus, fbUpdatePlayer, getDB, getZonePos, getZoneSpeed, makeFreeCode, normalizeRoomCode, zonePosAt } from './firebase';
 import { brOrder, brRaceOver, dcLeftMs, graceMs, isOutState, playerState } from './race/presence';
 import { LeaveConfirm, RejoinBanner } from './race/PresenceUI';
 import { apiGetHomework, apiGetStudentStats, apiGetWeeklyBoard, apiGetWeeklyPast, apiSubmitHomework, apiRequest, apiSaveMatch, apiSubmitWeekly, describeApiError, saveSession } from './api';
@@ -12,7 +12,7 @@ import { LESSONS, findLesson } from './data/lessons';
 import { stageOf } from './data/curriculum.js';
 import { curriculumText, stageTestText } from './engine/curriculumText.js';
 import { RUSH_STARS, emptyProgress, readLocalProgress, stepKey, stepState, writeLocalProgress } from './engine/progress.js';
-import { PenaltyScreen, TestTimer, TextDisplay, TimeUpOverlay } from './ui/common';
+import { PenaltyScreen, TestTimer, TextDisplay, TextPager, TimeUpOverlay } from './ui/common';
 import { NameModal, StoryChoiceScreen } from './screens/Story';
 import { ClassPickerScreen, GoogleSignInScreen } from './screens/Login';
 import { PX_FONT, PxButton, PxIconButton, Scene, Sprite, TH_FONT } from './ui/pixel';
@@ -177,7 +177,13 @@ export function ThaiTypingApp() {
   const targetChars = useMemo(() => target ? [...target] : [], [target]);
   const totalChars  = targetChars.length;
   // Split target into ~2-line word-boundary chunks (see buildChunks above)
-  const chunks = useMemo(() => buildChunks(targetChars), [targetChars]);
+  // Pages of 3 real lines, measured by <TextPager> at the text box's width; until it has measured
+  // this text (first frame, or a text it hasn't seen), fall back to the old fixed-size chunks.
+  const [measured, setMeasured] = useState(null);         // {src: targetChars, chunks}
+  const onPages = useCallback((src, ch) => setMeasured(m =>
+    m && m.src===src && JSON.stringify(m.chunks)===JSON.stringify(ch) ? m : {src, chunks:ch}), []);
+  const chunks = useMemo(() => (measured && measured.src===targetChars && measured.chunks.length)
+    ? measured.chunks : buildChunks(targetChars), [targetChars, measured]);
   // Derive chunkIdx from pos — always in sync, no stale-state lag
   const chunkIdx = (() => {
     for (let i=0; i<chunks.length; i++) { if (pos < chunks[i].end) return i; }
@@ -926,11 +932,17 @@ export function ThaiTypingApp() {
       const data = await fbGet(roomId);
       if (!data) { setJoinError('ไม่พบห้อง '+roomId); setMpBusy(false); return; }
       if (data.info?.status!=='lobby') { setJoinError('ห้องนี้กำลังแข่งอยู่แล้ว'); setMpBusy(false); return; }
+      const seats = data.info?.type==='1v1' ? 2 : Infinity;     // 1v1 = host + 1 player
+      const others = Object.keys(data.players||{}).filter(id=>id!==currentFirebaseUid());
+      if (others.length>=seats) { setJoinError('ห้องนี้เต็มแล้ว (1 ปะทะ 1 เข้าได้ 2 คน)'); setMpBusy(false); return; }
       const name = snRef.current || ('ผู้เล่น'+(Object.keys(data.players||{}).length+1));
       myRoomName.current = name;
       const rl = data.info?.maxLives || 3;
       setMaxLives(rl); setPlayerLives(rl); plRef.current=rl;
       await fbJoin(roomId, name, rl, ccRef.current);
+      if (seats!==Infinity && !(await fbKeepSeat(roomId, seats))) {
+        setJoinError('ห้องนี้เต็มแล้ว (1 ปะทะ 1 เข้าได้ 2 คน)'); setMpBusy(false); return;
+      }
       if (charRef.current) fbSetChar(roomId, charRef.current);
       const les = findLesson(data.info.lessonId);
       setRoomCode(roomId); rcRef.current=roomId;
@@ -1419,7 +1431,6 @@ export function ThaiTypingApp() {
           {studentName && (
             <PxButton onClick={handleLogout} style={{minHeight:'var(--hb)',fontSize:14}}>ออกจากระบบ</PxButton>
           )}
-          <PxIconButton icon="i_person" label="สำหรับครู" href="teacher.html" zoom/>
         </div>
       </div>
       )}
@@ -1494,11 +1505,11 @@ export function ThaiTypingApp() {
           const oneLine = {whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'};
           const nowTyping = (
             <div style={{display:'flex',alignItems:'center',gap:8,flex:'none',visibility:nextChar?'visible':'hidden'}} aria-hidden={!nextChar}>
-              <span style={{fontSize:12,fontWeight:700,fontFamily:TF,color:roomCode?'#3B2416':'#E8CF95',whiteSpace:'nowrap'}}>กำลังพิมพ์</span>
-              <span style={{fontFamily:TF,fontSize:nextChar===' '?18:24,fontWeight:700,lineHeight:'34px',height:40,width:104,flex:'none',
+              {roomCode&&<span style={{fontSize:12,fontWeight:700,fontFamily:TF,color:'#3B2416',whiteSpace:'nowrap'}}>กำลังพิมพ์</span>}
+              <span title="ตัวที่ต้องพิมพ์ต่อไป" aria-label="กำลังพิมพ์" style={{fontFamily:TF,fontSize:nextChar===' '?16:24,fontWeight:700,lineHeight:'34px',height:40,width:88,flex:'none',
                 color:'#3B2416',background:'#FFC23D',border:'3px solid #3B2416',textAlign:'center',...oneLine}}>
                 {nextChar===' '?'เว้นวรรค':(nextChar||'')}</span>
-              <span style={{display:'flex',flexDirection:'column',lineHeight:1.3,width:84,flex:'none'}}>
+              <span style={{display:'flex',flexDirection:'column',lineHeight:1.3,width:76,flex:'none'}}>
                 <span style={{fontSize:12,fontWeight:600,fontFamily:TF,color:roomCode?'#6A4A30':'#F5E6BE',...oneLine}}>
                   {nextChar?(CLASS_NAMES[CHAR_CLASS[nextChar]]??''):''}</span>
                 <span style={{fontFamily:PX_FONT,fontSize:11,fontWeight:400,color:roomCode?'#6A4A30':'#F5D27A',height:14,...oneLine}}>
@@ -1560,7 +1571,7 @@ export function ThaiTypingApp() {
               <div className="px-wood" style={{display:'flex',alignItems:'center',gap:14,padding:'0 4px',color:'#F5E6BE',flex:'none',
                 boxSizing:'border-box',height:timeLimit>0?'var(--hud-t)':'var(--hud)'}}>
                 <PxButton onClick={()=>setScreen('lessons')} style={{minHeight:'var(--hb)',fontSize:14,flex:'none'}}>← กลับ</PxButton>
-                {timeLimit>0&&<TestTimer startTime={startTime} now={now} endTime={endTime} total={timeLimit}/>}
+                {timeLimit>0&&<div style={{flex:'none',whiteSpace:'nowrap'}}><TestTimer startTime={startTime} now={now} endTime={endTime} total={timeLimit}/></div>}
                 <div style={{display:'flex',flexDirection:'column',lineHeight:1.35,minWidth:0,flex:'1 1 0'}}>
                   {activeTest&&<><span style={{fontSize:13,fontWeight:600,color:'#E8CF95',...oneLine}}>ภารกิจประจำสัปดาห์</span>
                     <span style={{fontSize:18,fontWeight:700,...oneLine}} title={activeTest.exerciseTitle}>{activeTest.exerciseTitle}</span></>}
@@ -1571,11 +1582,12 @@ export function ThaiTypingApp() {
                   {!activeTest&&!activeHw&&!lesson?.curriculum&&exercise&&<span style={{fontSize:18,fontWeight:700,...oneLine}} title={exercise.title}>{exercise.title}</span>}
                 </div>
                 {nowTyping}
-                <div style={{marginLeft:'auto',display:'flex',alignItems:'center',gap:14,flex:'none'}}>
+                {/* score with COMBO underneath (stacked, so it takes little width) */}
+                <div style={{marginLeft:'auto',display:'flex',flexDirection:'column',alignItems:'flex-end',gap:2,flex:'none'}}>
                   <div style={{display:'flex',alignItems:'center',gap:6,position:'relative'}} aria-label="คะแนน">
                     <Sprite name="i_coin" className="px-z"/>
                     {/* room for 100,000 so a new digit never pushes the HUD */}
-                    <span style={{fontFamily:PX_FONT,fontSize:22,fontWeight:400,color:'#F5D27A',minWidth:'7ch',whiteSpace:'nowrap'}}>{fmtScore(score)}</span>
+                    <span style={{fontFamily:PX_FONT,fontSize:20,fontWeight:400,color:'#F5D27A',minWidth:'7ch',whiteSpace:'nowrap'}}>{fmtScore(score)}</span>
                     {lastGain&&(
                       <span key={lastGain.id} className="score-pop"
                         style={{position:'absolute',right:0,bottom:'100%',marginBottom:-4,whiteSpace:'nowrap',pointerEvents:'none',
@@ -1583,7 +1595,7 @@ export function ThaiTypingApp() {
                     )}
                   </div>
                   {/* always takes its place; only shown while the combo is on */}
-                  <span style={{fontFamily:PX_FONT,fontSize:14,fontWeight:400,color:'#FF9A5C',whiteSpace:'nowrap',
+                  <span style={{fontFamily:PX_FONT,fontSize:11,fontWeight:400,color:'#FF9A5C',whiteSpace:'nowrap',lineHeight:1,
                     visibility:comboMultiplier(scoreStreak)>1?'visible':'hidden'}} aria-label="คอมโบ" aria-hidden={comboMultiplier(scoreStreak)<=1}>
                     COMBO x{Math.max(1,comboMultiplier(scoreStreak)).toFixed(1)}</span>
                 </div>
@@ -1594,7 +1606,10 @@ export function ThaiTypingApp() {
             )}
             <div className="px-panel" style={{padding:roomCode?'0 8px':'2px 10px',flex:'1 1 auto',minHeight:0,
               display:'flex',alignItems:'center',justifyContent:'center',overflow:'hidden'}}>
-              <TextDisplay displayChars={displayChars} displayPos={displayPos} compact={!!roomCode}/>
+              <div style={{position:'relative',width:'100%'}}>
+                <TextDisplay displayChars={displayChars} displayPos={displayPos} compact={!!roomCode} offset={curChunk.start}/>
+                <TextPager targetChars={targetChars} compact={!!roomCode} onChunks={onPages}/>
+              </div>
             </div>
             <div className="px-wood" style={{padding:'0 2px',color:'#F5E6BE',flex:'none'}}>
               <OnScreenKeyboard nextCode={showHints?nextCode:null} needsShift={showHints&&needsShift}

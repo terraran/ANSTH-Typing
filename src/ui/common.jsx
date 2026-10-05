@@ -1,22 +1,34 @@
 import { CHAR_CLASS, COMBINING_CLS } from '../engine/keymap';
 import { SPAM_PENALTY, TEST_SECS } from '../engine/scoring';
 
-// Memoised: only re-renders when the visible text chunk, the cursor or `compact` changes.
-export const TextDisplay = React.memo(function TextDisplay({ displayChars, displayPos, compact }) {
-  const tokens = [];
-  let wordBuf=[], wordStart=0;
-  displayChars.forEach((ch,i) => {
-    if (ch===' ') {
-      if (wordBuf.length) { tokens.push({type:'word',chars:wordBuf,start:wordStart}); wordBuf=[]; }
-      tokens.push({type:'space',start:i});
+const TEXT_FONT = "'Noto Sans Thai Looped','Sarabun','Noto Sans Thai',sans-serif";
+// Font size of the typing text: bigger on tall screens, smaller on the school lab's 657px-high window.
+const TF_CLAMP = 'clamp(22px, 4vh, 40px)';
+export const TEXT_LINES = 3;                    // the text box always shows (and reserves) 3 lines
+
+// Split into units: a word together with the space after it, so a space never starts a line
+// (it would look odd and break the line-based pages). Very long "words" (stage-9 Thai sentences
+// have no spaces) may wrap inside, like before.
+function textUnits(chars) {
+  const units = [];
+  let cur = null;
+  chars.forEach((ch, i) => {
+    if (ch === ' ') {
+      if (!cur) cur = { chars: [], start: i };
+      cur.space = i; units.push(cur); cur = null;
     } else {
-      if (!wordBuf.length) wordStart=i;
-      wordBuf.push({ch,idx:i});
+      if (!cur) cur = { chars: [], start: i };
+      cur.chars.push({ ch, idx: i });
     }
   });
-  if (wordBuf.length) tokens.push({type:'word',chars:wordBuf,start:wordStart});
+  if (cur) units.push(cur);
+  return units;
+}
 
-  const cursorOnCombining = displayPos < displayChars.length &&
+// Memoised: only re-renders when the visible text chunk, the cursor or `compact` changes.
+// offset: index of displayChars[0] in the whole text (data-i = absolute index, used by TextPager).
+export const TextDisplay = React.memo(function TextDisplay({ displayChars, displayPos, compact, offset = 0 }) {
+  const cursorOnCombining = displayPos >= 0 && displayPos < displayChars.length &&
     COMBINING_CLS.has(CHAR_CLASS[displayChars[displayPos]] ?? '');
   let baseIdxForCombining = -1;
   if (cursorOnCombining) {
@@ -24,47 +36,98 @@ export const TextDisplay = React.memo(function TextDisplay({ displayChars, displ
     while (bi >= 0 && COMBINING_CLS.has(CHAR_CLASS[displayChars[bi]] ?? '')) bi--;
     baseIdxForCombining = bi;
   }
+  const lh = compact ? 1.75 : 2;
 
   return (
-    <div style={{fontFamily:"'Noto Sans Thai Looped','Sarabun','Noto Sans Thai',sans-serif",
-      fontSize:'var(--tf)',lineHeight:compact?1.75:2,display:'flex',flexWrap:'wrap',
-      alignContent:'flex-start',gap:'0 2px',
-      // always room for 3 lines (a chunk is ≤ ~86 chars), so a 3-line chunk never grows the panel
-      minHeight:compact?'calc(var(--tf) * 5.25)':'calc(var(--tf) * 6)',
-      '--tf':'clamp(22px, 4vh, 34px)'}}>
-      {tokens.map((tok,ti) => {
-        if (tok.type==='space') {
-          const done=tok.start<displayPos,cur=tok.start===displayPos;
-          return (
-            <span key={ti} style={{display:'inline-block',width:14,textAlign:'center',
-              color:done?'#059669':'#CBD5E1',
-              background:cur?'#FEF08A':'transparent',
+    <div style={{fontFamily:TEXT_FONT, fontSize:'var(--tf)', lineHeight:lh, display:'flex', flexWrap:'wrap',
+      alignContent:'flex-start', gap:'0 2px',
+      // always room for TEXT_LINES lines, so the box never changes height while typing
+      minHeight:`calc(var(--tf) * ${lh * TEXT_LINES})`, '--tf':TF_CLAMP}}>
+      {textUnits(displayChars).map((u,ui) => {
+        const long = u.chars.length > 16;
+        let space = null;
+        if (u.space !== undefined) {
+          const done=u.space<displayPos, cur=u.space===displayPos;
+          space = (
+            <span key="sp" data-i={offset+u.space} style={{display:'inline-block',width:14,marginLeft:u.chars.length?2:0,textAlign:'center',
+              color:done?'#059669':'#CBD5E1', background:cur?'#FEF08A':'transparent',
               boxShadow:cur?'inset 0 -3px 0 #F59E0B':'none'}}>
               {done?'·':cur?'⎵':' '}
             </span>
           );
         }
-        return (
-          // Thai has no spaces inside a phrase, so stage-9 sentences can be one very long "word":
-          // let those wrap (the browser breaks Thai at word boundaries) instead of overflowing.
-          <span key={ti} style={tok.chars.length>16?{display:'inline'}:{display:'inline-block',whiteSpace:'nowrap'}}>
-            {tok.chars.map(({ch,idx}) => {
-              const done = idx < displayPos;
-              const cur  = idx === displayPos;
-              const isBaseForCombiningCursor = cursorOnCombining && idx === baseIdxForCombining;
-              const showHighlight = cur || isBaseForCombiningCursor;
-              return (
-                <span key={idx} style={{
-                  color:done?'#059669':cur?'var(--c-t1)':'var(--c-txt-future)',
-                  background:showHighlight?'#FEF08A':'transparent',
-                  // underline drawn as a shadow: a real border would make the line 3px taller and shift the screen
-                  boxShadow:showHighlight?'inset 0 -3px 0 #F59E0B':'none',
-                }}>{ch}</span>
-              );
-            })}
-          </span>
-        );
+        const word = u.chars.map(({ch,idx}) => {
+          const done = idx < displayPos;
+          const cur  = idx === displayPos;
+          const showHighlight = cur || (cursorOnCombining && idx === baseIdxForCombining);
+          return (
+            <span key={idx} data-i={offset+idx} style={{
+              color:done?'#059669':cur?'var(--c-t1)':'var(--c-txt-future)',
+              background:showHighlight?'#FEF08A':'transparent',
+              // underline drawn as a shadow: a real border would make the line 3px taller and shift the screen
+              boxShadow:showHighlight?'inset 0 -3px 0 #F59E0B':'none',
+            }}>{ch}</span>
+          );
+        });
+        // Thai has no spaces inside a phrase, so stage-9 sentences can be one very long "word":
+        // let those wrap (the browser breaks Thai at word boundaries) instead of overflowing.
+        return long
+          ? <span key={ui} style={{display:'inline'}}>{word}{space}</span>
+          : <span key={ui} style={{display:'inline-block',whiteSpace:'nowrap'}}>{word}{space}</span>;
       })}
+    </div>
+  );
+});
+
+// Pages of the typing text by real lines: lays the WHOLE text out invisibly at the same width and
+// font as the text box, then cuts it every TEXT_LINES lines — so every page fills the box
+// whatever the screen size. Reports [{start,end}] via onChunks(targetChars, chunks).
+export const TextPager = React.memo(function TextPager({ targetChars, compact, onChunks }) {
+  const ref = React.useRef(null);
+  const [tick, setTick] = React.useState(0);
+  React.useEffect(() => {
+    const el = ref.current; if (!el) return;
+    let w = el.clientWidth;
+    const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(() => {
+      if (el.clientWidth !== w) { w = el.clientWidth; setTick(t => t + 1); }
+    }) : null;
+    ro && ro.observe(el);
+    const onResize = () => setTick(t => t + 1);           // font size follows the window height
+    window.addEventListener('resize', onResize);
+    if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => setTick(t => t + 1));
+    return () => { ro && ro.disconnect(); window.removeEventListener('resize', onResize); };
+  }, []);
+  React.useLayoutEffect(() => {
+    const el = ref.current; if (!el || !targetChars.length) return;
+    const nodes = el.querySelectorAll('[data-i]');
+    const mids = new Array(targetChars.length);
+    let lineH = 0;
+    nodes.forEach(n => {
+      const r = n.getBoundingClientRect();
+      mids[+n.dataset.i] = r.top + r.height / 2;         // middle of the glyph/space = middle of its line
+      lineH = Math.max(lineH, r.height);
+    });
+    // line number of each character: a new line starts when the middle moves down by > half a line
+    let line = 0, lineMid = null;
+    const lineOf = Array.from(mids, m => {
+      if (m === undefined) return line;
+      if (lineMid === null) lineMid = m;
+      else if (m > lineMid + lineH / 2) { line++; lineMid = m; }
+      return line;
+    });
+    const chunks = [];
+    let start = 0;
+    for (let i = 1; i <= targetChars.length; i++) {
+      if (i === targetChars.length || Math.floor(lineOf[i] / TEXT_LINES) !== Math.floor(lineOf[start] / TEXT_LINES)) {
+        chunks.push({ start, end: i }); start = i;
+      }
+    }
+    onChunks && onChunks(targetChars, chunks);
+  }, [targetChars, compact, tick]);
+  return (
+    <div ref={ref} aria-hidden="true" style={{position:'absolute', left:0, right:0, top:0, height:0, overflow:'hidden',
+      visibility:'hidden', pointerEvents:'none'}}>
+      <TextDisplay displayChars={targetChars} displayPos={-1} compact={compact}/>
     </div>
   );
 });
@@ -128,7 +191,7 @@ export function TestTimer({ startTime, now, endTime, total: totalSecs = TEST_SEC
         </svg>
         <div style={{position:'absolute',inset:0,display:'flex',alignItems:'center',justifyContent:'center'}}>
           <span key={finalTen ? left : 'clock'} className={finalTen ? 'timer-beat' : ''}
-            style={{fontFamily:"'Press Start 2P', monospace",fontSize:left<=10?24:16,fontWeight:400,color}}>
+            style={{fontFamily:"'Press Start 2P', monospace",fontSize:left<=10?24:14,fontWeight:400,color}}>
             {label}
           </span>
         </div>

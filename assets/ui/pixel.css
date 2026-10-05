@@ -79,3 +79,12 @@
   .px-short-hide{display:none!important}
 }
 @media (max-height:700px){ .px-tiny-hide{display:none!important} }
+/* Colored buttons (same pixel art, recolored): one color per play mode */
+.px-btn.c-blue{border-image-source:url(btn_blue.png)}  .px-btn.c-blue:hover{border-image-source:url(btn_hover_blue.png)}  .px-btn.c-blue:active{border-image-source:url(btn_down_blue.png)}
+.px-btn.c-gold{border-image-source:url(btn_gold.png)}  .px-btn.c-gold:hover{border-image-source:url(btn_hover_gold.png)}  .px-btn.c-gold:active{border-image-source:url(btn_down_gold.png)}
+.px-btn.c-red{border-image-source:url(btn_red.png)}    .px-btn.c-red:hover{border-image-source:url(btn_hover_red.png)}    .px-btn.c-red:active{border-image-source:url(btn_down_red.png)}
+.px-btn.c-purple{border-image-source:url(btn_purple.png)} .px-btn.c-purple:hover{border-image-source:url(btn_hover_purple.png)} .px-btn.c-purple:active{border-image-source:url(btn_down_purple.png)}
+/* "Play me next" — the next door / step bobs gently (2-frame, pixel style) */
+@keyframes pxBob{0%,100%{transform:translateY(0)}50%{transform:translateY(-4px)}}
+.px-bob{animation:pxBob 1s steps(2,jump-none) infinite}
+@media (prefers-reduced-motion:reduce){.px-bob{animation:none}}

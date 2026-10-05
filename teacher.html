@@ -95,6 +95,11 @@
     .stat-val      { font-size: 22px; font-weight: 800; }
     .stat-lbl      { font-size: 10px; color: #94A3B8; font-weight: 600; letter-spacing: .5px; }
     .sessions-title { font-size: 15px; font-weight: 800; margin-bottom: 12px; }
+    .chart-card { background:#fff; border:1px solid #E2E8F0; border-radius:12px; padding:12px 14px 6px; margin-bottom:22px; }
+    .chart-card svg { width:100%; height:auto; display:block; }
+    .chart-legend { display:flex; gap:16px; font-size:12px; font-weight:700; color:#475569; margin-bottom:4px; flex-wrap:wrap; }
+    .chart-legend i { display:inline-block; width:14px; height:3px; border-radius:2px; vertical-align:middle; margin-right:5px; }
+    .chart-note { font-size:11px; color:#94A3B8; margin-top:2px; }
     .sessions-table { width: 100%; border-collapse: collapse;
                        background: #fff; border-radius: 12px; overflow: hidden;
                        border: 1.5px solid #E2E8F0; font-size: 13px; }
@@ -213,6 +218,8 @@
       </div>
     </div>
     <div class="stats-row" id="detail-stats"></div>
+    <div class="sessions-title">กราฟความคืบหน้า / Progress</div>
+    <div id="detail-chart" class="chart-card"></div>
     <div class="sessions-title">ประวัติการฝึก / Session History</div>
     <div id="detail-sessions"></div>
   </div>
@@ -527,6 +534,7 @@ function showStudentDetail(student) {
     `<div class="stat-pill"><div class="stat-val" style="color:${color}">${val}</div><div class="stat-lbl">${lbl}</div></div>`
   ).join('');
 
+  renderStudentChart(student.sessions);
   if (!student.sessions.length) {
     document.getElementById('detail-sessions').innerHTML = '<div class="no-sessions">ยังไม่มีเซสชั่น</div>';
     return;
@@ -546,6 +554,62 @@ function showStudentDetail(student) {
       <thead><tr><th>วันที่</th><th>แบบฝึก</th><th>CPM</th><th>WPM</th><th>ความแม่น</th><th>ผิด</th><th>ตัวอักษร</th><th>เวลา</th></tr></thead>
       <tbody>${rows}</tbody>
     </table>`;
+}
+
+// Progress chart (same idea as the student's "สถิติของฉัน"): WPM (left axis) and accuracy % (right axis)
+// for the last 30 practice sessions, oldest → newest. Plain SVG, no library.
+function renderStudentChart(sessions) {
+  const el = document.getElementById('detail-chart');
+  const list = (sessions || []).filter(s => s && s.date)
+    .sort((a, b) => new Date(a.date) - new Date(b.date)).slice(-30);
+  if (list.length < 2) {
+    el.innerHTML = '<div class="no-sessions" style="padding:14px">ต้องฝึกอย่างน้อย 2 ครั้งจึงจะแสดงกราฟ</div>';
+    return;
+  }
+  const W = 640, H = 220, L = 40, R = 40, T = 12, B = 30;
+  const wpm = list.map(s => Number(s.wpm) || Math.round((Number(s.cpm) || 0) / 5));
+  const acc = list.map(s => Math.max(0, Math.min(100, Number(s.accuracy) || 0)));
+  const wMax = Math.max(20, Math.ceil(Math.max(...wpm) / 20) * 20);           // round grid steps (÷4)
+  const aMin = Math.min(60, Math.floor(Math.min(...acc) / 20) * 20);
+  const x = i => L + (list.length === 1 ? 0 : i * (W - L - R) / (list.length - 1));
+  const yW = v => T + (H - T - B) * (1 - v / wMax);
+  const yA = v => T + (H - T - B) * (1 - (v - aMin) / (100 - aMin));
+  const path = (vals, y) => vals.map((v, i) => (i ? 'L' : 'M') + x(i).toFixed(1) + ' ' + y(v).toFixed(1)).join(' ');
+  let g = '';
+  for (let k = 0; k <= 4; k++) {               // grid + both axes' labels
+    const yy = T + (H - T - B) * k / 4;
+    g += `<line x1="${L}" x2="${W - R}" y1="${yy}" y2="${yy}" stroke="#F1F5F9"/>`;
+    g += `<text x="${L - 6}" y="${yy + 4}" text-anchor="end" font-size="10" fill="#2563EB">${Math.round(wMax * (1 - k / 4))}</text>`;
+    g += `<text x="${W - R + 6}" y="${yy + 4}" font-size="10" fill="#059669">${Math.round(100 - (100 - aMin) * k / 4)}%</text>`;
+  }
+  const step = Math.max(1, Math.ceil(list.length / 8));
+  list.forEach((s, i) => {
+    if (i % step === 0 || i === list.length - 1) {
+      const d = new Date(s.date);
+      g += `<text x="${x(i)}" y="${H - 10}" text-anchor="middle" font-size="10" fill="#94A3B8">${d.getDate()}/${d.getMonth() + 1}</text>`;
+    }
+  });
+  const dots = (vals, y, col, fmt) => vals.map((v, i) =>
+    `<circle cx="${x(i)}" cy="${y(v)}" r="3.5" fill="#fff" stroke="${col}" stroke-width="2"><title>${esc(formatDate(list[i].date))} · ${esc(list[i].exercise || '')} · ${fmt(v)}</title></circle>`).join('');
+  // trend: average of the first vs the last few sessions
+  const n = Math.min(5, Math.floor(list.length / 2)), avg = a => a.reduce((s, v) => s + v, 0) / a.length;
+  const dW = Math.round(avg(wpm.slice(-n)) - avg(wpm.slice(0, n)));
+  const dA = Math.round(avg(acc.slice(-n)) - avg(acc.slice(0, n)));
+  const sign = v => (v > 0 ? '▲ +' : v < 0 ? '▼ ' : '') + v;
+  el.innerHTML = `
+    <div class="chart-legend">
+      <span><i style="background:#2563EB"></i>WPM (คำ/นาที)</span>
+      <span><i style="background:#059669"></i>ความแม่น %</span>
+      <span style="color:${dW >= 0 ? '#059669' : '#DC2626'}">WPM ${sign(dW)}</span>
+      <span style="color:${dA >= 0 ? '#059669' : '#DC2626'}">ความแม่น ${sign(dA)}%</span>
+    </div>
+    <svg viewBox="0 0 ${W} ${H}" role="img" aria-label="กราฟ WPM และความแม่น ${list.length} ครั้งล่าสุด">
+      ${g}
+      <path d="${path(acc, yA)}" fill="none" stroke="#059669" stroke-width="2" stroke-dasharray="5 4"/>
+      <path d="${path(wpm, yW)}" fill="none" stroke="#2563EB" stroke-width="2.5"/>
+      ${dots(acc, yA, '#059669', v => v + '%')}${dots(wpm, yW, '#2563EB', v => v + ' WPM')}
+    </svg>
+    <div class="chart-note">${list.length} ครั้งล่าสุด (เก่า → ใหม่) · ชี้ที่จุดเพื่อดูแบบฝึก · ▲▼ เทียบ ${n} ครั้งแรกกับ ${n} ครั้งล่าสุดในกราฟ</div>`;
 }
 
 function showDash() {

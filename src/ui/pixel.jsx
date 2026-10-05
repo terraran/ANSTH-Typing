@@ -27,8 +27,9 @@ export function PxPanel({ title, children, style, bodyStyle, wood }) {
   );
 }
 
-export function PxButton({ children, style, ...rest }) {
-  return <button className="px-btn" style={{ minHeight: 52, fontSize: 17, padding: '0 6px', ...style }} {...rest}>{children}</button>;
+// color: 'blue' | 'gold' | 'red' | 'purple' (default green) — see .c-* in pixel.css
+export function PxButton({ children, style, color, ...rest }) {
+  return <button className={'px-btn' + (color ? ' c-' + color : '')} style={{ minHeight: 52, fontSize: 17, padding: '0 6px', ...style }} {...rest}>{children}</button>;
 }
 
 // Square green button with an icon from the atlas.

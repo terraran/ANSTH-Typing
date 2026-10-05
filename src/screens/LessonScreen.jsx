@@ -33,6 +33,14 @@ export function LessonScreen({ studentName, classCode, onSelect, onOpenSetup, on
   const [openLesson, setOpenLesson] = useState(null);
   const [view,       setView]       = useState('map');   // map | homework
   const short = useShortScreen();
+  // 1v1 / BR: first choose host or join; join asks for the room code
+  const [mpPick, setMpPick] = useState(null);           // null | {mode:'1v1'|'royale', step:'choose'|'join'}
+  useEffect(() => {
+    if (!mpPick) return;
+    const onKey = e => { if (e.key === 'Escape') setMpPick(null); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [!!mpPick]);
 
   const gotoChapter = (i) => {
     const c=Math.max(0,Math.min(i,CHAPTERS.length-1));
@@ -135,31 +143,19 @@ export function LessonScreen({ studentName, classCode, onSelect, onOpenSetup, on
             {next && <span style={SUB}>บท {next.lesson.num} · {next.ex.title}</span>}
           </PxButton>
           {studentName && SCRIPT_URL && (
-            <PxButton onClick={()=>setView(v=>v==='homework'?'map':'homework')} style={{ position:'relative', minHeight:short?44:52, flex:'none' }}>
+            <PxButton color="blue" onClick={()=>setView(v=>v==='homework'?'map':'homework')} style={{ position:'relative', minHeight:short?44:52, flex:'none' }}>
               การบ้าน{pendingHw>0 && badge(pendingHw)}
               <span style={SUB}>{homework.length ? (pendingHw?`ค้าง ${pendingHw} ชิ้น`:'ส่งครบแล้ว') : 'ยังไม่มีการบ้าน'}</span>
             </PxButton>
           )}
           {studentName && SCRIPT_URL && (
-            <PxButton onClick={()=>onOpenWeekly&&onOpenWeekly()} style={{ position:'relative', minHeight:short?44:52, flex:'none' }}>
+            <PxButton color="gold" onClick={()=>onOpenWeekly&&onOpenWeekly()} style={{ position:'relative', minHeight:short?44:52, flex:'none' }}>
               ภารกิจประจำสัปดาห์{t && !me && badge('ใหม่')}
               <span style={SUB}>{weeklySub}</span>
             </PxButton>
           )}
-          <PxButton onClick={()=>onOpenSetup&&onOpenSetup('1v1')} style={{ minHeight:short?44:52, flex:'none' }}>1 ปะทะ 1<span style={SUB}>ดวล 2 คน · ใครคะแนนมากกว่าชนะ</span></PxButton>
-          <PxButton onClick={()=>onOpenSetup&&onOpenSetup('royale')} style={{ minHeight:short?44:52, flex:'none' }}>Battle Royale<span style={SUB}>แข่งทั้งห้อง · คนสุดท้ายที่รอดชนะ</span></PxButton>
-          <div style={{ display:'flex', flexDirection:'column', gap:4, flex:'none' }}>
-            <label htmlFor="join-code" style={{ fontSize:13, fontWeight:700 }}>รหัสห้องจากเพื่อน</label>
-            <div style={{ display:'flex', gap:8 }}>
-              <input id="join-code" value={joinCode||''} onChange={e=>setJoinCode&&setJoinCode(normalizeRoomCode(e.target.value))}
-                onKeyDown={e=>e.key==='Enter'&&onJoin&&onJoin(joinCode)} placeholder="A7K2M" maxLength={ROOM_CODE_LEN}
-                style={{ flex:1, minWidth:0, fontFamily:PX_FONT, fontSize:16, letterSpacing:1, padding:'6px 10px', minHeight:short?40:48,
-                  boxSizing:'border-box', background:'#FFF9E6', border:'3px solid '+INK, color:INK, outline:'none' }}/>
-              <PxButton onClick={()=>onJoin&&onJoin(joinCode)} disabled={!joinCode||joinCode.length<ROOM_CODE_LEN||mpBusy} style={{ fontSize:16 }}>
-                {mpBusy?'...':'เข้า'}</PxButton>
-            </div>
-            {joinError && <div role="alert" style={{ fontSize:13, fontWeight:700, color:'#B3261E' }}>{joinError}</div>}
-          </div>
+          <PxButton color="red" onClick={()=>setMpPick({mode:'1v1',step:'choose'})} style={{ minHeight:short?44:52, flex:'none' }}>1 ปะทะ 1<span style={SUB}>ดวล 2 คน · ใครคะแนนมากกว่าชนะ</span></PxButton>
+          <PxButton color="purple" onClick={()=>setMpPick({mode:'royale',step:'choose'})} style={{ minHeight:short?44:52, flex:'none' }}>Battle Royale<span style={SUB}>แข่งทั้งห้อง · คนสุดท้ายที่รอดชนะ</span></PxButton>
         </div>
 
         {/* ── Right: homework list, or the current stage ── */}
@@ -191,17 +187,21 @@ export function LessonScreen({ studentName, classCode, onSelect, onOpenSetup, on
           ) : (
             <>
               <div style={{ display:'flex', flexDirection:'column', minHeight:0, flex:'0 1 auto' }}>
-                <div className="px-head" style={{ minHeight:'var(--hh)', flex:'none', display:'flex', alignItems:'center', justifyContent:'space-between',
-                  marginBottom:-6, position:'relative', padding:'0 2px', gap:8 }}>
+                <div style={{ minHeight:'var(--hh)', flex:'none', display:'flex', alignItems:'center', justifyContent:'space-between',
+                  marginBottom:-3, position:'relative', padding:'0 6px', gap:8, zIndex:1,
+                  // each stage has its own color (stages.js from/to)
+                  background:`linear-gradient(180deg, ${ch.to} 0%, ${ch.from} 100%)`, border:'3px solid '+INK,
+                  boxShadow:'inset 0 3px 0 rgba(255,255,255,.35), inset 0 -4px 0 rgba(0,0,0,.22)' }}>
                   <button className="sp sp-i_left px-icon-btn px-z" aria-label="ด่านก่อนหน้า" disabled={chIdx===0}
                     onClick={()=>gotoChapter(chIdx-1)} style={{ opacity: chIdx===0?.3:1 }}/>
-                  <span style={{ fontSize:short?18:21, fontWeight:700, color:'#FFF6D8', textShadow:'2px 2px 0 #2B4A3A', textAlign:'center' }}>
-                    ด่าน {ch.id} · {ch.title}</span>
+                  <span style={{ fontSize:short?18:21, fontWeight:700, color:'#FFFFFF', textShadow:'2px 2px 0 rgba(0,0,0,.45)', textAlign:'center' }}>
+                    {ch.icon} ด่าน {ch.id} · {ch.title}</span>
                   <button className="sp sp-i_right px-icon-btn px-z" aria-label="ด่านถัดไป" disabled={chIdx===CHAPTERS.length-1}
                     onClick={()=>gotoChapter(chIdx+1)} style={{ opacity: chIdx===CHAPTERS.length-1?.3:1 }}/>
                 </div>
-                <div className="px-panel px-scroll" style={{ padding:short?'4px 10px 6px':'6px 12px 14px', display:'flex', flexDirection:'column', gap:short?8:14 }}>
-                  <div style={{ fontSize:short?14:15, fontWeight:600, textAlign:'center', color:'#5A3A22' }}>{ch.subtitle}</div>
+                <div className="px-scroll" style={{ padding:short?'6px 10px 8px':'10px 12px 14px', display:'flex', flexDirection:'column', gap:short?8:14,
+                  border:'3px solid '+INK, borderTop:0, background:`linear-gradient(180deg, ${ch.to}40 0%, #FFF8E6 70%)` }}>
+                  <div style={{ fontSize:short?14:15, fontWeight:700, textAlign:'center', color:ch.from }}>{ch.subtitle}</div>
                   {!stOpen && prevBoss && (
                     <div style={{ display:'flex', gap:10, alignItems:'center', background:'#F3E7C4', border:'3px dashed #8A6A48', padding:'8px 12px',
                       fontSize:14, fontWeight:600, lineHeight:1.6 }}>
@@ -217,12 +217,16 @@ export function LessonScreen({ studentName, classCode, onSelect, onOpenSetup, on
                       const open=lessonAnyOpen(progress,lesson), done=lessonComplete(progress,lesson);
                       const got=exs.reduce((a,ex)=>a+progStars(progress,lesson,ex),0), max=exs.length*3;
                       const sel=selLesson&&selLesson.id===lesson.id;
+                      const isNext=open&&next&&next.lesson.id===lesson.id;      // where "เล่นต่อ" would go
                       return (
                         <button key={lesson.id} onClick={()=>setOpenLesson(lesson.id)} aria-pressed={sel}
                           aria-label={`บท ${lesson.num} ${lesson.thaiName}${open?'':' (ล็อก)'}`}
-                          style={{ background: sel?'#F7EDCF':'transparent', border: sel?'3px solid '+INK:'3px solid transparent', cursor:'pointer',
+                          style={{ background: !open?'rgba(255,255,255,.25)':sel?'#FFFFFF':'rgba(255,255,255,.6)',
+                            border:'3px solid '+(sel?INK:open?ch.from+'66':'transparent'),
+                            boxShadow: sel?`0 0 0 3px ${ch.to}, 0 4px 0 rgba(59,36,22,.25)`:'none',
+                            filter: open?'none':'grayscale(.9)', opacity: open?1:.75, cursor:'pointer',
                             fontFamily:TH_FONT, color:INK, padding:short?'2px 4px':'6px 4px', display:'flex', flexDirection:'column', alignItems:'center', gap:short?2:4 }}>
-                          <span className="px-z" style={{ position:'relative', width:90, height:93, display:'flex', alignItems:'center', justifyContent:'center' }}>
+                          <span className={'px-z'+(isNext?' px-bob':'')} style={{ position:'relative', width:90, height:93, display:'flex', alignItems:'center', justifyContent:'center' }}>
                             <Sprite name={open?'circle':'circle_dark'} style={{ position:'absolute', inset:0 }}/>
                             <Sprite name={open?'door_open':'door_lock'} style={{ position:'relative' }}/>
                             <span style={{ position:'absolute', top:2, left:4, fontFamily:PX_FONT, fontSize:16, fontWeight:400 }}>{lesson.num}</span>
@@ -241,28 +245,30 @@ export function LessonScreen({ studentName, classCode, onSelect, onOpenSetup, on
                     const exs=getExercises(selLesson);
                     const cleared=!!progress.cleared?.[selLesson.id];
                     return (
-                      <div className="px-wood" style={{ padding:'0 6px' }}>
-                        <div style={{ fontSize:short?14:16, fontWeight:700, marginBottom:short?2:8 }}>บท {selLesson.num} · {selLesson.thaiName}</div>
+                      <div style={{ padding:short?'4px 8px 6px':'8px 10px 10px', background:'#FFFDF5', border:'3px solid '+INK,
+                        boxShadow:'0 4px 0 rgba(59,36,22,.2)' }}>
+                        <div style={{ fontSize:short?14:16, fontWeight:700, marginBottom:short?2:8, color:ch.from }}>บท {selLesson.num} · {selLesson.thaiName}</div>
                         <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(84px, 1fr))', gap:8 }}>
                           {exs.map((ex,i)=>{
                             const stt=stepState(progress,selLesson,i);
                             const st=progStars(progress,selLesson,ex);
                             const hs=(highScores||{})[hsKey(selLesson.id,ex.title)];
                             const skipped=!st&&cleared&&i<exs.length-1;
+                            const isNext=next&&next.lesson.id===selLesson.id&&next.ex===ex;
                             return (
                               <button key={i} disabled={!stt.open} onClick={()=>stt.open&&onSelect(selLesson,ex)}
                                 title={stt.open?(stt.rush?'Rush: ได้ 3 ดาว = ผ่านทั้งบท':ex.title):stt.reason}
                                 style={{ background:'none', border:0, padding:'4px 0', cursor:stt.open?'pointer':'not-allowed', fontFamily:TH_FONT,
-                                  color:'#F5E6BE', display:'flex', flexDirection:'column', alignItems:'center', gap:4, textAlign:'center' }}>
-                                <span className={'sp sp-'+(stt.open?'slot':'slot_dark')+' px-z'} style={{ display:'flex', alignItems:'center', justifyContent:'center' }}>
+                                  color:INK, display:'flex', flexDirection:'column', alignItems:'center', gap:4, textAlign:'center', opacity:stt.open?1:.6 }}>
+                                <span className={'sp sp-'+(stt.open?'slot':'slot_dark')+' px-z'+(isNext?' px-bob':'')} style={{ display:'flex', alignItems:'center', justifyContent:'center' }}>
                                   <Sprite name={!stt.open?'i_lock':st?'i_check':'i_play'}/>
                                 </span>
                                 <Stars3 n={st}/>
                                 <span style={{ fontSize:13, fontWeight:700, lineHeight:1.3 }}>{ex.title}</span>
-                                {stt.rush && <span style={{ fontSize:12, fontWeight:700, color:'#FFC23D' }}>⚔️ Rush</span>}
-                                {skipped && <span style={{ fontSize:12, fontWeight:600, color:'#BDE7B0' }}>ข้ามแล้ว</span>}
-                                {hs>0 && <span style={{ fontFamily:PX_FONT, fontSize:12, fontWeight:400, color:'#F5D27A' }}>{fmtScore(hs)}</span>}
-                                {!stt.open && <span style={{ fontSize:11, fontWeight:600, color:'#D9C49A' }}>{stt.reason}</span>}
+                                {stt.rush && <span style={{ fontSize:12, fontWeight:700, color:'#B45309' }}>⚔️ Rush</span>}
+                                {skipped && <span style={{ fontSize:12, fontWeight:600, color:'#15803D' }}>ข้ามแล้ว</span>}
+                                {hs>0 && <span style={{ fontFamily:PX_FONT, fontSize:12, fontWeight:400, color:'#A16207' }}>{fmtScore(hs)}</span>}
+                                {!stt.open && <span style={{ fontSize:11, fontWeight:600, color:'#8C6E4E' }}>{stt.reason}</span>}
                               </button>
                             );
                           })}
@@ -277,6 +283,41 @@ export function LessonScreen({ studentName, classCode, onSelect, onOpenSetup, on
           )}
         </div>
       </div>
+      {/* Host or join — 1v1 / Battle Royale */}
+      {mpPick && (()=>{
+        const isBR = mpPick.mode==='royale', col = isBR?'purple':'red', title = isBR?'Battle Royale':'1 ปะทะ 1';
+        const canJoin = joinCode && joinCode.length===ROOM_CODE_LEN && !mpBusy;
+        const big = { minHeight:short?64:76, fontSize:short?18:20, textAlign:'center', width:'100%' };
+        return (
+          <div role="dialog" aria-modal="true" aria-label={title} onClick={()=>setMpPick(null)}
+            style={{ position:'fixed', inset:0, zIndex:50, background:'rgba(20,30,40,.55)', display:'flex', alignItems:'center', justifyContent:'center', padding:16 }}>
+            <div onClick={e=>e.stopPropagation()} style={{ width:'100%', maxWidth:440 }}>
+              <PxPanel title={title} bodyStyle={{ padding:'8px 14px 14px', display:'flex', flexDirection:'column', gap:12 }}>
+                {mpPick.step==='choose' ? (<>
+                  <PxButton color={col} onClick={()=>{ setMpPick(null); onOpenSetup&&onOpenSetup(mpPick.mode); }} style={big}>
+                    🏠 สร้างห้อง (Host)<span style={SUB}>เลือกด่าน ตั้งค่า แล้วให้เพื่อนใส่รหัสห้อง</span></PxButton>
+                  <PxButton color={col} autoFocus onClick={()=>setMpPick({...mpPick,step:'join'})} style={big}>
+                    🔑 เข้าร่วมห้อง<span style={SUB}>มีรหัสห้องจากเพื่อนแล้ว</span></PxButton>
+                  <PxButton onClick={()=>setMpPick(null)} style={{ fontSize:15, minHeight:'var(--hb)' }}>ยกเลิก</PxButton>
+                </>) : (<>
+                  <label htmlFor="join-code" style={{ fontSize:15, fontWeight:700, textAlign:'center' }}>ใส่รหัสห้องจากเพื่อน ({ROOM_CODE_LEN} ตัว)</label>
+                  <input id="join-code" autoFocus value={joinCode||''} onChange={e=>setJoinCode&&setJoinCode(normalizeRoomCode(e.target.value))}
+                    onKeyDown={e=>e.key==='Enter'&&canJoin&&onJoin&&onJoin(joinCode)} placeholder="A7K2M" maxLength={ROOM_CODE_LEN}
+                    autoComplete="off" spellCheck={false}
+                    style={{ width:'100%', fontFamily:PX_FONT, fontSize:26, letterSpacing:6, textAlign:'center', padding:'8px 10px', minHeight:60,
+                      boxSizing:'border-box', background:'#FFF9E6', border:'3px solid '+INK, color:INK, outline:'none' }}/>
+                  {joinError && <div role="alert" style={{ fontSize:14, fontWeight:700, color:'#B3261E', textAlign:'center' }}>{joinError}</div>}
+                  <div style={{ display:'flex', gap:10 }}>
+                    <PxButton onClick={()=>setMpPick({...mpPick,step:'choose'})} style={{ flex:1, fontSize:15 }}>← กลับ</PxButton>
+                    <PxButton color={col} onClick={()=>onJoin&&onJoin(joinCode)} disabled={!canJoin} style={{ flex:2, fontSize:17 }}>
+                      {mpBusy?'กำลังเข้า...':'เข้าห้อง'}</PxButton>
+                  </div>
+                </>)}
+              </PxPanel>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }

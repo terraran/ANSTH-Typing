@@ -119,6 +119,21 @@ export async function fbJoin(code,name,lives=3,cls='') {
   await db.ref('rooms/'+code+'/players/'+user.uid).set(rec);
 }
 
+// 1v1 rooms hold 2 players (host + 1). If two students join at the same moment, both pass the
+// "room full?" check, so after joining each one re-checks: the host stays, and of the others only the
+// smallest uid stays (every client computes the same answer). Returns false if I must leave.
+export async function fbKeepSeat(code, maxPlayers) {
+  const db=getDB(), uid=currentFirebaseUid(); if(!db||!uid) return true;
+  const s=await db.ref('rooms/'+code).once('value'); const room=s.val()||{};
+  const ids=Object.keys(room.players||{});
+  if (ids.length<=maxPlayers) return true;
+  const host=room.info?.hostUid;
+  const keep=[...(host&&ids.includes(host)?[host]:[]), ...ids.filter(id=>id!==host).sort()].slice(0,maxPlayers);
+  if (keep.includes(uid)) return true;
+  await db.ref('rooms/'+code+'/players/'+uid).remove();
+  return false;
+}
+
 export async function fbGet(code) {
   const db=getDB(); if(!db) return null;
   const s=await db.ref('rooms/'+code).once('value'); return s.val();

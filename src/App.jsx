@@ -1377,9 +1377,9 @@ export function ThaiTypingApp() {
   );
 
   const soloTyping = screen==='practice' && !roomCode;
-  const wideScreen = screen==='my-stats' || screen==='weekly' || screen==='character';
+  const wideScreen = screen==='my-stats' || screen==='weekly' || screen==='character' || screen==='results';
   // These screens stretch to the bottom of the window; the rest (typing, results, rooms…) keep their natural height.
-  const fillScreen = screen==='lessons' || screen==='my-stats' || screen==='weekly';
+  const fillScreen = screen==='lessons' || screen==='my-stats' || screen==='weekly' || screen==='results';
   return (
     <div style={{height:'100dvh',overflow:'hidden',fontFamily:TH_FONT,position:'relative',
       display:'flex',flexDirection:'column',alignItems:'center',justifyContent:soloTyping?'center':'flex-start',

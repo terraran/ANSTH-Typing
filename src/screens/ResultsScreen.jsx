@@ -3,7 +3,7 @@ import { PRESSURE_SECS, fmtScore, pctOf, starsFor } from '../engine/scoring';
 import { Stars, StatPill } from '../ui/common';
 import { brOrder, isOutState, playerState } from '../race/presence';
 
-import { PxButton, Sprite } from '../ui/pixel';
+import { PxButton, Sprite, useShortScreen } from '../ui/pixel';
 
 const { useEffect, useRef, useState } = React;
 
@@ -69,7 +69,7 @@ export function resultStage({ roomType, roomCode, roomPlayers, myCfg, myName, du
 // Three pixel stars like a game's WIN screen: the middle one bigger.
 function BigStars({ n }) {
   return (
-    <div style={{display:'flex',alignItems:'flex-end',justifyContent:'center',gap:4}} aria-label={`${n} ดาว`}>
+    <div className="px-z" style={{display:'flex',alignItems:'flex-end',justifyContent:'center',gap:4}} aria-label={`${n} ดาว`}>
       <Sprite name={n>=1?'star_m':'star_m_off'} style={{marginBottom:6}}/>
       <Sprite name={n>=2?'star_l':'star_l_off'}/>
       <Sprite name={n>=3?'star_m':'star_m_off'} style={{marginBottom:6}}/>
@@ -80,6 +80,7 @@ function BigStars({ n }) {
 export function ResultsScreen({ cpm, accuracy, errors, totalChars, lesson, saveStatus, saveError, studentName, ghostData, newRecord, roomCode, roomType, roomPlayers, myName, myCfg, bestCombo, score, maxScore, isTest, testBoard, prevBest, sOffset=0, brFinal, onDuelSettled, onRestart, onBack, curResult, nextStep, onNext, hwResult }) {
   const tf="'Noto Sans Thai Looped','Sarabun','Noto Sans Thai',sans-serif";
   const isDuel = roomType==='1v1' && !!roomCode;
+  const short = useShortScreen();
   const [waited, setWaited] = useState(false);
   useEffect(()=>{
     if (!isDuel) return;
@@ -115,20 +116,32 @@ export function ResultsScreen({ cpm, accuracy, errors, totalChars, lesson, saveS
     ? (saveStatus==='saved' && !!testBoard?.me && score>0 && score>=testBoard.me.score)
     : (score>0 && score>prevBest));
   const stage = resultStage({ roomType, roomCode, roomPlayers, myCfg, myName, duel, soloBest, brRows });
+  // Two columns so the buttons always stay on screen: the stage on the left, scores and numbers on the right.
   return (
-    <div style={{textAlign:'center',fontFamily:tf}}>
+    <div className="px-fill" style={{fontFamily:tf,display:'flex',flexDirection:'column',gap:'var(--fg)',textAlign:'center'}}>
+      <div style={{flex:'1 1 auto',minHeight:0,display:'grid',gridTemplateColumns:'minmax(0,5fr) minmax(0,6fr)',
+        gridTemplateRows:'minmax(0,1fr)',gap:16}}>
+        <div style={{display:'flex',flexDirection:'column',justifyContent:'center',minHeight:0}}>
       {stage ? (
-        <CharKit.ResultStage actors={stage.actors} confetti={stage.confetti} style={{marginBottom:6}}/>
+        <CharKit.ResultStage actors={stage.actors} confetti={stage.confetti} compact={short} style={{marginBottom:4}}/>
       ) : (
-      <div style={{fontSize:52,marginBottom:8}}>
+      <div style={{fontSize:52,marginBottom:4}}>
         {duel ? (duel.outcome==='win'?'🏆':duel.outcome==='lose'?'💪':duel.outcome==='draw'?'🤝':'⏳')
           : accuracy>=95?'🎉':accuracy>=85?'👏':'💪'}</div>
       )}
       <h2 style={{fontSize:26,fontWeight:800,color:'var(--c-t1)',marginBottom:4}}>{headline}</h2>
-      <div style={{color:grade.color,fontWeight:800,fontSize:18,marginBottom:12}}>
+      <div style={{color:grade.color,fontWeight:800,fontSize:18,marginBottom:10}}>
         {grade.label}
       </div>
 
+      <div title={`ความแม่น ${accuracy}%`} style={{background:'#F1F5F9',borderRadius:12,height:10,overflow:'hidden'}}>
+        <div style={{width:`${accuracy}%`,height:'100%',borderRadius:12,
+          background:accuracy>=95?'#059669':accuracy>=85?'#2563EB':'#F59E0B',
+          transition:'width 1s ease-out'}}/>
+      </div>
+        </div>
+        <div className="px-scroll" style={{display:'flex',flexDirection:'column'}}>
+          <div style={{margin:'auto 0',display:'flex',flexDirection:'column',gap:short?8:12,minHeight:0,maxHeight:'100%'}}>
       {/* 1v1 — winner by score */}
       {duel && (()=>{
         const tone = duel.outcome==='win'?{bg:'#D1FAE5',bd:'#059669',fg:'#065F46'}
@@ -148,7 +161,7 @@ export function ResultsScreen({ cpm, accuracy, errors, totalChars, lesson, saveS
         );
         const settled = duel.outcome!=='wait';
         return (
-          <div style={{marginBottom:18,padding:'14px 16px',borderRadius:14,
+          <div style={{padding:'12px 16px',borderRadius:14,
             background:tone.bg,border:`1.5px solid ${tone.bd}`}}>
             <div style={{fontSize:18,fontWeight:800,color:tone.fg,marginBottom:8}}>{title}</div>
             <div style={{display:'flex',justifyContent:'center',alignItems:'center',gap:10}}>
@@ -168,12 +181,12 @@ export function ResultsScreen({ cpm, accuracy, errors, totalChars, lesson, saveS
 
       {/* Solo score / weekly test */}
       {!roomCode && (
-        <div className="px-wood" style={{marginBottom:18,padding:'0 8px',color:'#F5E6BE'}}>
+        <div className="px-wood" style={{padding:'0 8px',color:'#F5E6BE'}}>
           <div style={{fontSize:13,fontWeight:700,color:'#E8CF95',letterSpacing:1}}>
             {isTest?'คะแนนภารกิจประจำสัปดาห์':'คะแนนรอบนี้'}</div>
           <div style={{display:'flex',alignItems:'center',justifyContent:'center',gap:8}}>
-            <Sprite name="i_coin"/>
-            <span style={{fontFamily:"'Press Start 2P', monospace",fontSize:32,fontWeight:400,color:'#F5D27A',lineHeight:1.2}}>{fmtScore(score)}</span>
+            <Sprite name="i_coin" className="px-z"/>
+            <span style={{fontFamily:"'Press Start 2P', monospace",fontSize:short?26:32,fontWeight:400,color:'#F5D27A',lineHeight:1.2}}>{fmtScore(score)}</span>
           </div>
           {isTest ? (
             <div style={{marginTop:4}}>
@@ -212,7 +225,7 @@ export function ResultsScreen({ cpm, accuracy, errors, totalChars, lesson, saveS
           : stars===2 ? `เก่งมาก! ${Math.round(target*1.5*10)/10} คำ/นาที และแม่นยำ 95% ขึ้นไป = ⭐⭐⭐`
           : 'สุดยอด! ได้ครบ 3 ดาว';
         return (
-          <div style={{marginBottom:18,padding:'14px 18px',background:'#F8EED2',
+          <div style={{padding:short?'8px 14px':'12px 18px',background:'#F8EED2',
             border:'3px solid #3B2416',fontFamily:tf}}>
             <BigStars n={stars}/>
             <div style={{fontSize:15,fontWeight:800,color:'#14532D',marginTop:4}}>
@@ -232,10 +245,10 @@ export function ResultsScreen({ cpm, accuracy, errors, totalChars, lesson, saveS
           : minStars===2 ? `แม่นยำ 90% ขึ้นไป และพิมพ์ได้ ${target} คำ/นาที`
           : `แม่นยำ 95% ขึ้นไป และพิมพ์ได้ ${Math.round(target*1.5*10)/10} คำ/นาที`;
         return (
-          <div style={{marginBottom:18,padding:'14px 18px',borderRadius:14,fontFamily:tf,
+          <div style={{padding:short?'8px 14px':'12px 18px',borderRadius:14,fontFamily:tf,
             background:passed?'#F0FDF4':'#FFFBEB',border:`1.5px solid ${passed?'#22C55E':'#F59E0B'}`}}>
             <div style={{fontSize:12,fontWeight:800,color:passed?'#166534':'#B45309',letterSpacing:1}}>📚 การบ้าน</div>
-            {passed ? <BigStars n={stars}/> : <Sprite name="xmark" label="ยังไม่ผ่าน"/>}
+            {passed ? <BigStars n={stars}/> : <Sprite name="xmark" label="ยังไม่ผ่าน" className="px-z"/>}
             <div style={{fontSize:18,fontWeight:800,color:passed?'#14532D':'#92400E',marginTop:4}}>
               {passed ? (late ? '✅ ผ่านแล้ว (ส่งช้า)' : '✅ ผ่านแล้ว! ส่งการบ้านเรียบร้อย') : `ยังไม่ผ่าน — ต้องได้ ${'⭐'.repeat(minStars)}`}
             </div>
@@ -256,7 +269,7 @@ export function ResultsScreen({ cpm, accuracy, errors, totalChars, lesson, saveS
           : score === gs ? ['#EFF6FF','#2563EB']
           : ['#EDE9FE','#8B5CF6'];
         return (
-        <div style={{marginBottom:22,padding:'12px 20px',borderRadius:12,
+        <div style={{padding:'10px 16px',borderRadius:12,
           background:tone[0], border:`1.5px solid ${tone[1]}`,
           fontFamily:tf, fontSize:15, fontWeight:700, color:'#0F172A',
         }}>
@@ -270,7 +283,7 @@ export function ResultsScreen({ cpm, accuracy, errors, totalChars, lesson, saveS
         </div>
         );
       })()}
-      <div style={{display:'flex',gap:14,justifyContent:'center',marginBottom:24,flexWrap:'wrap'}}>
+      <div style={{display:'grid',gridTemplateColumns:'repeat(3, minmax(0, 1fr))',gap:8}}>
         <StatPill label="KPM"       value={cpm}              color={cpm>=30?'#059669':'#D97706'}/>
         {lesson?.curriculum
           ? <StatPill label="คำ/นาที (ไทย)" value={Math.round(cpm/4)} color="#2563EB"/>
@@ -280,15 +293,10 @@ export function ResultsScreen({ cpm, accuracy, errors, totalChars, lesson, saveS
         <StatPill label="ตัวอักษร" value={totalChars}/>
         {(isDuel||isTest)&&<StatPill label="คอมโบสูงสุด" value={`${bestCombo||0} 🔥`} color="#8B5CF6"/>}
       </div>
-      <div style={{background:'#F1F5F9',borderRadius:12,height:10,marginBottom:22,overflow:'hidden'}}>
-        <div style={{width:`${accuracy}%`,height:'100%',borderRadius:12,
-          background:accuracy>=95?'#059669':accuracy>=85?'#2563EB':'#F59E0B',
-          transition:'width 1s ease-out'}}/>
-      </div>
       {/* Battle Royale standings */}
       {roomCode && roomType==='royale' && Object.keys(roomPlayers||{}).length > 0 && (
         <div style={{background:'var(--c-surf)',border:'1.5px solid var(--c-border)',borderRadius:12,
-          padding:'14px 16px',marginBottom:20,textAlign:'left'}}>
+          padding:'12px 16px',textAlign:'left',flex:'0 1 auto',minHeight:120,overflowY:'auto'}} className="px-scroll">
           <div style={{fontSize:13,fontWeight:800,marginBottom:10,fontFamily:tf}}>
             🏆 Battle Royale — ผลการแข่ง</div>
           {brRows
@@ -308,26 +316,29 @@ export function ResultsScreen({ cpm, accuracy, errors, totalChars, lesson, saveS
             ))}
         </div>
       )}
-      <div style={{display:'flex',gap:12,justifyContent:'center',flexWrap:'wrap'}}>
+          </div>
+        </div>
+      </div>
+      <div style={{display:'flex',gap:12,justifyContent:'center',alignItems:'center',flexWrap:'wrap',flex:'none'}}>
         {nextStep&&(
-          <PxButton onClick={onNext} style={{fontSize:16}}>
+          <PxButton onClick={onNext} style={{fontSize:16,minHeight:short?44:52,padding:'0 14px'}}>
             ขั้นต่อไป: {nextStep.lesson.num!==lesson?.num?`บท ${nextStep.lesson.num} · `:''}{nextStep.exercise.title} ▶
           </PxButton>
         )}
-        <PxButton onClick={onRestart} style={{fontSize:16}}>
+        <PxButton onClick={onRestart} style={{fontSize:16,minHeight:short?44:52,padding:'0 14px'}}>
           {isTest?'↻ ทำภารกิจอีกครั้ง':hwResult?'↻ ทำการบ้านอีกครั้ง':roomCode?'ออกจากห้อง':'↻ เล่นอีกครั้ง'}
         </PxButton>
-        <PxButton onClick={onBack} style={{fontSize:16}}>
+        <PxButton onClick={onBack} style={{fontSize:16,minHeight:short?44:52,padding:'0 14px'}}>
           {isTest?'ดูกระดานอันดับ':'กลับหน้าหลัก'}
         </PxButton>
-      </div>
-      {studentName && !isTest && (
-        <div style={{marginTop:18,fontSize:12,color:'var(--c-t3)',fontFamily:tf}}>
+        {studentName && !isTest && (
+        <div style={{fontSize:12,color:'var(--c-t3)',fontFamily:tf}}>
           {saveStatus==='saving' && '💾 กำลังบันทึกผล...'}
           {saveStatus==='saved'  && '✅ บันทึกผลแล้ว'}
           {saveStatus==='error'  && '⚠️ บันทึกไม่ได้ — ตรวจสอบสัญญาณ'}
         </div>
       )}
+      </div>
     </div>
   );
 }

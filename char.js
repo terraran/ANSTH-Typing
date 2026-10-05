@@ -561,7 +561,7 @@
   const CONFETTI_COLORS = ['#F59E0B', '#EF4444', '#3B82F6', '#10B981', '#8B5CF6', '#EC4899', '#FDE047'];
   function ResultStage(props) {
     const { actors = [], style } = props;
-    const height = 76 + FULL.h * STAGE_SCALE + 40;
+    const height = (props.compact ? 52 : 76) + FULL.h * STAGE_SCALE + 40;   // compact: less sky above (short screens)
     const wrapRef = useRef(null), cvRef = useRef(null);
     const optRef = useRef(props); optRef.current = props;
     const spritesRef = useRef(new Map()), stateRef = useRef(new Map());

@@ -9,14 +9,28 @@
   const h = React.createElement;
   const { useState, useEffect, useRef } = React;
   const BASE = 'assets/char/';
-  const VER = '2';               // bump after replacing any asset file (cache-busting)
+  const VER = '3';               // bump after replacing any asset file (cache-busting)
   const TF = "'Noto Sans Thai Looped','Sarabun','Noto Sans Thai',sans-serif";
 
   // ── Choices ─────────────────────────────────────────────────
   // ramp = [darkest, lightest] target colours; null = keep the original art colours.
+  // sheet = which body sheet in char.json (defaults to id); shirt = polo colour (SHIRT_COLORS id).
+  // socks/shoes = this outfit's default colours.
   const BODIES = [
-    { id: 'boy',  name: 'ชุดนักเรียนชาย' },
-    { id: 'girl', name: 'ชุดนักเรียนหญิง' },
+    { id: 'boy',         name: 'ชุดนักเรียนชาย',  socks: 'black', shoes: 'black' },
+    { id: 'girl',        name: 'ชุดนักเรียนหญิง', socks: 'white', shoes: 'white' },
+    { id: 'polo_red',    name: 'โปโลแดง',      sheet: 'polo', shirt: 'red',    socks: 'white', shoes: 'white' },
+    { id: 'polo_blue',   name: 'โปโลน้ำเงิน',   sheet: 'polo', shirt: 'blue',   socks: 'white', shoes: 'white' },
+    { id: 'polo_green',  name: 'โปโลเขียว',     sheet: 'polo', shirt: 'green',  socks: 'white', shoes: 'white' },
+    { id: 'polo_yellow', name: 'โปโลเหลือง',    sheet: 'polo', shirt: 'yellow', socks: 'white', shoes: 'white' },
+  ];
+  const UNIFORMS = BODIES.slice(0, 2);   // name-based default characters stay in school uniform
+  // Polo shirt colours: ramp over palette.shirt (the polo sheet's neutral shirt greys).
+  const SHIRT_COLORS = [
+    { id: 'red',    ramp: [[104, 10, 22], [234, 44, 52]] },
+    { id: 'blue',   ramp: [[16, 66, 140], [66, 162, 244]] },
+    { id: 'green',  ramp: [[8, 88, 60], [52, 184, 124]] },
+    { id: 'yellow', ramp: [[186, 146, 0], [255, 226, 36]] },
   ];
   const HAIRSTYLES = [
     { id: 'buzz',         name: 'เกรียน' },
@@ -70,9 +84,9 @@
   const byId = (list, id) => list.find(o => o.id === id);
 
   function defaults(body) {
-    const boy = body !== 'girl';
-    return { body: boy ? 'boy' : 'girl', hair: boy ? 'm01_neat' : 'f02_ponytail', hairColor: 'black',
-      skin: 'natural', socks: boy ? 'black' : 'white', shoes: boy ? 'black' : 'white' };
+    const b = byId(BODIES, body) || BODIES[0];
+    return { body: b.id, hair: b.id === 'girl' ? 'f02_ponytail' : 'm01_neat', hairColor: 'black',
+      skin: 'natural', socks: b.socks, shoes: b.shoes };
   }
   // Accepts anything (object or JSON string); returns a valid config or null.
   function sanitize(raw) {
@@ -112,7 +126,7 @@
       x = (x ^ (x >>> 15)) >>> 0;
       return v.id;
     };
-    return sanitize({ body: pick(BODIES), hair: pick(HAIRSTYLES), hairColor: pick(HAIR_COLORS),
+    return sanitize({ body: pick(UNIFORMS), hair: pick(HAIRSTYLES), hairColor: pick(HAIR_COLORS),
       skin: pick(SKIN_TONES), socks: pick(SOCK_COLORS), shoes: pick(SHOE_COLORS) });
   }
   // A room player's look: their saved character, else the one from their name.
@@ -192,7 +206,9 @@
       rampMap(P.socks, byId(SOCK_COLORS, cfg.socks).ramp, bodyMap);
       rampMap(P.shoes, byId(SHOE_COLORS, cfg.shoes).ramp, bodyMap);
       rampMap(P.baseHair, hairRamp, bodyMap);   // the buzz cut is the body's own hair
-      const sheet = recolorCanvas(D.imgs['body_' + cfg.body], bodyMap);
+      const outfit = byId(BODIES, cfg.body);
+      if (outfit.shirt) rampMap(P.shirt, byId(SHIRT_COLORS, outfit.shirt).ramp, bodyMap);
+      const sheet = recolorCanvas(D.imgs['body_' + (outfit.sheet || outfit.id)], bodyMap);
       const style = D.hair[cfg.hair];
       if (style) {
         const hairMap = rampMap(style.hairColours, hairRamp, new Map(skinMap));
@@ -721,6 +737,8 @@
     const list = p.list, i = Math.max(0, list.findIndex(o => o.id === cfg[p.key])), o = list[i];
     let thumb;
     if (p.key === 'hair') thumb = h(CharCanvas, { config: cfg, crop: HEAD, scale: 1.5, still: true, style: { width: 51, height: 45 } });
+    else if (p.key === 'body' && o.shirt) thumb = h('span', { style: { width: 34, height: 34, flex: 'none',
+      background: rampSwatch(byId(SHIRT_COLORS, o.shirt)), border: '3px solid #3B2416' } });
     else if (p.key === 'body') thumb = h('span', { style: { fontSize: 30, lineHeight: 1 } }, o.id === 'boy' ? '👦' : '👧');
     else thumb = h('span', { style: { width: 34, height: 34, flex: 'none', background: rampSwatch(o, ORIGINAL[p.key]), border: '3px solid #3B2416' } });
     const arrow = (dir) => h('button', { className: 'sp sp-i_' + (dir < 0 ? 'left' : 'right') + ' px-icon-btn',

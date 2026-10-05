@@ -1,0 +1,63 @@
+/* Pixel-art UI kit — pieces cut from the CraftPix GUI pack (only the ones the app uses), scaled ×3.
+ * Generated once; edit by hand if a piece moves. Background layers: assets/bg/. */
+.sp{background:url(atlas.png) no-repeat;image-rendering:pixelated;display:inline-block;flex-shrink:0}
+.sp-circle{width:90px;height:93px;background-position:-0px -0px}
+.sp-circle_dark{width:90px;height:93px;background-position:-93px -0px}
+.sp-hud{width:252px;height:90px;background-position:-186px -0px}
+.sp-star_l{width:87px;height:84px;background-position:-441px -0px}
+.sp-star_l_off{width:87px;height:84px;background-position:-0px -96px}
+.sp-door_lock{width:51px;height:81px;background-position:-90px -96px}
+.sp-xmark{width:75px;height:75px;background-position:-144px -96px}
+.sp-sqbtn{width:66px;height:69px;background-position:-222px -96px}
+.sp-door_open{width:51px;height:57px;background-position:-291px -96px}
+.sp-door{width:51px;height:57px;background-position:-345px -96px}
+.sp-star_m{width:51px;height:51px;background-position:-399px -96px}
+.sp-star_m_off{width:51px;height:51px;background-position:-453px -96px}
+.sp-i_chest{width:48px;height:48px;background-position:-507px -96px}
+.sp-i_lock{width:48px;height:48px;background-position:-0px -183px}
+.sp-i_heart{width:48px;height:48px;background-position:-51px -183px}
+.sp-i_star{width:48px;height:48px;background-position:-102px -183px}
+.sp-i_sound{width:48px;height:48px;background-position:-153px -183px}
+.sp-i_play{width:48px;height:48px;background-position:-204px -183px}
+.sp-i_check{width:48px;height:48px;background-position:-255px -183px}
+.sp-i_x{width:48px;height:48px;background-position:-306px -183px}
+.sp-i_trophy{width:48px;height:48px;background-position:-357px -183px}
+.sp-i_person{width:48px;height:48px;background-position:-408px -183px}
+.sp-i_gear{width:48px;height:48px;background-position:-459px -183px}
+.sp-i_help{width:48px;height:48px;background-position:-510px -183px}
+.sp-i_left{width:48px;height:48px;background-position:-0px -234px}
+.sp-i_right{width:48px;height:48px;background-position:-51px -234px}
+.sp-i_coin{width:48px;height:48px;background-position:-102px -234px}
+.sp-i_gem{width:48px;height:48px;background-position:-153px -234px}
+.sp-arrow_up{width:39px;height:42px;background-position:-204px -234px}
+.sp-arrow_right{width:27px;height:42px;background-position:-246px -234px}
+.sp-slot{width:42px;height:42px;background-position:-276px -234px}
+.sp-slot_dark{width:42px;height:42px;background-position:-321px -234px}
+.sp-star_s{width:21px;height:21px;background-position:-366px -234px}
+.sp-star_s_off{width:21px;height:21px;background-position:-390px -234px}
+.px-panel{border-style:solid;border-width:18px;border-image:url(panel.png) 18 fill stretch;image-rendering:pixelated}
+.px-wood{border-style:solid;border-width:18px;border-image:url(wood.png) 18 fill stretch;image-rendering:pixelated}
+.px-head{border-style:solid;border-width:12px 12px 15px;border-image:url(header.png) 12 12 15 fill stretch;image-rendering:pixelated}
+.px-btn{border-style:solid;border-width:9px 12px 12px;border-image:url(btn.png) 9 12 12 fill stretch;image-rendering:pixelated;background:transparent;cursor:pointer;
+  color:#FFF6D8;font-weight:700;text-shadow:2px 2px 0 #2B4A3A;font-family:inherit}
+.px-btn:hover{border-image-source:url(btn_hover.png)}
+.px-btn:active{border-image-source:url(btn_down.png);transform:translateY(2px)}
+.px-btn:focus-visible,.px-icon-btn:focus-visible{outline:3px solid #FFC23D;outline-offset:2px}
+.px-btn:disabled{filter:grayscale(.8);opacity:.7;cursor:default}
+.px-icon-btn{border:0;padding:0;cursor:pointer;display:inline-flex;align-items:center;justify-content:center}
+.px-icon-btn:active{transform:translateY(2px)}
+/* Scene: 4 layers (sky, clouds, fields, front), each covering the screen, bottom-aligned */
+.scene{position:absolute;inset:0;overflow:hidden;background:#05638F}
+.scene>.lay{position:absolute;top:0;bottom:0;left:0;right:0;background-repeat:no-repeat;background-size:cover;background-position:22% 100%;image-rendering:pixelated;pointer-events:none}
+.scene>.l-sky{background-image:url(../bg/sky.png);background-size:100% 100%}
+.scene>.l-cl{background-image:url(../bg/clouds.png);left:-100px;right:-100px;animation:px-drift 40s ease-in-out infinite alternate}
+.scene>.l-fi{background-image:url(../bg/fields.png)}
+.scene>.l-fr{background-image:url(../bg/front.png)}
+@keyframes px-drift{from{transform:translateX(0)}to{transform:translateX(-90px)}}
+.px-logo{background:linear-gradient(180deg,#FFF3B0 0%,#FFC23D 48%,#E8742A 100%);-webkit-background-clip:text;background-clip:text;color:transparent;
+  filter:drop-shadow(3px 0 0 #3B2416) drop-shadow(-3px 0 0 #3B2416) drop-shadow(0 3px 0 #3B2416) drop-shadow(0 -3px 0 #3B2416) drop-shadow(5px 6px 0 #3B2416)}
+.px-blink{animation:px-blink 1.2s steps(2) infinite}
+@keyframes px-blink{50%{opacity:.3}}
+@keyframes px-shake{0%,100%{transform:translateX(0)}25%{transform:translateX(-8px)}75%{transform:translateX(8px)}}
+.px-shake{animation:px-shake .25s linear 2}
+@media (prefers-reduced-motion:reduce){.scene>.l-cl,.px-blink,.px-shake{animation:none}}

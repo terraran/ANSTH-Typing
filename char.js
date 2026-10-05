@@ -9,7 +9,7 @@
   const h = React.createElement;
   const { useState, useEffect, useRef } = React;
   const BASE = 'assets/char/';
-  const VER = '4';               // bump after replacing any asset file (cache-busting)
+  const VER = '5';               // bump after replacing any asset file (cache-busting)
   const TF = "'Noto Sans Thai Looped','Sarabun','Noto Sans Thai',sans-serif";
 
   // ── Choices ─────────────────────────────────────────────────

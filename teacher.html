@@ -202,7 +202,7 @@
       <div class="filter-btns">
         <button class="filter-btn active" id="f-all"  onclick="setFilter('all')">ทั้งหมด</button>
         <button class="filter-btn"         id="f-attn" onclick="setFilter('attn')">⚠️ ต้องดูแล</button>
-        <button class="filter-btn" id="btn-reset-tips" onclick="resetTipsForClass()" title="นักเรียนห้องนี้จะเห็นคำแนะนำของครูอาร์เธอร์อีกครั้ง">💡 ให้ดูคำแนะนำใหม่</button>
+        <button class="filter-btn" id="btn-reset-tips" onclick="resetTipsForClass()" title="นักเรียนห้องนี้จะเห็นคำแนะนำของMr.ATอีกครั้ง">💡 ให้ดูคำแนะนำใหม่</button>
       </div>
     </div>
     <div class="student-grid" id="student-grid">
@@ -449,7 +449,7 @@ function buildClassTabs() {
   });
 }
 
-// Guide tips: show ครูอาร์เธอร์'s one-time tips again to everyone in the current room.
+// Guide tips: show Mr.AT's one-time tips again to everyone in the current room.
 async function resetTipsForClass() {
   if (!currentClass) return;
   if (!confirm('ให้นักเรียนห้อง ' + currentClass + ' เห็นคำแนะนำทั้งหมดอีกครั้ง?\n(มีผลตอนนักเรียนเข้าสู่ระบบครั้งถัดไป)')) return;

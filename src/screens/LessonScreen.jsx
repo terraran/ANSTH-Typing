@@ -115,7 +115,7 @@ export function LessonScreen({ studentName, classCode, onSelect, onOpenSetup, on
 
       {/* ── HUD: character head + name, stage progress, character / stats buttons ── */}
       <div style={{ display:'flex', alignItems:'flex-end', gap:14, flex:'none' }}>
-        <button onClick={()=>onOpenCharacter&&onOpenCharacter()} title="แต่งตัวละคร" aria-label="แต่งตัวละคร"
+        <button data-tour="char" onClick={()=>onOpenCharacter&&onOpenCharacter()} title="แต่งตัวละคร" aria-label="แต่งตัวละคร"
           style={{ position:'relative', background:'none', border:0, padding:0, cursor:'pointer', flexShrink:0,
             display:'flex', flexDirection:'column', alignItems:'center' }}>
           {window.CharKit && (
@@ -128,7 +128,7 @@ export function LessonScreen({ studentName, classCode, onSelect, onOpenSetup, on
           {!character && <span style={{ position:'absolute', top:-6, right:-18, fontSize:12, fontWeight:700, background:'#FFC23D',
             border:'2px solid '+INK, padding:'0 6px', color:INK }}>สร้างตัวละคร</span>}
         </button>
-        <div style={{ display:'flex', flexDirection:'column', gap:6, minWidth:0, flex:'0 1 300px', alignSelf:'center' }}>
+        <div data-tour="char-info" style={{ display:'flex', flexDirection:'column', gap:6, minWidth:0, flex:'0 1 300px', alignSelf:'center' }}>
           {/* Name plate: wood 9-slice like the header bar, so the name reads on any part of the scene */}
           <div className="px-wood" style={{ display:'flex', flexDirection:'column', minWidth:0, maxWidth:'100%', alignSelf:'flex-start', padding:'0 6px', color:'#FFF6D8' }}>
             <div style={{ display:'flex', alignItems:'center', gap:10, minWidth:0 }}>
@@ -148,7 +148,7 @@ export function LessonScreen({ studentName, classCode, onSelect, onOpenSetup, on
           </div>
         </div>
           {/* Stage strip */}
-          <div className="px-wood" style={{ padding:'0 4px', flex:'1 1 520px', minWidth:0, alignSelf:'center' }}>
+          <div data-tour="stages" className="px-wood" style={{ padding:'0 4px', flex:'1 1 520px', minWidth:0, alignSelf:'center' }}>
             <div style={{ display:'grid', gridTemplateColumns:'repeat(9, minmax(0, 1fr))', gap:4 }}>
               {CHAPTERS.map((c,i)=>{
                 const open=stageOpen(progress,c.id), done=stageDone(progress,c.id), sel=i===chIdx;
@@ -174,24 +174,24 @@ export function LessonScreen({ studentName, classCode, onSelect, onOpenSetup, on
       <div style={{ display:'flex', gap:'var(--fg)', alignItems:'flex-start', flex:'1 1 auto', minHeight:0 }}>
         {/* ── Menu ── */}
         <div className="px-panel px-scroll" style={{ flex:'0 0 340px', maxHeight:'100%', padding:short?'2px 0 4px':'4px 0 8px', display:'flex', flexDirection:'column', gap:short?6:12 }}>
-          <PxButton disabled={!next} onClick={()=>next&&onSelect(next.lesson,next.ex)} style={{ minHeight:short?52:68, fontSize:short?20:22, textAlign:'center', flex:'none' }}>
+          <PxButton data-tour="continue" disabled={!next} onClick={()=>next&&onSelect(next.lesson,next.ex)} style={{ minHeight:short?52:68, fontSize:short?20:22, textAlign:'center', flex:'none' }}>
             ▶ เล่นต่อ
             {next && <span style={SUB}>บท {next.lesson.num} · {next.ex.title}</span>}
           </PxButton>
           {studentName && SCRIPT_URL && (
-            <PxButton color="blue" onClick={()=>setView(v=>v==='homework'?'map':'homework')} style={{ position:'relative', minHeight:short?44:52, flex:'none' }}>
+            <PxButton data-tour="homework" color="blue" onClick={()=>setView(v=>v==='homework'?'map':'homework')} style={{ position:'relative', minHeight:short?44:52, flex:'none' }}>
               การบ้าน{pendingHw>0 && badge(pendingHw)}
               <span style={SUB}>{homework.length ? (pendingHw?`ค้าง ${pendingHw} ชิ้น`:'ส่งครบแล้ว') : 'ยังไม่มีการบ้าน'}</span>
             </PxButton>
           )}
           {studentName && SCRIPT_URL && (
-            <PxButton color="gold" onClick={()=>onOpenWeekly&&onOpenWeekly()} style={{ position:'relative', minHeight:short?44:52, flex:'none' }}>
+            <PxButton data-tour="weekly" color="gold" onClick={()=>onOpenWeekly&&onOpenWeekly()} style={{ position:'relative', minHeight:short?44:52, flex:'none' }}>
               ภารกิจประจำสัปดาห์{t && !me && badge('ใหม่')}
               <span style={SUB}>{weeklySub}</span>
             </PxButton>
           )}
-          <PxButton color="red" onClick={()=>setMpPick({mode:'1v1',step:'choose'})} style={{ minHeight:short?44:52, flex:'none' }}>1 ปะทะ 1<span style={SUB}>ดวล 2 คน · ใครคะแนนมากกว่าชนะ</span></PxButton>
-          <PxButton color="purple" onClick={()=>setMpPick({mode:'royale',step:'choose'})} style={{ minHeight:short?44:52, flex:'none' }}>Battle Royale<span style={SUB}>แข่งทั้งห้อง · คนสุดท้ายที่รอดชนะ</span></PxButton>
+          <PxButton data-tour="race" color="red" onClick={()=>setMpPick({mode:'1v1',step:'choose'})} style={{ minHeight:short?44:52, flex:'none' }}>1 ปะทะ 1<span style={SUB}>ดวล 2 คน · ใครคะแนนมากกว่าชนะ</span></PxButton>
+          <PxButton data-tour="race" color="purple" onClick={()=>setMpPick({mode:'royale',step:'choose'})} style={{ minHeight:short?44:52, flex:'none' }}>Battle Royale<span style={SUB}>แข่งทั้งห้อง · คนสุดท้ายที่รอดชนะ</span></PxButton>
         </div>
 
         {/* ── Right: homework list, or the current stage ── */}
@@ -222,7 +222,7 @@ export function LessonScreen({ studentName, classCode, onSelect, onOpenSetup, on
             </PxPanel>
           ) : (
             <>
-              <div style={{ display:'flex', flexDirection:'column', minHeight:0, flex:'0 1 auto' }}>
+              <div data-tour="stage" style={{ display:'flex', flexDirection:'column', minHeight:0, flex:'0 1 auto' }}>
                 <div style={{ minHeight:'var(--hh)', flex:'none', display:'flex', alignItems:'center', justifyContent:'space-between',
                   marginBottom:-3, position:'relative', padding:'0 6px', gap:8, zIndex:1,
                   // each stage has its own color (stages.js from/to)

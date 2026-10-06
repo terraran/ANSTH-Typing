@@ -1,4 +1,4 @@
-// Everything ครูอาร์เธอร์ says, in one place — edit the wording here, no other file needed.
+// Everything Mr.AT says, in one place — edit the wording here, no other file needed.
 //
 // [ด]   in a text shows as a key on the keyboard (yellow box).
 // **คำ** shows in bold.
@@ -7,8 +7,11 @@
 //   Never shown during a race, the weekly test, homework or a timed step — they wait until it ends.
 //   Changing a tip's wording does not show it again; give it a new id if everyone should see it again.
 // HELP: what the "?" button shows on each screen. One or more tabs per screen.
+// TOUR: the home-screen tour (first visit, or "ดูทัวร์อีกครั้ง" in the home help).
+//   target = which part of the screen to highlight (several = one box around all of them).
+//   A step whose part is not on screen (e.g. homework for guests) is skipped.
 
-export const GUIDE_NAME = 'ครูอาร์เธอร์';
+export const GUIDE_NAME = 'Mr.AT';
 
 export const TIPS = {
   'first-typing': {
@@ -96,3 +99,13 @@ export const HELP = {
     ],
   },
 };
+
+export const TOUR = [
+  { target: ['char', 'char-info'], text: 'สวัสดีจ้า! นี่คือตัวเรา กดที่ตัวละครหรือปุ่ม **แต่งตัวละคร** เพื่อเปลี่ยนทรงผม สีผม หรือชุดได้ ส่วน **สถิติของฉัน** ไว้ดูว่าเราพิมพ์เก่งขึ้นแค่ไหน' },
+  { target: ['stages'], text: 'นี่คือแผนที่ **9 ด่าน** เริ่มจากหมู่บ้านต้นทาง ผ่านบทสุดท้ายของด่านไหน ด่านถัดไปจะเปิดให้เอง ตัวเลขข้างดาวบอกว่าเก็บดาวในด่านนั้นได้กี่ดวงแล้ว' },
+  { target: ['stage'], text: 'แต่ละด่านมีหลายบท แต่ละบทมีหลายขั้น พิมพ์ให้ได้ ⭐⭐⭐ ทุกขั้นนะ ถ้ามั่นใจแล้ว กดขั้นสุดท้ายที่มีป้าย **⚔️ Rush** ได้ ⭐⭐⭐ เมื่อไหร่ ผ่านทั้งบทเลย' },
+  { target: ['continue'], text: 'ไม่รู้จะเริ่มตรงไหน กด **▶ เล่นต่อ** ได้เลย ระบบจะพาไปขั้นที่เรายังไม่ได้ดาวให้เอง' },
+  { target: ['homework', 'weekly'], text: '**การบ้าน**กับ**ภารกิจประจำสัปดาห์**อยู่ตรงนี้ ครูดูได้ว่าใครทำแล้วบ้าง ภารกิจเปลี่ยนใหม่ทุกวันจันทร์ ทำให้ติด Top 10 ของระดับชั้นกันนะ' },
+  { target: ['race'], text: 'อยากแข่งกับเพื่อน มาที่นี่! **1 ปะทะ 1** ดวลกันสองคน **Battle Royale** แข่งทั้งห้อง คนสุดท้ายที่รอดชนะ' },
+  { target: ['help'], text: 'ลืมเมื่อไหร่ กดปุ่ม **?** ได้ทุกหน้า ครูจะอธิบายให้ใหม่ พร้อมแล้วก็ไปลุยกันเลย!' },
+];

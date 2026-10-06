@@ -25,7 +25,7 @@ import { CountdownScreen, LobbyScreen, MPSetupScreen } from './race/Setup';
 import { BattleRoyaleResults, HostDashboard, SpectatorView } from './race/Host';
 import { ResultsScreen } from './screens/ResultsScreen';
 import { PERF_ON, PerfMeter, perf } from './ui/PerfMeter';
-import { GuideLayer, HelpButton, guideInit, showTip } from './ui/Guide';
+import { GuideLayer, HelpButton, TOUR_ID, TourLayer, guideInit, isSeen, showTip, startTour } from './ui/Guide';
 
 // BR anti-AFK: after the zone starts moving, no correct key for AFK_FIRST_MS → lose 1 life,
 // then 1 more every AFK_REPEAT_MS. Spam-penalty freezes and connection drops don't count.
@@ -211,7 +211,7 @@ export function ThaiTypingApp() {
   // Correct shift hand: left-hand target → Right Shift; right-hand target → Left Shift
   const showHints   = !activeTest || activeTest.showHints !== false;
 
-  // ── Guide (ครูอาร์เธอร์): one-time tips + "?" help. Texts live in src/data/guide.js. ──
+  // ── Guide (Mr.AT): one-time tips + "?" help. Texts live in src/data/guide.js. ──
   // Tips wait while racing, during a timed run (weekly test, homework, timed step) or a spam freeze.
   const guidePaused = raceRunning || penaltySecs>0 || screen==='countdown'
     || (screen==='practice' && !endTime && (timeLimit>0 || !!roomCode));
@@ -222,6 +222,8 @@ export function ThaiTypingApp() {
   useEffect(() => { if (screen==='results' && !roomCode && curResult && curResult.stars<3) showTip('stars'); },[screen, roomCode, curResult]);
   useEffect(() => { if (screen==='mp-lobby') showTip(roomType==='royale'?'lobby-br':'lobby-1v1'); },[screen, roomType]);
   useEffect(() => { if (penaltySecs>0) showTip('spam'); },[penaltySecs]);
+  // Home tour: first time on the home screen (seen list = same "Tips" sheet, id tour-home).
+  useEffect(() => { if (screen==='lessons' && !roomCode && !isSeen(TOUR_ID)) startTour(); },[screen, roomCode, googleUser]);
   const helpPage = screen==='weekly' ? 'weekly'
     : (screen==='mp-lobby' || screen==='mp-setup' || (roomCode && screen==='practice'))
       ? ((screen==='mp-setup' ? mpSetupMode : roomType)==='royale' ? 'br' : '1v1')
@@ -1424,6 +1426,7 @@ export function ThaiTypingApp() {
       {PERF_ON && <PerfMeter/>}
       {penaltySecs>0 && <PenaltyScreen countdown={penaltySecs}/>}
       <GuideLayer paused={guidePaused}/>
+      <TourLayer active={screen==='lessons'}/>
       {timeUp && <TimeUpOverlay/>}
       {showNameModal && (
         <NameModal onConfirm={(name)=>{

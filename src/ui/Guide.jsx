@@ -35,7 +35,7 @@ if (typeof document !== 'undefined' && !document.getElementById('guide-css')) {
 }
 
 // ── store ─────────────────────────────────────────────────────────
-const store = { who: '', seen: new Set(), queue: [], current: null, tour: false, subs: new Set(), sync: null, pending: new Set(), timer: 0 };
+const store = { who: '', seen: new Set(), queue: [], current: null, tour: false, fingers: false, subs: new Set(), sync: null, pending: new Set(), timer: 0 };
 const emit = () => store.subs.forEach(f => f());
 const localKey = (who) => 'guideSeen:' + (who || 'guest');
 
@@ -68,7 +68,7 @@ export function guideInit({ who = '', serverSeen = null, sync = null } = {}) {
   saveLocal();
   store.queue = store.queue.filter(id => !store.seen.has(id));
   if (store.current && store.seen.has(store.current)) store.current = null;
-  store.tour = false;
+  store.tour = false; store.fingers = false;
   emit();
 }
 
@@ -93,7 +93,12 @@ export function dismissTip() {
 export function startTour() { store.tour = true; emit(); }
 export function endTour() { store.tour = false; markSeen(TOUR_ID); emit(); }
 
-function useGuideStore() {
+// Finger-placement lesson (FingerIntro.jsx): first time before stage 1 · lesson 1, or from the "?" help.
+export const FINGERS_ID = 'fingers';
+export function startFingers() { store.fingers = true; emit(); }
+export function endFingers() { store.fingers = false; markSeen(FINGERS_ID); markSeen('first-typing'); emit(); }
+
+export function useGuideStore() {
   const [, force] = useState(0);
   useEffect(() => { const f = () => force(n => n + 1); store.subs.add(f); return () => store.subs.delete(f); }, []);
   return store;
@@ -107,7 +112,7 @@ export function TipTrigger({ id }) {
 
 // While mounted, every key goes to the guide only (typing practice behind it gets nothing).
 // onKey(e) may handle Enter / arrows; Tab still moves between the guide's buttons.
-function useKeyTrap(onKey) {
+export function useKeyTrap(onKey) {
   const ref = useRef(onKey); ref.current = onKey;
   useEffect(() => {
     const trap = (e) => {
@@ -130,7 +135,7 @@ function useKeyTrap(onKey) {
 }
 
 // true once `ms` have passed since `key` last changed.
-function useReady(key, ms) {
+export function useReady(key, ms) {
   const [ready, setReady] = useState(false);
   useEffect(() => {
     setReady(false);
@@ -173,14 +178,14 @@ export function GuidePortrait({ scale = 2, talkMs = 0, talkKey }) {
   );
 }
 
-function NameTag() {
+export function NameTag() {
   return <span style={{ background: '#FFC23D', border: '3px solid ' + INK, padding: '0 8px', fontSize: 13, fontWeight: 700,
     color: INK, whiteSpace: 'nowrap', fontFamily: TH_FONT }}>{GUIDE_NAME}</span>;
 }
-const talkTime = (text) => Math.min(4200, 900 + String(text || '').length * 28);
+export const talkTime = (text) => Math.min(4200, 900 + String(text || '').length * 28);
 
 // The gold button that only works after a short wait (a shrinking bar shows the wait).
-function WaitButton({ ready, ms, onClick, children, color = 'gold' }) {
+export function WaitButton({ ready, ms, onClick, children, color = 'gold' }) {
   return (
     <PxButton color={color} onClick={(e) => { if (!ready) return; e.currentTarget.blur(); onClick(); }}
       onMouseDown={(e) => e.preventDefault()} aria-disabled={!ready}
@@ -218,7 +223,7 @@ function SpeechBox({ talkKey, text, label, children, scale = 2, style }) {
 // paused: hold tips back (race, timed run). Tips also wait while the home tour is open.
 export function GuideLayer({ paused }) {
   const s = useGuideStore();
-  const id = (paused || s.tour) ? null : s.current;
+  const id = (paused || s.tour || s.fingers) ? null : s.current;
   return id ? <TipBox key={id} id={id}/> : null;
 }
 
@@ -393,8 +398,12 @@ export function HelpDialog({ page, onClose }) {
           <p role="tabpanel" style={{ margin: 0, fontSize: 18, lineHeight: 1.6, fontWeight: 600, minHeight: 96 }}><GuideText text={body}/></p>
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, flexWrap: 'wrap' }}>
             {page === 'home' && (
-              <PxButton color="blue" onClick={() => { onClose(); startTour(); }} style={{ minHeight: 40, fontSize: 15, marginRight: 'auto' }}>
+              <PxButton color="blue" onClick={() => { onClose(); startTour(); }} style={{ minHeight: 40, fontSize: 15 }}>
                 ▶ ดูทัวร์อีกครั้ง</PxButton>
+            )}
+            {(page === 'home' || page === 'typing') && (
+              <PxButton color="purple" onClick={() => { onClose(); startFingers(); }} style={{ minHeight: 40, fontSize: 15, marginRight: 'auto' }}>
+                ✋ ฝึกวางนิ้ว</PxButton>
             )}
             {tab < help.tabs.length - 1 && (
               <PxButton onClick={() => setTab(tab + 1)} style={{ minHeight: 40, fontSize: 15 }}>ต่อไป →</PxButton>

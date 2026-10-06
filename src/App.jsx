@@ -25,7 +25,8 @@ import { CountdownScreen, LobbyScreen, MPSetupScreen } from './race/Setup';
 import { BattleRoyaleResults, HostDashboard, SpectatorView } from './race/Host';
 import { ResultsScreen } from './screens/ResultsScreen';
 import { PERF_ON, PerfMeter, perf } from './ui/PerfMeter';
-import { GuideLayer, HelpButton, TOUR_ID, TourLayer, guideInit, isSeen, showTip, startTour } from './ui/Guide';
+import { FINGERS_ID, GuideLayer, HelpButton, TOUR_ID, TourLayer, guideInit, isSeen, showTip, startFingers, startTour } from './ui/Guide';
+import { FingerLayer } from './ui/FingerIntro';
 
 // BR anti-AFK: after the zone starts moving, no correct key for AFK_FIRST_MS → lose 1 life,
 // then 1 more every AFK_REPEAT_MS. Spam-penalty freezes and connection drops don't count.
@@ -217,6 +218,9 @@ export function ThaiTypingApp() {
     || (screen==='practice' && !endTime && (timeLimit>0 || !!roomCode));
   useEffect(() => { guideInit({who:''}); },[]);   // guest until a sign-in loads the student's list
   const untimedSolo = screen==='practice' && !roomCode && !timeLimit && !endTime;
+  // Finger-placement lesson: first time stage 1 · lesson 1 opens (before any key is typed).
+  const firstLesson = untimedSolo && !!lesson?.curriculum && lesson.stage===1 && lesson.num===1;
+  useEffect(() => { if (firstLesson && !startTime && !isSeen(FINGERS_ID)) startFingers(); },[firstLesson]);
   useEffect(() => { if (untimedSolo) showTip('first-typing'); },[untimedSolo]);
   useEffect(() => { if (untimedSolo && needsShift && showHints) showTip('first-shift'); },[untimedSolo, needsShift, showHints]);
   useEffect(() => { if (screen==='results' && !roomCode && curResult && curResult.stars<3) showTip('stars'); },[screen, roomCode, curResult]);
@@ -1427,6 +1431,7 @@ export function ThaiTypingApp() {
       {penaltySecs>0 && <PenaltyScreen countdown={penaltySecs}/>}
       <GuideLayer paused={guidePaused}/>
       <TourLayer active={screen==='lessons'}/>
+      <FingerLayer/>
       {timeUp && <TimeUpOverlay/>}
       {showNameModal && (
         <NameModal onConfirm={(name)=>{

@@ -238,7 +238,7 @@ export function ThaiTypingApp() {
     return inStage.length > 0 && inStage[inStage.length - 1].id === lesson.id;
   })();
   const musicId = (screen==='countdown' || screen==='mp-lobby' || screen==='host-dashboard' || (screen==='practice' && roomCode)) ? 'race'
-    : screen==='practice' ? ((activeTest || activeHw) ? null : isBossLesson ? 'boss' + lesson.stage : 'calm')
+    : screen==='practice' ? (activeTest ? 'race' : activeHw ? 'calm' : isBossLesson ? 'boss' + lesson.stage : 'calm')
     : screen==='results' ? null
     : 'home';
   useEffect(() => { music(musicId); },[musicId]);

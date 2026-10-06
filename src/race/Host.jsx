@@ -8,6 +8,12 @@ import { sfx } from '../ui/sound';
 // Top: lane with the 5 leading runners. Below: every player as a small card (fits ~30 on one screen).
 // Bottom-right: short pop-ups when someone is out / leaves / drops / finishes.
 
+if (typeof document !== 'undefined' && !document.getElementById('hd-css')) {
+  const st = document.createElement('style'); st.id = 'hd-css';
+  st.textContent = '.hd-storm{animation:hd-storm .8s steps(1) infinite}@keyframes hd-storm{50%{background:#FDE2E2}}';
+  document.head.appendChild(st);
+}
+
 const OUT_NOTE = {
   eliminated: ['💀', 'ตกรอบ'], left: ['🚪', 'ออกจากเกม'], removed: ['🚪', 'ออกจากเกม'],
   disconnected: ['📶', 'หลุดการเชื่อมต่อ'], done: ['🏁', 'พิมพ์จบแล้ว'],
@@ -58,28 +64,43 @@ export function HostDashboard({ roomCode, roomPlayers, roomType, zoneWpm, zonePo
     finished: p.status === 'done', tag: true, alpha: 1, color: i === 0 ? '#B45309' : '#3B2416',
   })) : [];
 
+  // Safety bar (as before): how far ahead of the storm edge, full = a whole gap ahead.
+  // Speed in ตัว/นาที, the same unit as the storm, so faster/slower than the storm is easy to see.
   const card = (uid, p, i, out) => {
     const st = stOf(p);
-    const wpm = Math.round((p.cpm||p.wpm||0)/5);
+    const speed = Math.round(p.cpm || (p.wpm||0)*5);
     const lives = p.lives ?? 3;
-    const pct = Math.max(0, Math.min(100, Math.round((p.pos||0) / total * 100)));
-    const danger = !out && edge > 0 && (p.pos||0) < edge;
-    const badge = out ? (st === 'done' ? '🏁' : st === 'eliminated' ? '💀' : st === 'dc' ? '📶' : '🚪')
-      : st === 'dc' ? stateBadge('dc', p, isBR ? 'royale' : '1v1', sNow) : '';
-    const outText = st === 'done' ? 'จบแล้ว' : st === 'eliminated' ? 'ตกรอบ' : 'ออกแล้ว';
+    const safe = edge > 0 ? Math.max(0, Math.min(1, ((p.pos||0) - edge) / ZONE_GAP)) : 1;
+    const inStorm = !out && edge > 0 && (p.pos||0) < edge;
+    const near = !out && !inStorm && edge > 0 && safe < 0.4;
+    const faster = zoneWpm > 0 ? speed >= zoneWpm : null;
+    const barColor = out ? '#9C8B6E' : inStorm ? '#DC2626' : near ? '#E0A100' : '#16A34A';
+    const barText = out ? (st === 'done' ? '🏁 จบแล้ว' : st === 'eliminated' ? '💀 ตกรอบ' : '🚪 ออกแล้ว')
+      : edge <= 0 ? 'ยังไม่มีพายุ' : inStorm ? 'โดนพายุ!' : near ? 'ใกล้พายุ!' : 'ปลอดภัย';
+    const badge = !out && st === 'dc' ? ' ' + stateBadge('dc', p, isBR ? 'royale' : '1v1', sNow) : '';
     return (
       <button key={uid} data-nosound disabled={out} onClick={() => !out && onSpectate && onSpectate(uid)}
-        title={out ? `${p.name||'ผู้เล่น'} · ${outText}` : `ดูหน้าจอของ ${p.name||'ผู้เล่น'}`}
-        style={{ position:'relative', height:36, boxSizing:'border-box', display:'flex', alignItems:'center', gap:6, padding:'0 8px 3px',
-          background: out ? '#E7DCC0' : '#FFF8E6', border:`3px solid ${danger?'#B3261E':'#3B2416'}`, opacity: out ? .7 : 1,
+        title={out ? `${p.name||'ผู้เล่น'} · ${barText}` : `ดูหน้าจอของ ${p.name||'ผู้เล่น'}`}
+        className={inStorm ? 'hd-storm' : undefined}
+        style={{ height:48, boxSizing:'border-box', display:'flex', flexDirection:'column', justifyContent:'center', gap:3, padding:'2px 8px',
+          background: out ? '#E7DCC0' : '#FFF8E6', border:`3px solid ${inStorm?'#DC2626':'#3B2416'}`, opacity: out ? .7 : 1,
           fontFamily:tf, color:'#3B2416', cursor: out ? 'default' : 'pointer', textAlign:'left', minWidth:0 }}>
-        <span style={{ fontSize:12, fontWeight:800, width:18, flex:'none', textAlign:'center', color:'#6A4A30' }}>{out ? badge : i + 1}</span>
-        <span style={{ flex:1, minWidth:0, fontSize:13, fontWeight:800, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>
-          {p.name||'ผู้เล่น'}{!out && badge ? ' ' + badge : ''}</span>
-        <span style={{ fontSize:11, fontWeight:700, flex:'none', whiteSpace:'nowrap', color: danger ? '#B3261E' : '#6A4A30' }}>
-          {out ? outText : `${wpm} WPM`}</span>
-        {isBR && <span style={{ fontSize:11, flex:'none', whiteSpace:'nowrap' }}>{lives > 0 ? '❤️' + lives : '💀'}</span>}
-        <span style={{ position:'absolute', left:0, bottom:0, height:3, width:pct+'%', background: out ? '#9C8B6E' : danger ? '#EF4444' : '#059669' }}/>
+        <span style={{ display:'flex', alignItems:'center', gap:6, minWidth:0, width:'100%' }}>
+          <span style={{ fontSize:12, fontWeight:800, width:16, flex:'none', textAlign:'center', color:'#6A4A30' }}>{out ? '' : i + 1}</span>
+          <span style={{ flex:1, minWidth:0, fontSize:13, fontWeight:800, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>
+            {p.name||'ผู้เล่น'}{badge}</span>
+          {!out && <span style={{ fontSize:11, fontWeight:800, flex:'none', whiteSpace:'nowrap',
+            color: faster == null ? '#6A4A30' : faster ? '#15803D' : '#DC2626' }}>
+            {faster == null ? '' : faster ? '▲ ' : '▼ '}{speed} ตัว/นาที</span>}
+          {isBR && !out && <span style={{ fontSize:10, flex:'none', whiteSpace:'nowrap', letterSpacing:-2 }}>
+            {lives > 0 ? '❤️'.repeat(Math.min(lives, 5)) : '💀'}</span>}
+        </span>
+        <span style={{ position:'relative', display:'block', width:'100%', height:14, background:'#D9CCAA', border:'2px solid #3B2416', boxSizing:'border-box' }}>
+          <span style={{ position:'absolute', left:0, top:0, bottom:0, width: (out ? 100 : Math.max(inStorm ? 100 : 4, safe * 100)) + '%',
+            background: barColor, transition:'width .5s' }}/>
+          <span style={{ position:'absolute', inset:0, display:'flex', alignItems:'center', justifyContent:'center', fontSize:10, fontWeight:800,
+            color:'#fff', textShadow:'0 1px 0 rgba(0,0,0,.6)', lineHeight:1 }}>{barText}</span>
+        </span>
       </button>
     );
   };
@@ -95,10 +116,9 @@ export function HostDashboard({ roomCode, roomPlayers, roomType, zoneWpm, zonePo
             {alive.length} คนเหลือ · {dead.length} คนออก
             {watcherNote&&<span style={{fontSize:12,fontWeight:600,color:'rgba(255,255,255,.75)',marginLeft:10}}>{watcherNote}</span>}</div>
         </div>
-        {isBR && zonePos > 0 && (
-          <div style={{marginLeft:'auto',textAlign:'right',flex:'none'}}>
-            <div style={{fontSize:10,color:'rgba(255,255,255,.6)',fontWeight:700}}>SAFE ZONE</div>
-            <div style={{fontSize:20,fontWeight:800,color:'#FCD34D'}}>{zoneWpm} ตัว/นาที</div>
+        {isBR && (
+          <div style={{marginLeft:'auto',textAlign:'right',flex:'none',fontSize:15,fontWeight:800,color: edge > 0 ? '#FCD34D' : '#F5E6BE'}}>
+            {edge > 0 ? <>⚡ พายุไล่มาด้วยความเร็ว <span style={{fontSize:20}}>{zoneWpm}</span> ตัว/นาที</> : 'ยังไม่มีพายุ'}
           </div>
         )}
       </div>
@@ -111,7 +131,7 @@ export function HostDashboard({ roomCode, roomPlayers, roomType, zoneWpm, zonePo
 
       {/* Everyone */}
       <div className="px-scroll" style={{flex:'1 1 auto', minHeight:0, overflowY:'auto', display:'grid',
-        gridTemplateColumns:'repeat(auto-fill, minmax(210px, 1fr))', gridAutoRows:36, gap:6, alignContent:'start'}}>
+        gridTemplateColumns:'repeat(auto-fill, minmax(230px, 1fr))', gridAutoRows:48, gap:6, alignContent:'start'}}>
         {alive.map(([uid,p], i) => card(uid, p, i, false))}
         {dead.map(([uid,p], i) => card(uid, p, i, true))}
       </div>

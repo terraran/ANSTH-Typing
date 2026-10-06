@@ -117,6 +117,9 @@ export function ResultsScreen({ cpm, accuracy, errors, totalChars, lesson, saveS
     ? (saveStatus==='saved' && !!testBoard?.me && score>0 && score>=testBoard.me.score)
     : (score>0 && score>prevBest));
   const stage = resultStage({ roomType, roomCode, roomPlayers, myCfg, myName, duel, soloBest, brRows });
+  // 1v1: while the rival is still typing, show a big live lane first; the result page comes after.
+  if (duel && duel.outcome==='wait') return <DuelWait roomPlayers={roomPlayers} myCfg={myCfg} totalChars={totalChars}
+    myScore={score} rvName={duel.rvName} rvScore={duel.rvScore} short={short} tf={tf}/>;
   // Two columns so the buttons always stay on screen: the stage on the left, scores and numbers on the right.
   return (
     <div className="px-fill" style={{fontFamily:tf,display:'flex',flexDirection:'column',gap:'var(--fg)',textAlign:'center'}}>
@@ -170,11 +173,6 @@ export function ResultsScreen({ cpm, accuracy, errors, totalChars, lesson, saveS
               <span style={{fontSize:14,fontWeight:800,color:'#64748B'}}>vs</span>
               {box(duel.rvName,duel.rvScore,settled&&duel.outcome==='lose','#E79035')}
             </div>
-            {!settled && window.CharKit && totalChars > 0 && (   // I'm at the finish line; watch the rival still running
-              <CharKit.RaceTrack mode="1v1" scene height={84} style={{marginTop:8}}
-                info={`${duel.rvName} ยังพิมพ์อยู่`}
-                runners={raceRunners(roomPlayers,{myCfg,myLabel:'คุณ',myPos:totalChars,totalChars,limit:1})}/>
-            )}
             {duel.rvLeft && (
               <div style={{fontSize:12,color:tone.fg,marginTop:6}}>🚪 คู่แข่งออกจากการแข่งขัน</div>
             )}
@@ -344,6 +342,42 @@ export function ResultsScreen({ cpm, accuracy, errors, totalChars, lesson, saveS
           {saveStatus==='error'  && '⚠️ บันทึกไม่ได้ — ตรวจสอบสัญญาณ'}
         </div>
       )}
+      </div>
+    </div>
+  );
+}
+
+// 1v1 WAIT — I finished first: I stand at the finish line, the rival runs in live (lane drawn at 2×).
+function DuelWait({ roomPlayers, myCfg, totalChars, myScore, rvName, rvScore, short, tf }) {
+  const t0 = useRef(Date.now());
+  const [, tick] = useState(0);
+  useEffect(() => { const id = setInterval(() => tick(n => n + 1), 250); return () => clearInterval(id); }, []);
+  const left = Math.max(0, Math.ceil(PRESSURE_SECS - (Date.now() - t0.current) / 1000));
+  const laneH = short ? 92 : 120;          // drawn size; shown twice as big
+  const score = (label, value, color) => (
+    <div style={{flex:'0 1 260px',background:'#FFF8E6',border:'3px solid #3B2416',padding:'6px 12px'}}>
+      <div style={{fontSize:14,fontWeight:800,color:'#6A4A30',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{label}</div>
+      <div style={{fontSize:short?30:38,fontWeight:800,color,lineHeight:1.15}}>{fmtScore(value)}</div>
+    </div>
+  );
+  return (
+    <div className="px-fill" style={{fontFamily:tf,display:'flex',flexDirection:'column',justifyContent:'center',alignItems:'center',
+      gap:short?10:16,textAlign:'center',color:'#3B2416'}}>
+      <div style={{fontSize:short?22:28,fontWeight:800}}>⏳ รอ {rvName} พิมพ์ให้จบ</div>
+      <div style={{fontSize:15,fontWeight:700,color:'#6A4A30'}}>
+        {left > 0 ? `อีกไม่เกิน ${left} วินาที แล้วจะรู้ผลแพ้ชนะ` : 'กำลังสรุปผล...'}</div>
+      {window.CharKit && totalChars > 0 && (
+        <div style={{width:'100%',height:laneH*2,overflow:'hidden',flex:'none'}}>
+          <div style={{width:'50%',transform:'scale(2)',transformOrigin:'0 0'}}>
+            <CharKit.RaceTrack mode="1v1" scene height={laneH}
+              runners={raceRunners(roomPlayers,{myCfg,myLabel:'คุณ',myPos:totalChars,totalChars,limit:1})}/>
+          </div>
+        </div>
+      )}
+      <div style={{display:'flex',justifyContent:'center',alignItems:'center',gap:16,width:'100%'}}>
+        {score('คุณ', myScore, '#347ED0')}
+        <span style={{fontSize:16,fontWeight:800,color:'#6A4A30'}}>vs</span>
+        {score(rvName, rvScore, '#E79035')}
       </div>
     </div>
   );

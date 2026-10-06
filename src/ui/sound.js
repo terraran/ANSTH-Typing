@@ -11,7 +11,7 @@ const { useEffect, useState } = React;
 
 // ── settings (per device) ─────────────────────────────────────────
 const KEY = 'soundSettings';
-const DEFAULTS = { music: 0, sfx: 0.5, typeSound: 'tick' };   // computer room: music off, effects at half
+const DEFAULTS = { music: 0.2, sfx: 0.5, typeSound: 'tick' };   // computer room: music off, effects at half
 const TYPE_SOUNDS = ['tick', 'pop', 'click', 'off'];
 let settings = { ...DEFAULTS };
 try {

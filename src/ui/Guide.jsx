@@ -166,7 +166,8 @@ export function HelpButton({ page, disabled, style }) {
         onClick={(e) => { e.currentTarget.blur(); setOpen(true); }}
         style={{ minHeight: 'var(--hb)', minWidth: 44, padding: '0 6px', fontFamily: PX_FONT, fontSize: 13, color: INK,
           opacity: disabled ? 0.5 : 1, flex: 'none', ...style }}>?</button>
-      {open && <HelpDialog page={page} onClose={() => setOpen(false)}/>}
+      {/* Portal to <body>: the button lives inside the header bar's layer, which the page content covers */}
+      {open && ReactDOM.createPortal(<HelpDialog page={page} onClose={() => setOpen(false)}/>, document.body)}
     </>
   );
 }

@@ -171,24 +171,24 @@ function words(text) {
   }
   return text.split(/(\s+|[.!?…,])/);
 }
-export function speechPlan(text, maxMs = 2600) {
+export function speechPlan(text, maxMs = 1600) {
   const clean = String(text || '').replace(/\*\*/g, '').replace(/\[[^\]]+\]/g, ' ก ');
   const out = []; let at = 0, base = 7, gap = 0;
   for (const w of words(clean)) {
     if (/[.!?…]/.test(w)) {           // sentence end: shape the last syllable, then a breath
       const last = out[out.length - 1];
       if (last) last.p += w.includes('?') ? 4 : -3;
-      gap = Math.max(gap, 280); base = 6 + Math.floor(Math.random() * 3); continue;
+      gap = Math.max(gap, 170); base = 6 + Math.floor(Math.random() * 3); continue;
     }
-    if (/^[\s,]+$/.test(w)) { gap = Math.max(gap, w.includes(',') ? 180 : 90); continue; }
+    if (/^[\s,]+$/.test(w)) { gap = Math.max(gap, w.includes(',') ? 110 : 50); continue; }
     const n = syllables(w);
     if (!n) continue;
-    at += gap || (out.length ? 30 : 0); gap = 0;
+    at += gap || (out.length ? 10 : 0); gap = 0;
     for (let i = 0; i < n; i++) {
       if (at > maxMs) return out;
       base = Math.max(3, Math.min(11, base + (Math.random() * 4 - 2)));
       out.push({ at: Math.round(at), p: Math.round(base) });
-      at += 135 + Math.random() * 40;
+      at += 80 + Math.random() * 20;
     }
   }
   return out;

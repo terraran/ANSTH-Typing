@@ -62,7 +62,8 @@ export function Runners({ queue, max = 3, scale = 3, bottom = 40 }) {
   useEffect(() => {
     const CK = window.CharKit, cv = cvRef.current;
     if (!CK || !cv) return;
-    const reduce = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+    // Always run, even when Windows has animations turned off (school PCs report prefers-reduced-motion):
+    // slow walkers across the bottom are the title screen's main feature, not a flashing effect.
     const S = 64 * scale, ctx = cv.getContext('2d');
     let raf = 0, last = performance.now(), nextSpawn = 0, qi = 0, alive = true;
     const runners = [];
@@ -84,28 +85,22 @@ export function Runners({ queue, max = 3, scale = 3, bottom = 40 }) {
     };
     resize();
     window.addEventListener('resize', resize);
-    if (reduce) {          // no motion: a few characters standing still
-      const w = cv.clientWidth;
-      [0.18, 0.5, 0.82].slice(0, max).forEach(f => spawn(w * f - S / 2));
-    }
     const tick = (now) => {
       if (!alive) return;
       const dt = Math.min(0.05, (now - last) / 1000); last = now;
       const w = cv.clientWidth, h = cv.clientHeight;
-      if (!reduce && now >= nextSpawn && runners.length < max) {
+      if (now >= nextSpawn && runners.length < max) {
         spawn(-S);
         nextSpawn = now + 2200 + Math.random() * 2600;
       }
       ctx.clearRect(0, 0, w, h);
       for (let i = runners.length - 1; i >= 0; i--) {
         const r = runners[i];
-        if (!reduce) {
-          r.x += r.speed * dt;
-          r.acc += dt * 1000;
-          while (r.acc >= 100) { r.acc -= 100; r.frame++; }
-          if (r.x > w + 20) { runners.splice(i, 1); continue; }
-        }
-        if (r.sprite) CK.drawFrame(ctx, r.sprite, reduce ? 'idle' : 'run', r.frame, Math.round(r.x), h - S - r.lift, scale);
+        r.x += r.speed * dt;
+        r.acc += dt * 1000;
+        while (r.acc >= 100) { r.acc -= 100; r.frame++; }
+        if (r.x > w + 20) { runners.splice(i, 1); continue; }
+        if (r.sprite) CK.drawFrame(ctx, r.sprite, 'run', r.frame, Math.round(r.x), h - S - r.lift, scale);
       }
       raf = requestAnimationFrame(tick);
     };

@@ -141,7 +141,7 @@ const SFX = {
   pressure: () => { T(N(12), 0.06, { v: 0.1 }); T(N(12), 0.06, { v: 0.1 }, 0.12); },
   ui: () => T(N(19), 0.03, { v: 0.07 }),
   tip: () => { T(N(7), 0.06, { type: 'sine', v: 0.18 }); T(N(14), 0.08, { type: 'sine', v: 0.15 }, 0.06); },
-  blip: () => T(N(5 + Math.floor(Math.random() * 6)), 0.035, { v: 0.05 }),
+  blip: (p) => { const s = p == null ? 5 + Math.floor(Math.random() * 6) : p; T(N(s), 0.05, { v: 0.05, f1: N(s - 0.7) }); },
   rage: () => { T(180, 0.5, { type: 'sawtooth', v: 0.08, f1: 1400 }); Z(0.45, { v: 0.06, hp: 2000 }); },
 };
 export function sfx(name, arg) {
@@ -149,6 +149,58 @@ export function sfx(name, arg) {
   try { SFX[name](arg); } catch (e) {}
 }
 sfx.type = (combo) => { if (settings.typeSound !== 'off') sfx(settings.typeSound, combo); };
+// ── Mr.AT's voice: one blip per (estimated) syllable ─────────────
+// speechPlan(text) → [{ at: ms, p: semitone }]. Pauses between words and sentences,
+// pitch drifts like speech, drops at a sentence end (rises on "?"). Capped at ~2.6 s.
+const TH_CONS = /[ก-ฮ]/g, TH_LEAD = /[เแโใไ]/g, TH_VOW = /[ะัาำิีึืุู็]/g;
+function syllables(w) {
+  if (/[ก-๛]/.test(w)) {
+    const c = (w.match(TH_CONS) || []).length;
+    if (!c) return 0;
+    // vowel marks that sit inside a เ-/แ-/โ- syllable belong to that syllable
+    const lead = (w.match(TH_LEAD) || []).length;
+    const vow = (w.replace(/[เแโ][ก-ฮ]{1,2}[่-๋]?[ะัาำิีึืุู็]+/g, 'เก').match(TH_VOW) || []).length;
+    return Math.min(6, Math.max(1, lead + vow, Math.round(c / 2.5)));
+  }
+  const a = (w.match(/[A-Za-z0-9]/g) || []).length;
+  return a ? Math.min(4, Math.ceil(a / 3)) : 0;
+}
+function words(text) {
+  if (typeof Intl !== 'undefined' && Intl.Segmenter) {
+    try { return [...new Intl.Segmenter('th', { granularity: 'word' }).segment(text)].map(s => s.segment); } catch (e) {}
+  }
+  return text.split(/(\s+|[.!?…,])/);
+}
+export function speechPlan(text, maxMs = 2600) {
+  const clean = String(text || '').replace(/\*\*/g, '').replace(/\[[^\]]+\]/g, ' ก ');
+  const out = []; let at = 0, base = 7, gap = 0;
+  for (const w of words(clean)) {
+    if (/[.!?…]/.test(w)) {           // sentence end: shape the last syllable, then a breath
+      const last = out[out.length - 1];
+      if (last) last.p += w.includes('?') ? 4 : -3;
+      gap = Math.max(gap, 280); base = 6 + Math.floor(Math.random() * 3); continue;
+    }
+    if (/^[\s,]+$/.test(w)) { gap = Math.max(gap, w.includes(',') ? 180 : 90); continue; }
+    const n = syllables(w);
+    if (!n) continue;
+    at += gap || (out.length ? 30 : 0); gap = 0;
+    for (let i = 0; i < n; i++) {
+      if (at > maxMs) return out;
+      base = Math.max(3, Math.min(11, base + (Math.random() * 4 - 2)));
+      out.push({ at: Math.round(at), p: Math.round(base) });
+      at += 135 + Math.random() * 40;
+    }
+  }
+  return out;
+}
+// Speak `text`: blips on the audio clock-ish timers, onSyl(i) fires with each syllable (for the mouth).
+// Returns a stop() function.
+export function speak(text, onSyl) {
+  const plan = speechPlan(text);
+  const ids = plan.map((s, i) => setTimeout(() => { sfx('blip', s.p); onSyl && onSyl(i, plan.length); }, s.at));
+  return () => ids.forEach(clearTimeout);
+}
+
 // Stars shown one by one on the result screen, then a fanfare for ⭐⭐⭐.
 sfx.stars = (n) => {
   for (let i = 0; i < n; i++) setTimeout(() => sfx('star', i), 250 + i * 300);

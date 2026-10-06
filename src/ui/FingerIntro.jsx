@@ -5,7 +5,7 @@
 // colour, name and the tapping fingertip.
 // The stage is drawn at 1366×657 and scaled to fit the window, so it always fits without scrolling.
 import { resolveKey } from '../engine/keymap';
-import { GuidePortrait, GuideText, NameTag, endFingers, talkTime, useGuideStore, useKeyTrap } from './Guide';
+import { GuidePortrait, GuideText, NameTag, endFingers, useGuideStore, useKeyTrap } from './Guide';
 import { INK, PX_FONT, PxButton, Scene, TH_FONT } from './pixel';
 
 const { useEffect, useMemo, useState } = React;
@@ -142,7 +142,7 @@ function FingerIntro() {
         <div style={{ position: 'absolute', left: 12, right: 12, top: 74, display: 'flex', justifyContent: 'center' }}>
           <div className="px-wood" style={{ width: 1000, display: 'flex', gap: 12, padding: 2, boxShadow: '0 6px 0 rgba(59,36,22,.35)' }}>
             <div style={{ flex: 'none', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
-              <GuidePortrait scale={2} talkMs={talkTime(say)} talkKey={'f' + step}/>
+              <GuidePortrait scale={2} say={say} talkKey={'f' + step}/>
               <NameTag/>
             </div>
             <div key={wrong} className={wrong ? 'fi-shake' : ''} style={{ flex: '1 1 auto', background: '#FFF6DE', border: '3px solid ' + INK,

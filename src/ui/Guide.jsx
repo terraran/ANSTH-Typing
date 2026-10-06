@@ -6,7 +6,7 @@
 // Seen tips are kept on this device at once and sent to the "Tips" sheet for signed-in students.
 import { GUIDE_NAME, HELP, TIPS, TOUR } from '../data/guide';
 import { INK, PX_FONT, PxButton, TH_FONT } from './pixel';
-import { sfx } from './sound';
+import { sfx, speak } from './sound';
 
 const { useEffect, useLayoutEffect, useRef, useState } = React;
 
@@ -21,9 +21,7 @@ if (typeof document !== 'undefined' && !document.getElementById('guide-css')) {
   const st = document.createElement('style');
   st.id = 'guide-css';
   st.textContent = `
-.gd-talk{animation:gd-talk .36s steps(1) infinite}
 .gd-blink{animation:gd-blink 3.6s steps(1) infinite}
-@keyframes gd-talk{0%{opacity:1}50%{opacity:0}}
 @keyframes gd-blink{0%{opacity:0}93%{opacity:1}97%{opacity:0}}
 .gd-pop{animation:gd-pop .3s ease-out}
 @keyframes gd-pop{0%{transform:translateY(-12px);opacity:0}100%{transform:none;opacity:1}}
@@ -159,24 +157,22 @@ export function GuideText({ text }) {
   });
 }
 
-// Pixel portrait (64 px art at a whole-number scale). talkMs > 0 → mouth moves for that long.
-export function GuidePortrait({ scale = 2, talkMs = 0, talkKey }) {
-  const [talking, setTalking] = useState(talkMs > 0);
+// Pixel portrait (64 px art at a whole-number scale). `say` = the text Mr.AT is saying:
+// he "speaks" it one blip per syllable and his mouth opens on each blip.
+export function GuidePortrait({ scale = 2, say, talkKey }) {
+  const [open, setOpen] = useState(false);
   useEffect(() => {
-    if (!(talkMs > 0)) return;
-    setTalking(true);
-    const t = setTimeout(() => setTalking(false), talkMs);
-    // Mr.AT "speaks" in soft blips while his mouth moves
-    let n = 0; const b = setInterval(() => { if (n++ % 2 === 0) sfx('blip'); }, 90);
-    const bEnd = setTimeout(() => clearInterval(b), talkMs);
-    return () => { clearTimeout(t); clearInterval(b); clearTimeout(bEnd); };
-  }, [talkKey, talkMs]);
+    if (!say) return;
+    let shut = 0;
+    const stop = speak(say, () => { setOpen(true); clearTimeout(shut); shut = setTimeout(() => setOpen(false), 90); });
+    return () => { stop(); clearTimeout(shut); setOpen(false); };
+  }, [talkKey, say]);
   const s = 64 * scale;
   const img = { position: 'absolute', inset: 0, width: s, height: s, imageRendering: 'pixelated', display: 'block' };
   return (
     <div style={{ position: 'relative', width: s, height: s, background: '#8FC6E8', border: '3px solid ' + INK, flex: 'none' }}>
       <img src={IMG.idle} alt={GUIDE_NAME} style={img}/>
-      {talking && <img src={IMG.talk} alt="" aria-hidden="true" className="gd-talk" style={img}/>}
+      {open && <img src={IMG.talk} alt="" aria-hidden="true" style={img}/>}
       <img src={IMG.blink} alt="" aria-hidden="true" className="gd-blink" style={img}/>
     </div>
   );
@@ -186,7 +182,6 @@ export function NameTag() {
   return <span style={{ background: '#FFC23D', border: '3px solid ' + INK, padding: '0 8px', fontSize: 13, fontWeight: 700,
     color: INK, whiteSpace: 'nowrap', fontFamily: TH_FONT }}>{GUIDE_NAME}</span>;
 }
-export const talkTime = (text) => Math.min(4200, 900 + String(text || '').length * 28);
 
 // The gold button that only works after a short wait (a shrinking bar shows the wait).
 export function WaitButton({ ready, ms, onClick, children, color = 'gold' }) {
@@ -194,7 +189,7 @@ export function WaitButton({ ready, ms, onClick, children, color = 'gold' }) {
     <PxButton color={color} onClick={(e) => { if (!ready) return; e.currentTarget.blur(); onClick(); }}
       onMouseDown={(e) => e.preventDefault()} aria-disabled={!ready}
       className={'px-btn c-' + color + (ready ? '' : ' gd-wait')}
-      style={{ minHeight: 40, fontSize: 15, color: color === 'gold' ? INK : '#FFFFFF', opacity: ready ? 1 : 0.6,
+      style={{ minHeight: 40, fontSize: 15, color: color === 'gold' ? INK : '#FFFFFF', filter: ready ? 'none' : 'grayscale(.7) brightness(1.08)',
         cursor: ready ? 'pointer' : 'wait', '--gd-ms': ms + 'ms' }}>{children}</PxButton>
   );
 }
@@ -207,7 +202,7 @@ function SpeechBox({ talkKey, text, label, children, scale = 2, style }) {
       style={{ width: '100%', maxWidth: 880, boxSizing: 'border-box', display: 'flex', gap: 12, alignItems: 'stretch', padding: 2,
         boxShadow: '0 6px 0 rgba(59,36,22,.35)', fontFamily: TH_FONT, ...style }}>
       <div style={{ flex: 'none', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
-        <GuidePortrait scale={scale} talkMs={talkTime(text)} talkKey={talkKey}/>
+        <GuidePortrait scale={scale} say={text} talkKey={talkKey}/>
         <NameTag/>
       </div>
       <div style={{ flex: '1 1 auto', minWidth: 0, background: CREAM, border: '3px solid ' + INK, padding: '8px 14px',
@@ -380,7 +375,7 @@ export function HelpDialog({ page, onClose }) {
         style={{ width: '100%', maxWidth: 900, maxHeight: 'calc(100dvh - 24px)', boxSizing: 'border-box', display: 'flex', gap: 14,
           padding: 4, boxShadow: '0 8px 0 rgba(0,0,0,.35)' }}>
         <div style={{ flex: 'none', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
-          <GuidePortrait scale={3} talkMs={talkTime(body)} talkKey={page + tab}/>
+          <GuidePortrait scale={3} say={body} talkKey={page + tab}/>
           <NameTag/>
         </div>
         <div style={{ flex: '1 1 auto', minWidth: 0, background: CREAM, border: '3px solid ' + INK, padding: '10px 14px',

@@ -1336,12 +1336,10 @@ export function ThaiTypingApp() {
             comboMultiplier(streakRef.current));
           const multBefore = comboMultiplier(streakRef.current);
           streakRef.current += 1; setScoreStreak(streakRef.current);
-          // Sound: no per-key sounds in races (a whole room typing at once is too loud)
-          if (!rcRef.current) {
-            sfx.type(streakRef.current);
-            const multAfter = comboMultiplier(streakRef.current);
-            if (multAfter > multBefore) setTimeout(() => sfx('combo', multAfter >= 2 ? 2 : 1), 60);
-          }
+          // Sound: the key sound the player picked (also in races — each student picks, or turns it off)
+          sfx.type(streakRef.current);
+          { const multAfter = comboMultiplier(streakRef.current);
+            if (multAfter > multBefore) setTimeout(() => sfx('combo', multAfter >= 2 ? 2 : 1), 60); }
           setBestCombo(b=>Math.max(b,streakRef.current));
           if (gain > 0) {
             scoreRef.current += gain; setScore(scoreRef.current);
@@ -1391,7 +1389,7 @@ export function ThaiTypingApp() {
         }
       } else {
         // Any wrong key breaks the scoring streak; this position now earns 0
-        if (!rcRef.current) sfx(streakRef.current>=10 ? 'comboLost' : 'wrong');
+        sfx(streakRef.current>=10 ? 'comboLost' : 'wrong');
         streakRef.current=0; setScoreStreak(0);
         if (pos<targetChars.length) missedIdx.current.add(pos);
         if (result.costsLife) {
@@ -1467,9 +1465,10 @@ export function ThaiTypingApp() {
   );
 
   const soloTyping = screen==='practice' && !roomCode;
-  const wideScreen = screen==='my-stats' || screen==='weekly' || screen==='character' || screen==='results';
+  const watchBoard = screen==='host-dashboard' && !spectatingPlayer && !(roomType==='royale'&&brOver);   // watch screen fills the page
+  const wideScreen = screen==='my-stats' || screen==='weekly' || screen==='character' || screen==='results' || watchBoard;
   // These screens stretch to the bottom of the window; the rest (typing, results, rooms…) keep their natural height.
-  const fillScreen = screen==='lessons' || screen==='my-stats' || screen==='weekly' || screen==='results';
+  const fillScreen = screen==='lessons' || screen==='my-stats' || screen==='weekly' || screen==='results' || watchBoard;
   return (
     <div style={{height:'100dvh',overflow:'hidden',fontFamily:TH_FONT,position:'relative',
       display:'flex',flexDirection:'column',alignItems:'center',justifyContent:soloTyping?'center':'flex-start',
@@ -1797,6 +1796,7 @@ export function ThaiTypingApp() {
               roomType={roomType}
               zoneWpm={zoneWpm}
               zonePos={zonePos}
+              totalChars={targetChars.length}
               onSpectate={name=>{setSpectatingPlayer(name);}}
               sOffset={serverTimeOffset}
               watcherNote={isHostSpectator?'':'คุณตกรอบแล้ว · กำลังดูการแข่งขันต่อ'}

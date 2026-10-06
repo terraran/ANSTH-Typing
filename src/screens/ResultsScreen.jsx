@@ -2,6 +2,7 @@ import { currentFirebaseUid } from '../firebase';
 import { PRESSURE_SECS, fmtScore, pctOf, starsFor } from '../engine/scoring';
 import { Stars, StatPill } from '../ui/common';
 import { brOrder, isOutState, playerState } from '../race/presence';
+import { raceRunners } from '../race/Hud';
 
 import { PxButton, Sprite, useShortScreen } from '../ui/pixel';
 
@@ -169,6 +170,11 @@ export function ResultsScreen({ cpm, accuracy, errors, totalChars, lesson, saveS
               <span style={{fontSize:14,fontWeight:800,color:'#64748B'}}>vs</span>
               {box(duel.rvName,duel.rvScore,settled&&duel.outcome==='lose','#E79035')}
             </div>
+            {!settled && window.CharKit && totalChars > 0 && (   // I'm at the finish line; watch the rival still running
+              <CharKit.RaceTrack mode="1v1" scene height={84} style={{marginTop:8}}
+                info={`${duel.rvName} ยังพิมพ์อยู่`}
+                runners={raceRunners(roomPlayers,{myCfg,myLabel:'คุณ',myPos:totalChars,totalChars,limit:1})}/>
+            )}
             {duel.rvLeft && (
               <div style={{fontSize:12,color:tone.fg,marginTop:6}}>🚪 คู่แข่งออกจากการแข่งขัน</div>
             )}

@@ -91,7 +91,7 @@ function SoundPanel({ anchor, onClose }) {
         </div>
       </div>
       <span style={{ fontSize: 12, fontWeight: 600, color: '#6A4A30', lineHeight: 1.5 }}>
-        ใช้หูฟังจะดีที่สุดนะ · ตอนแข่งไม่มีเสียงพิมพ์ทีละตัว · ค่าที่ตั้งจำไว้ในเครื่องนี้</span>
+        ใช้หูฟังจะดีที่สุดนะ · ค่าที่ตั้งจำไว้ในเครื่องนี้</span>
     </div>
   );
 }

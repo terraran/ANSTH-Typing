@@ -32,7 +32,7 @@ export function ClassPickerScreen({ googleUser, onSelect, onBack }) {
         if (cancelled) return;
         setResult(data);
         setStatus('found');
-        onSelect(data.classCode, data.studentName, data.character);
+        onSelect(data.classCode, data.studentName, data.character, data.tipsSeen);
       } catch (err) {
         if (cancelled) return;
         console.warn('lookupByEmail failed:',err?.message);

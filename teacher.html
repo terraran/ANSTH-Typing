@@ -202,6 +202,7 @@
       <div class="filter-btns">
         <button class="filter-btn active" id="f-all"  onclick="setFilter('all')">ทั้งหมด</button>
         <button class="filter-btn"         id="f-attn" onclick="setFilter('attn')">⚠️ ต้องดูแล</button>
+        <button class="filter-btn" id="btn-reset-tips" onclick="resetTipsForClass()" title="นักเรียนห้องนี้จะเห็นคำแนะนำของครูอาร์เธอร์อีกครั้ง">💡 ให้ดูคำแนะนำใหม่</button>
       </div>
     </div>
     <div class="student-grid" id="student-grid">
@@ -446,6 +447,22 @@ function buildClassTabs() {
     btn.onclick = () => { showDash(); loadClass(code); };
     container.appendChild(btn);
   });
+}
+
+// Guide tips: show ครูอาร์เธอร์'s one-time tips again to everyone in the current room.
+async function resetTipsForClass() {
+  if (!currentClass) return;
+  if (!confirm('ให้นักเรียนห้อง ' + currentClass + ' เห็นคำแนะนำทั้งหมดอีกครั้ง?\n(มีผลตอนนักเรียนเข้าสู่ระบบครั้งถัดไป)')) return;
+  const btn = document.getElementById('btn-reset-tips');
+  btn.disabled = true;
+  try {
+    const r = await teacherApi('resetTips', { target: currentClass });
+    alert('เรียบร้อย — รีเซ็ตให้ ' + (r.reset || 0) + ' คน (คนที่ยังไม่เคยเห็นคำแนะนำจะเห็นอยู่แล้ว)');
+  } catch (e) {
+    alert('รีเซ็ตไม่สำเร็จ: ' + e.message + (e.message === 'Unknown action' ? '\nอัปเดต Code.gs + Tips.gs แล้ว Deploy ใหม่ก่อน' : ''));
+  } finally {
+    btn.disabled = false;
+  }
 }
 
 async function loadClass(code) {

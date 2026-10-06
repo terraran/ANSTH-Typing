@@ -88,6 +88,12 @@ export async function apiSaveMatch(m) {
   });
 }
 
+// Guide tips this student has now seen (ids). Best effort — they are also kept on the device.
+export async function apiMarkTipsSeen(classCode, studentName, ids) {
+  if (!auth.idToken || !ids?.length) return null;
+  return apiRequest('markTipSeen',{code:classCode,student:studentName,ids:ids.join(',')});
+}
+
 // Fetch student's own session history
 export async function apiGetStudentStats(classCode, studentName) {
   return apiRequest('getStudentStats',{code:classCode,student:studentName});

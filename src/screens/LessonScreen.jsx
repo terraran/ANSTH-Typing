@@ -4,6 +4,7 @@ import { fmtScore, hsKey } from '../engine/scoring';
 import { emptyProgress, lessonAnyOpen, lessonComplete, stageDone, stageOpen, stageStars, starsOf as progStars, stepState } from '../engine/progress';
 import { ROOM_CODE_LEN, normalizeRoomCode } from '../firebase';
 import { INK, PX_FONT, PxButton, PxPanel, Sprite, TH_FONT, useShortScreen } from '../ui/pixel';
+import { TipTrigger } from '../ui/Guide';
 
 const { useEffect, useRef, useState } = React;
 
@@ -303,7 +304,7 @@ export function LessonScreen({ studentName, classCode, onSelect, onOpenSetup, on
                                 </span>
                                 <Stars3 n={st}/>
                                 <span style={{ fontSize:13, fontWeight:700, lineHeight:1.3 }}>{ex.title}</span>
-                                {stt.rush && <span style={{ fontSize:12, fontWeight:700, color:'#B45309' }}>⚔️ Rush</span>}
+                                {stt.rush && <><span style={{ fontSize:12, fontWeight:700, color:'#B45309' }}>⚔️ Rush</span><TipTrigger id="rush"/></>}
                                 {skipped && <span style={{ fontSize:12, fontWeight:600, color:'#15803D' }}>ข้ามแล้ว</span>}
                                 {hs>0 && <span style={{ fontFamily:PX_FONT, fontSize:12, fontWeight:400, color:'#A16207' }}>{fmtScore(hs)}</span>}
                                 {!stt.open && <span style={{ fontSize:11, fontWeight:600, color:'#8C6E4E' }}>{stt.reason}</span>}

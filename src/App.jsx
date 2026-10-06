@@ -6,7 +6,7 @@ import { ERROR_BURST, ERROR_WINDOW_MS, PRESSURE_SECS, SPAM_PENALTY, SPAM_WINDOW_
 import { ROOM_CODE_LEN, ROOM_CODE_RE, ZONE_GAP, ZONE_GRACE, ZONE_TICK, currentFirebaseUid, ensureFirebaseUser, fbArmLobby, fbArmRace, fbClearActiveRoom, fbCreate, fbDisarm, fbGet, fbGetActiveRoom, fbJoin, fbKeepSeat, fbListen, fbRemove, fbServerOffset, fbSetActiveRoom, fbSetChar, fbSetStatus, fbUpdatePlayer, getDB, getZonePos, getZoneSpeed, makeFreeCode, normalizeRoomCode, zonePosAt } from './firebase';
 import { brOrder, brRaceOver, dcLeftMs, graceMs, isOutState, playerState } from './race/presence';
 import { LeaveConfirm, RejoinBanner } from './race/PresenceUI';
-import { apiGetHomework, apiGetStudentStats, apiGetWeeklyBoard, apiGetWeeklyPast, apiSubmitHomework, apiRequest, apiSaveMatch, apiSubmitWeekly, describeApiError, saveSession } from './api';
+import { apiMarkTipsSeen, apiGetHomework, apiGetStudentStats, apiGetWeeklyBoard, apiGetWeeklyPast, apiSubmitHomework, apiRequest, apiSaveMatch, apiSubmitWeekly, describeApiError, saveSession } from './api';
 import { auth } from './auth';
 import { LESSONS, findLesson } from './data/lessons';
 import { stageOf } from './data/curriculum.js';
@@ -25,6 +25,7 @@ import { CountdownScreen, LobbyScreen, MPSetupScreen } from './race/Setup';
 import { BattleRoyaleResults, HostDashboard, SpectatorView } from './race/Host';
 import { ResultsScreen } from './screens/ResultsScreen';
 import { PERF_ON, PerfMeter, perf } from './ui/PerfMeter';
+import { GuideLayer, HelpButton, guideInit, showTip } from './ui/Guide';
 
 // BR anti-AFK: after the zone starts moving, no correct key for AFK_FIRST_MS → lose 1 life,
 // then 1 more every AFK_REPEAT_MS. Spam-penalty freezes and connection drops don't count.
@@ -209,6 +210,23 @@ export function ThaiTypingApp() {
   const needsShift  = nextKey?.needsShift ?? false;
   // Correct shift hand: left-hand target → Right Shift; right-hand target → Left Shift
   const showHints   = !activeTest || activeTest.showHints !== false;
+
+  // ── Guide (ครูอาร์เธอร์): one-time tips + "?" help. Texts live in src/data/guide.js. ──
+  // Tips wait while racing, during a timed run (weekly test, homework, timed step) or a spam freeze.
+  const guidePaused = raceRunning || penaltySecs>0 || screen==='countdown'
+    || (screen==='practice' && !endTime && (timeLimit>0 || !!roomCode));
+  useEffect(() => { guideInit({who:''}); },[]);   // guest until a sign-in loads the student's list
+  const untimedSolo = screen==='practice' && !roomCode && !timeLimit && !endTime;
+  useEffect(() => { if (untimedSolo) showTip('first-typing'); },[untimedSolo]);
+  useEffect(() => { if (untimedSolo && needsShift && showHints) showTip('first-shift'); },[untimedSolo, needsShift, showHints]);
+  useEffect(() => { if (screen==='results' && !roomCode && curResult && curResult.stars<3) showTip('stars'); },[screen, roomCode, curResult]);
+  useEffect(() => { if (screen==='mp-lobby') showTip(roomType==='royale'?'lobby-br':'lobby-1v1'); },[screen, roomType]);
+  useEffect(() => { if (penaltySecs>0) showTip('spam'); },[penaltySecs]);
+  const helpPage = screen==='weekly' ? 'weekly'
+    : (screen==='mp-lobby' || screen==='mp-setup' || (roomCode && screen==='practice'))
+      ? ((screen==='mp-setup' ? mpSetupMode : roomType)==='royale' ? 'br' : '1v1')
+    : screen==='practice' ? (activeHw ? 'homework' : activeTest ? 'weekly' : 'typing')
+    : 'home';
   // My look on the race track: saved character, else the stable one from my room name
   useEffect(() => {
     if (studentName && character && window.CharKit) CharKit.saveLocal('last', character);
@@ -1191,6 +1209,7 @@ export function ThaiTypingApp() {
     setErrors(0); setStartTime(null); setEndTime(null); setSaveStatus('idle');
     setGoogleUser(null); setWeekly(null); setWeeklyStatus('idle'); setTestBoard(null);
     setCharacter(window.CharKit?CharKit.loadLocal('guest'):null);
+    guideInit({who:''});
     setActiveTest(null); testRef.current=null;
     setActiveHw(null); hwRef.current=null; setHomework([]); hwLoadedAt.current=0;
     auth.idToken=''; auth.subject=''; auth.fbSubject='';
@@ -1358,8 +1377,11 @@ export function ThaiTypingApp() {
   if (screen==='class-picker' && googleUser) return (
           <ClassPickerScreen
             googleUser={googleUser}
-            onSelect={(code, foundName, serverChar) => {
+            onSelect={(code, foundName, serverChar, tipsSeen) => {
               setClassCode(code);
+              // Guide tips: seen list from the sheet (+ anything seen on this device before it synced)
+              guideInit({who:googleUser?.email||'', serverSeen:Array.isArray(tipsSeen)?tipsSeen:null,
+                sync:(ids)=>apiMarkTipsSeen(code, foundName||googleUser?.name||'', ids)});
               if (window.CharKit) {
                 const who = googleUser?.email || 'guest';
                 const ch = CharKit.sanitize(serverChar) || CharKit.loadLocal(who);
@@ -1384,7 +1406,7 @@ export function ThaiTypingApp() {
         setGoogleUser(profile);
         setScreen('class-picker');
       }}
-      onSolo={async() => { auth.idToken=''; auth.subject=''; auth.fbSubject=''; if(typeof firebase!=='undefined'&&firebase.apps.length&&firebase.auth().currentUser&&!firebase.auth().currentUser.isAnonymous)await firebase.auth().signOut().catch(()=>{}); setGoogleUser(null); setStudentName(''); setScreen('lessons'); }}
+      onSolo={async() => { auth.idToken=''; auth.subject=''; auth.fbSubject=''; if(typeof firebase!=='undefined'&&firebase.apps.length&&firebase.auth().currentUser&&!firebase.auth().currentUser.isAnonymous)await firebase.auth().signOut().catch(()=>{}); setGoogleUser(null); setStudentName(''); guideInit({who:''}); setScreen('lessons'); }}
     />
   );
 
@@ -1401,6 +1423,7 @@ export function ThaiTypingApp() {
 
       {PERF_ON && <PerfMeter/>}
       {penaltySecs>0 && <PenaltyScreen countdown={penaltySecs}/>}
+      <GuideLayer paused={guidePaused}/>
       {timeUp && <TimeUpOverlay/>}
       {showNameModal && (
         <NameModal onConfirm={(name)=>{
@@ -1425,6 +1448,7 @@ export function ThaiTypingApp() {
             แป้นพิมพ์ผจญภัย</span>
         </button>
         <div style={{display:'flex',gap:8,alignItems:'center',flexWrap:'wrap'}}>
+          <HelpButton page={helpPage} disabled={raceRunning}/>
           {screen!=='lessons'&&screen!=='spam'&&(
             <PxButton onClick={()=>roomCode?requestLeave():setScreen('lessons')} style={{minHeight:'var(--hb)',fontSize:14}}>← หน้าหลัก</PxButton>
           )}
@@ -1571,6 +1595,7 @@ export function ThaiTypingApp() {
               <div className="px-wood" style={{display:'flex',alignItems:'center',gap:14,padding:'0 4px',color:'#F5E6BE',flex:'none',
                 boxSizing:'border-box',height:timeLimit>0?'var(--hud-t)':'var(--hud)'}}>
                 <PxButton onClick={()=>setScreen('lessons')} style={{minHeight:'var(--hb)',fontSize:14,flex:'none'}}>← กลับ</PxButton>
+                <HelpButton page={helpPage} disabled={timeLimit>0 && !!startTime && !endTime}/>
                 {timeLimit>0&&<div style={{flex:'none',whiteSpace:'nowrap'}}><TestTimer startTime={startTime} now={now} endTime={endTime} total={timeLimit}/></div>}
                 <div style={{display:'flex',flexDirection:'column',lineHeight:1.35,minWidth:0,flex:'1 1 0'}}>
                   {activeTest&&<><span style={{fontSize:13,fontWeight:600,color:'#E8CF95',...oneLine}}>ภารกิจประจำสัปดาห์</span>

@@ -1538,7 +1538,7 @@ export function ThaiTypingApp() {
                 totalChars={totalChars}
                 score={score}
                 streak={scoreStreak}
-                myCfg={myCfg} kpm={kpm}
+                myCfg={myCfg} kpm={kpm} laneH={laneH} nowTyping={nowTyping}
               />
             )}
 
@@ -1552,7 +1552,7 @@ export function ThaiTypingApp() {
                 zonePos={zonePos}
                 playerLives={playerLives}
                 afkLeft={afkLeft}
-                myCfg={myCfg} kpm={kpm}
+                myCfg={myCfg} kpm={kpm} laneH={laneH} nowTyping={nowTyping}
                 startTime={startTime}
               />
             )}
@@ -1601,10 +1601,9 @@ export function ThaiTypingApp() {
                 </div>
               </div>
             )}
-            {roomCode&&nextChar&&(
-              <div style={{padding:'4px 12px',background:'#F8EED2',border:'3px solid #3B2416',flex:'none'}}>{nowTyping}</div>
-            )}
-            <div className="px-panel" style={{padding:roomCode?'0 8px':'2px 10px',flex:'1 1 auto',minHeight:0,
+            {/* in a race the next-key box sits inside the race HUD's top bar */}
+            {/* In a race the text box never shrinks below its 3 lines — the race lane gives way instead */}
+            <div className="px-panel" style={{padding:roomCode?'0 8px':'2px 10px',flex:roomCode?'1 0 auto':'1 1 auto',minHeight:roomCode?'auto':0,
               display:'flex',alignItems:'center',justifyContent:'center',overflow:'hidden'}}>
               <div style={{position:'relative',width:'100%'}}>
                 <TextDisplay displayChars={displayChars} displayPos={displayPos} compact={!!roomCode} offset={curChunk.start}/>

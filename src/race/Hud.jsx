@@ -4,6 +4,13 @@ import { brOrder, isAliveState, playerState } from './presence';
 
 const { useEffect, useRef, useState } = React;
 
+const BAR_H = 48;   // race HUD top bar (holds the next-key box)
+// Light box for the "next key" widget inside the blue bar.
+function NextKeyBox({ children }) {
+  return <div style={{height:'100%',display:'flex',alignItems:'center',padding:'0 8px',background:'#F8EED2',
+    borderRight:'3px solid #3B2416',flex:'none'}}>{children}</div>;
+}
+
 // Battle Royale lane: only me — plus the leader once the zone starts moving.
 // If I am leading, I get the crown and the closest chaser (2nd place) is shown instead.
 export function brTrackRunners(roomPlayers, o) {
@@ -36,7 +43,7 @@ export function raceRunners(roomPlayers, o={}) {
 
 // 1v1 HUD — live score of both players (score decides the winner) + progress lanes
 
-export function OneVsOneHud({ roomCode, roomPlayers, myName, pos, totalChars, score, streak, myCfg, kpm }) {
+export function OneVsOneHud({ roomCode, roomPlayers, myName, pos, totalChars, score, streak, myCfg, kpm, laneH, nowTyping }) {
   const roster=Object.entries(roomPlayers||{}).filter(([,p])=>!p.isSpectator);
   const uid=currentFirebaseUid();
   const mine=roster.find(([key,p])=>key===uid||p.uid===uid)?.[1]||{};
@@ -58,25 +65,26 @@ export function OneVsOneHud({ roomCode, roomPlayers, myName, pos, totalChars, sc
     {label:rivalName,value:rivalScore,color:'#E79035',bg:'#FEF5EA',lead:lead<0},
   ];
   return (
-    <div style={{fontFamily:"'Noto Sans Thai Looped','Sarabun','Noto Sans Thai',sans-serif",border:'1px solid #DBE7F2',borderRadius:12,overflow:'hidden',marginBottom:8}}>
-      <div style={{height:28,padding:'0 10px',display:'flex',alignItems:'center',gap:8,background:'linear-gradient(100deg,#234D91,#377FD0)',color:'#fff'}}>
-        <span style={{fontSize:10,fontWeight:800,letterSpacing:.5,whiteSpace:'nowrap'}}>⚡ 1V1 · {roomCode}</span>
-        <span style={{height:16,width:1,background:'#ffffff50'}}/>
-        <span style={{fontSize:11,fontWeight:800,whiteSpace:'nowrap'}}>🔥 คอมโบ {streak}{mult>1?` · ×${mult.toFixed(1)}`:''}</span>
-        <span style={{marginLeft:'auto',fontSize:11,fontWeight:800,color:'#FFE59A',whiteSpace:'nowrap'}}>{finalSprint?'🏁 ':''}{leadText}</span>
-      </div>
-      <div style={{display:'flex',gap:6,padding:'5px 8px',background:'#fff'}}>
+    <div style={{fontFamily:"'Noto Sans Thai Looped','Sarabun','Noto Sans Thai',sans-serif",border:'1px solid #DBE7F2',borderRadius:12,overflow:'hidden',flex:'0 1 auto',minHeight:0}}>
+      {/* One row: next key · room/combo · both scores · who leads (keeps the text box tall enough on short screens) */}
+      <div style={{height:BAR_H,padding:'0 8px 0 0',display:'flex',alignItems:'center',gap:8,background:'linear-gradient(100deg,#234D91,#377FD0)',color:'#fff'}}>
+        {nowTyping&&<NextKeyBox>{nowTyping}</NextKeyBox>}
+        <span style={{display:'flex',flexDirection:'column',lineHeight:1.25,flex:'none',paddingLeft:nowTyping?0:8}}>
+          <span style={{fontSize:10,fontWeight:800,letterSpacing:.5,whiteSpace:'nowrap'}}>⚡ 1V1 · {roomCode}</span>
+          <span style={{fontSize:11,fontWeight:800,whiteSpace:'nowrap'}}>🔥 คอมโบ {streak}{mult>1?` · ×${mult.toFixed(1)}`:''}</span>
+        </span>
         {boxes.map(b=>(
-          <div key={b.label} style={{flex:1,minWidth:0,display:'flex',alignItems:'baseline',justifyContent:'space-between',gap:8,
-            borderRadius:8,padding:'2px 10px',background:b.lead?b.bg:'#F5F8FB',border:`1.5px solid ${b.lead?b.color:'#E3EAF1'}`,transition:'all .3s'}}>
+          <div key={b.label} style={{flex:'1 1 0',minWidth:0,display:'flex',alignItems:'center',justifyContent:'space-between',gap:6,
+            borderRadius:8,padding:'1px 8px',background:b.lead?b.bg:'#F5F8FB',border:`1.5px solid ${b.lead?b.color:'#E3EAF1'}`,transition:'all .3s'}}>
             <span style={{fontSize:11,fontWeight:700,color:'#566E86',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>
               {b.lead?'👑 ':''}{b.label}</span>
-            <span style={{fontSize:18,fontWeight:800,color:b.color,fontVariantNumeric:'tabular-nums'}}>{fmtScore(b.value)}</span>
+            <span style={{fontSize:17,fontWeight:800,color:b.color,fontVariantNumeric:'tabular-nums'}}>{fmtScore(b.value)}</span>
           </div>
         ))}
+        <span style={{flex:'none',fontSize:11,fontWeight:800,color:'#FFE59A',whiteSpace:'nowrap'}}>{finalSprint?'🏁 ':''}{leadText}</span>
       </div>
       {window.CharKit ? (
-        <CharKit.RaceTrack mode="1v1" scene info={`${myPos} / ${totalChars} ตัว`}
+        <CharKit.RaceTrack mode="1v1" scene height={laneH} info={`${myPos} / ${totalChars} ตัว`}
           runners={raceRunners(roomPlayers,{myCfg,myLabel:'คุณ',
             myPos,myKpm:kpm,totalChars,limit:1})
             .map((r,i)=>({...r,color:i===0?'#1D4ED8':'#C2620A'}))}/>
@@ -96,7 +104,7 @@ export function OneVsOneHud({ roomCode, roomPlayers, myName, pos, totalChars, sc
   );
 }
 
-export function BattleRoyaleHud({ roomCode, roomPlayers, myName, pos, totalChars, zonePos, playerLives, startTime, myCfg, kpm, afkLeft=null }) {
+export function BattleRoyaleHud({ roomCode, roomPlayers, myName, pos, totalChars, zonePos, playerLives, startTime, myCfg, kpm, afkLeft=null, laneH, nowTyping }) {
   const elapsed=startTime?Math.max(0,(Date.now()-startTime)/1000):0;
   const untilZone=Math.max(0,ZONE_GRACE-Math.floor(elapsed));
   const outsideBy=Math.max(0,zonePos-pos-ZONE_GAP);
@@ -122,25 +130,30 @@ export function BattleRoyaleHud({ roomCode, roomPlayers, myName, pos, totalChars
     ? {icon:'⏳',text:`วงเริ่มเคลื่อนใน ${untilZone} วินาที`,bg:'#EFF7FF',fg:'#2B659A'}
     : {icon:'🛡️',text:'อยู่ใน Safezone',bg:'#EFF9F2',fg:'#277449'};
   return (
-    <div style={{fontFamily:"'Noto Sans Thai Looped','Sarabun','Noto Sans Thai',sans-serif",border:'1px solid #DCE8F3',borderRadius:12,overflow:'hidden',marginBottom:8}}>
-      <div style={{height:30,padding:'0 8px 0 10px',display:'flex',alignItems:'center',gap:8,background:'linear-gradient(100deg,#1C477F,#2A73C7)',color:'#fff'}}>
-        <span style={{fontSize:10,fontWeight:800,letterSpacing:.5,whiteSpace:'nowrap'}}>🏆 BR · {roomCode}</span>
-        <span style={{height:16,width:1,background:'#ffffff50'}}/>
-        <span style={{fontSize:12,fontWeight:800,whiteSpace:'nowrap'}}>{hearts||'0 ชีวิต'}</span>
+    <div style={{fontFamily:"'Noto Sans Thai Looped','Sarabun','Noto Sans Thai',sans-serif",border:'1px solid #DCE8F3',borderRadius:12,overflow:'hidden',
+      flex:'0 1 auto',minHeight:0,position:'relative'}}>
+      <div style={{height:BAR_H,padding:'0 8px 0 0',display:'flex',alignItems:'center',gap:8,background:'linear-gradient(100deg,#1C477F,#2A73C7)',color:'#fff'}}>
+        {nowTyping&&<NextKeyBox>{nowTyping}</NextKeyBox>}
+        <span style={{display:'flex',flexDirection:'column',lineHeight:1.25,flex:'none',paddingLeft:nowTyping?0:8}}>
+          <span style={{fontSize:10,fontWeight:800,letterSpacing:.5,whiteSpace:'nowrap'}}>🏆 BR · {roomCode}</span>
+          <span style={{fontSize:12,fontWeight:800,whiteSpace:'nowrap'}}>{hearts||'0 ชีวิต'}</span>
+        </span>
         <span style={{flex:1,minWidth:0,display:'flex',alignItems:'center',gap:5,background:zone.bg,color:zone.fg,
           borderRadius:7,padding:'2px 8px',fontSize:11,fontWeight:800,whiteSpace:'nowrap',overflow:'hidden'}}>
           <span>{zone.icon}</span><span style={{overflow:'hidden',textOverflow:'ellipsis'}}>{zone.text}</span>
         </span>
         <span style={{fontSize:11,fontWeight:700,whiteSpace:'nowrap'}}>👤 {alive} รอด</span>
       </div>
+      {/* AFK warning floats over the lane so it never pushes the text box down */}
       {afkLeft!=null&&playerLives>0&&(
-        <div style={{padding:'4px 10px',background:afkLeft<=3?'#FEE2E2':'#FFF4E7',color:afkLeft<=3?'#B91C1C':'#A85411',
-          fontSize:12,fontWeight:800,display:'flex',alignItems:'center',gap:6,borderBottom:'1px solid #F5D9BD'}}>
+        <div style={{position:'absolute',top:BAR_H+4,left:8,right:8,zIndex:3,padding:'4px 10px',borderRadius:8,
+          background:afkLeft<=3?'#FEE2E2':'#FFF4E7',color:afkLeft<=3?'#B91C1C':'#A85411',
+          fontSize:12,fontWeight:800,display:'flex',alignItems:'center',gap:6,border:'1px solid #F5D9BD',boxShadow:'0 3px 0 rgba(0,0,0,.15)'}}>
           <span>⌨️</span><span>ไม่ได้พิมพ์! พิมพ์ต่อภายใน {afkLeft} วินาที ไม่งั้นเสีย ❤️</span>
         </div>
       )}
       {window.CharKit ? (
-        <CharKit.RaceTrack mode="royale" scene zonePct={totalChars?dangerPos/totalChars:0} hitAt={hitAt}
+        <CharKit.RaceTrack mode="royale" scene height={laneH} zonePct={totalChars?dangerPos/totalChars:0} hitAt={hitAt}
           info={`คุณ ${progress}% · ขอบวง ${edge}% · ${pos} / ${totalChars} ตัว`}
           runners={brTrackRunners(roomPlayers,{myCfg,myPos:pos,myKpm:kpm,totalChars,myOut:playerLives<=0,
             showLeader:elapsed>=ZONE_GRACE})}/>

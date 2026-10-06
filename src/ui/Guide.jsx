@@ -6,6 +6,7 @@
 // Seen tips are kept on this device at once and sent to the "Tips" sheet for signed-in students.
 import { GUIDE_NAME, HELP, TIPS, TOUR } from '../data/guide';
 import { INK, PX_FONT, PxButton, TH_FONT } from './pixel';
+import { sfx } from './sound';
 
 const { useEffect, useLayoutEffect, useRef, useState } = React;
 
@@ -165,7 +166,10 @@ export function GuidePortrait({ scale = 2, talkMs = 0, talkKey }) {
     if (!(talkMs > 0)) return;
     setTalking(true);
     const t = setTimeout(() => setTalking(false), talkMs);
-    return () => clearTimeout(t);
+    // Mr.AT "speaks" in soft blips while his mouth moves
+    let n = 0; const b = setInterval(() => { if (n++ % 2 === 0) sfx('blip'); }, 90);
+    const bEnd = setTimeout(() => clearInterval(b), talkMs);
+    return () => { clearTimeout(t); clearInterval(b); clearTimeout(bEnd); };
   }, [talkKey, talkMs]);
   const s = 64 * scale;
   const img = { position: 'absolute', inset: 0, width: s, height: s, imageRendering: 'pixelated', display: 'block' };
@@ -229,6 +233,7 @@ export function GuideLayer({ paused }) {
 
 function TipBox({ id }) {
   const tip = TIPS[id];
+  useEffect(() => { sfx('tip'); }, [id]);
   const ready = useReady(id, CLOSE_DELAY_MS);
   const readyRef = useRef(ready); readyRef.current = ready;
   useKeyTrap((e) => { if (e.key === 'Enter' && readyRef.current) { dismissTip(); return true; } return false; });

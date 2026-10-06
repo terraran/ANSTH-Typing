@@ -27,6 +27,8 @@ import { ResultsScreen } from './screens/ResultsScreen';
 import { PERF_ON, PerfMeter, perf } from './ui/PerfMeter';
 import { FINGERS_ID, GuideLayer, HelpButton, TOUR_ID, TourLayer, guideInit, isSeen, showTip, startFingers, startTour } from './ui/Guide';
 import { FingerLayer } from './ui/FingerIntro';
+import { music, setRage, sfx } from './ui/sound';
+import { SoundButton } from './ui/SoundButton';
 
 // BR anti-AFK: after the zone starts moving, no correct key for AFK_FIRST_MS → lose 1 life,
 // then 1 more every AFK_REPEAT_MS. Spam-penalty freezes and connection drops don't count.
@@ -228,6 +230,44 @@ export function ThaiTypingApp() {
   useEffect(() => { if (penaltySecs>0) showTip('spam'); },[penaltySecs]);
   // Home tour: first time on the home screen (seen list = same "Tips" sheet, id tour-home).
   useEffect(() => { if (screen==='lessons' && !roomCode && !isSeen(TOUR_ID)) startTour(); },[screen, roomCode, googleUser]);
+  // Sound tip: once, on the home screen (waits until the tour is finished)
+  useEffect(() => { if (screen==='lessons' && !roomCode) showTip('sound'); },[screen, roomCode, googleUser]);
+  // ── Sound & music (src/ui/sound.js; songs in src/data/music.js) ──
+  const isBossLesson = !!lesson?.curriculum && (() => {
+    const inStage = LESSONS.filter(l => l.curriculum && l.stage === lesson.stage);
+    return inStage.length > 0 && inStage[inStage.length - 1].id === lesson.id;
+  })();
+  const musicId = (screen==='countdown' || screen==='mp-lobby' || screen==='host-dashboard' || (screen==='practice' && roomCode)) ? 'race'
+    : screen==='practice' ? ((activeTest || activeHw) ? null : isBossLesson ? 'boss' + lesson.stage : 'calm')
+    : screen==='results' ? null
+    : 'home';
+  useEffect(() => { music(musicId); },[musicId]);
+  const bossRage = screen==='practice' && !roomCode && isBossLesson && totalChars>0 && pos/totalChars>=0.8 && !endTime;
+  useEffect(() => { setRage(bossRage); },[bossRage]);
+  useEffect(() => { if (penaltySecs===SPAM_PENALTY) sfx('freeze'); },[penaltySecs]);
+  useEffect(() => { if (pressureSecs>0) sfx('pressure'); },[pressureSecs]);
+  useEffect(() => { if (screen==='countdown') sfx('count'); },[screen, countNum]);
+  const prevScreenRef = useRef(screen);
+  useEffect(() => {
+    if (prevScreenRef.current==='countdown' && screen==='practice') sfx('go');
+    prevScreenRef.current = screen;
+  },[screen]);
+  const prevLivesRef = useRef(playerLives);
+  useEffect(() => {
+    if (roomType==='royale' && screen==='practice' && playerLives < prevLivesRef.current) sfx(playerLives===0 ? 'lose' : 'heart');
+    prevLivesRef.current = playerLives;
+  },[playerLives]);
+  // Solo results: stars one by one (+ fanfare for 3), then unlock / new record.
+  useEffect(() => {
+    if (screen!=='results' || roomCode) return;
+    if (curResult) {
+      sfx.stars(curResult.stars);
+      const after = 250 + Math.max(1, curResult.stars) * 300 + (curResult.stars>=3 ? 500 : 100);
+      if (curResult.cleared) setTimeout(() => sfx('unlock'), after);
+      else if (newRecord) setTimeout(() => sfx('newRecord'), after);
+    } else setTimeout(() => sfx(newRecord ? 'newRecord' : 'stepClear'), 200);
+  },[screen]);
+
   const helpPage = screen==='weekly' ? 'weekly'
     : (screen==='mp-lobby' || screen==='mp-setup' || (roomCode && screen==='practice'))
       ? ((screen==='mp-setup' ? mpSetupMode : roomType)==='royale' ? 'br' : '1v1')
@@ -1031,6 +1071,7 @@ export function ThaiTypingApp() {
       const i=order.findIndex(([k,p])=>k===uid||p.uid===uid);
       if (i>=0) {
         const me=order[i][1];
+        sfx(i===0?'win':'lose');
         recordMatch({result:i===0?'win':'lose',place:i+1,players:order.length,
           note:me.status==='eliminated'?'eliminated':me.status==='done'?'finished':'survived'});
       }
@@ -1040,6 +1081,7 @@ export function ThaiTypingApp() {
 
   // 1v1: save once the result screen has locked the winner.
   const onDuelSettled = useCallback((d) => {
+    sfx(d.outcome==='win'?'win':d.outcome==='lose'?'lose':'stepClear');
     const uid=currentFirebaseUid();
     const rv=Object.entries(roomPlayersRef.current||{}).find(([k,p])=>p&&!p.isSpectator&&k!==uid&&p.uid!==uid)?.[1];
     recordMatch({result:d.outcome,oppName:rv?.name||d.rvName,oppClass:rv?.cls||'',
@@ -1292,7 +1334,14 @@ export function ThaiTypingApp() {
             charBasePoints(targetChars[pos]) *
             speedMultiplier(speedBuf.current, lessonIdRef.current) *
             comboMultiplier(streakRef.current));
+          const multBefore = comboMultiplier(streakRef.current);
           streakRef.current += 1; setScoreStreak(streakRef.current);
+          // Sound: no per-key sounds in races (a whole room typing at once is too loud)
+          if (!rcRef.current) {
+            sfx.type(streakRef.current);
+            const multAfter = comboMultiplier(streakRef.current);
+            if (multAfter > multBefore) setTimeout(() => sfx('combo', multAfter >= 2 ? 2 : 1), 60);
+          }
           setBestCombo(b=>Math.max(b,streakRef.current));
           if (gain > 0) {
             scoreRef.current += gain; setScore(scoreRef.current);
@@ -1342,6 +1391,7 @@ export function ThaiTypingApp() {
         }
       } else {
         // Any wrong key breaks the scoring streak; this position now earns 0
+        if (!rcRef.current) sfx(streakRef.current>=10 ? 'comboLost' : 'wrong');
         streakRef.current=0; setScoreStreak(0);
         if (pos<targetChars.length) missedIdx.current.add(pos);
         if (result.costsLife) {
@@ -1456,6 +1506,7 @@ export function ThaiTypingApp() {
             แป้นพิมพ์ผจญภัย</span>
         </button>
         <div style={{display:'flex',gap:8,alignItems:'center',flexWrap:'wrap'}}>
+          <SoundButton/>
           <HelpButton page={helpPage} disabled={raceRunning}/>
           {screen!=='lessons'&&screen!=='spam'&&(
             <PxButton onClick={()=>roomCode?requestLeave():setScreen('lessons')} style={{minHeight:'var(--hb)',fontSize:14}}>← หน้าหลัก</PxButton>
@@ -1604,6 +1655,7 @@ export function ThaiTypingApp() {
                 boxSizing:'border-box',height:timeLimit>0?'var(--hud-t)':'var(--hud)'}}>
                 <PxButton onClick={()=>setScreen('lessons')} style={{minHeight:'var(--hb)',fontSize:14,flex:'none'}}>← กลับ</PxButton>
                 <HelpButton page={helpPage} disabled={timeLimit>0 && !!startTime && !endTime}/>
+                <SoundButton/>
                 {timeLimit>0&&<div style={{flex:'none',whiteSpace:'nowrap'}}><TestTimer startTime={startTime} now={now} endTime={endTime} total={timeLimit}/></div>}
                 <div style={{display:'flex',flexDirection:'column',lineHeight:1.35,minWidth:0,flex:'1 1 0'}}>
                   {activeTest&&<><span style={{fontSize:13,fontWeight:600,color:'#E8CF95',...oneLine}}>ภารกิจประจำสัปดาห์</span>

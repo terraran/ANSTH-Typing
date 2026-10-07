@@ -3,6 +3,7 @@ import { resolveKey, thaiOfTyped } from '../engine/keymap';
 import { INK, PX_FONT, PxButton, PxIconButton, PxPanel, Runners, Scene, Sprite, TH_FONT } from '../ui/pixel';
 import { auth, parseJwt } from '../auth';
 import { GOOGLE_CLIENT_ID } from '../config';
+import { SoundButton } from '../ui/SoundButton';
 
 const { useEffect, useRef, useState } = React;
 
@@ -225,6 +226,10 @@ export function GoogleSignInScreen({ onSignIn, onSolo }) {
       onMouseDown={e => { if (stage === 'title' && !e.target.closest('button,a')) setTimeout(() => inputRef.current?.focus({ preventScroll: true }), 0); }}>
       {/* Scene and runners stay put while the content scrolls (short screens only) */}
       <TeacherLink/>
+      {/* Sound settings (same 🔊 panel as in the game) — top-right corner; clicking it also starts the music */}
+      <div style={{ position: 'fixed', top: 'clamp(8px, 1.6vh, 16px)', right: 'clamp(8px, 1.2vw, 20px)', zIndex: 3 }}>
+        <SoundButton/>
+      </div>
       <div style={{ position: 'fixed', inset: 0 }}>
         <Scene dim={small ? 0.35 : 0}>
           <Runners queue={runners} bottom={'max(16px, 3vh)'}/>
@@ -242,30 +247,28 @@ export function GoogleSignInScreen({ onSignIn, onSolo }) {
         <h1 style={{ margin: 0, lineHeight: 0 }}>
           <img src={LOGO} alt="คีย์บอร์ดเควส · Keyboard Quest" draggable={false}
             style={{ display: 'block', height: 'auto', userSelect: 'none',
-              width: small ? `min(72vw, calc(30vh * ${LOGO_RATIO}))` : `min(88vw, calc(52vh * ${LOGO_RATIO}))`,
+              width: small ? `min(72vw, calc(30vh * ${LOGO_RATIO}))` : `min(88vw, calc(46vh * ${LOGO_RATIO}))`,
               filter: 'drop-shadow(0 8px 0 rgba(30,58,76,.35))' }}/>
         </h1>
 
         {stage === 'title' ? (
           <>
-            {/* พิมพ์คำว่า [เริ่ม] เพื่อออกเดินทาง — one line under the logo */}
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', flexWrap: 'wrap', gap: 'clamp(10px, 1.5vw, 22px)' }}>
-              <div className="px-blink" style={{ fontSize: 'clamp(22px, 3.6vh, 32px)', fontWeight: 700, ...outline }}>พิมพ์คำว่า</div>
-              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
-                <button key={shake} className={'px-panel' + (shake ? ' px-shake' : '')} onClick={goSignIn} tabIndex={-1}
-                  aria-label="พิมพ์คำว่า เริ่ม หรือแตะเพื่อเริ่ม"
-                  style={{ padding: '0 20px', fontFamily: TH_FONT, fontSize: 'clamp(34px, 6vh, 54px)', fontWeight: 700, lineHeight: 1.35,
-                    letterSpacing: 2, cursor: 'pointer', color: INK }}>
-                  {START_PARTS.map(([t, n]) => <span key={n} style={{ color: typed >= n ? '#2E7D32' : INK }}>{t}</span>)}
-                </button>
-                <div style={{ display: 'flex', gap: 6 }} aria-hidden="true">
-                  {START_WORD.map((_, i) => <span key={i} style={{ width: 12, height: 12, border: '3px solid ' + INK,
-                    background: i < typed ? '#4CAF50' : '#F5E6BE' }}/>)}
-                </div>
+            {/* พิมพ์คำว่า / [เริ่ม] / เพื่อออกเดินทาง — stacked and centred under the logo */}
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 'clamp(2px, 0.9vh, 10px)' }}>
+              <div className="px-blink" style={{ fontSize: 'clamp(20px, 3.4vh, 30px)', fontWeight: 700, ...outline }}>พิมพ์คำว่า</div>
+              <button key={shake} className={'px-panel' + (shake ? ' px-shake' : '')} onClick={goSignIn} tabIndex={-1}
+                aria-label="พิมพ์คำว่า เริ่ม หรือแตะเพื่อเริ่ม"
+                style={{ padding: '0 20px', fontFamily: TH_FONT, fontSize: 'clamp(32px, 5.6vh, 54px)', fontWeight: 700, lineHeight: 1.35,
+                  letterSpacing: 2, cursor: 'pointer', color: INK }}>
+                {START_PARTS.map(([t, n]) => <span key={n} style={{ color: typed >= n ? '#2E7D32' : INK }}>{t}</span>)}
+              </button>
+              <div style={{ display: 'flex', gap: 6 }} aria-hidden="true">
+                {START_WORD.map((_, i) => <span key={i} style={{ width: 12, height: 12, border: '3px solid ' + INK,
+                  background: i < typed ? '#4CAF50' : '#F5E6BE' }}/>)}
               </div>
-              <div className="px-blink" style={{ fontSize: 'clamp(22px, 3.6vh, 32px)', fontWeight: 700, ...outline }}>เพื่อออกเดินทาง</div>
+              <div className="px-blink" style={{ fontSize: 'clamp(20px, 3.4vh, 30px)', fontWeight: 700, ...outline }}>เพื่อออกเดินทาง</div>
+              <div style={{ fontSize: 14, fontWeight: 600, ...outline, textShadow: '2px 2px 0 #1E3A4C' }}>(หรือแตะที่คำ)</div>
             </div>
-            <div style={{ fontSize: 14, fontWeight: 600, ...outline, textShadow: '2px 2px 0 #1E3A4C' }}>(หรือแตะที่คำ)</div>
             {/* Try without signing in — small, bottom-left corner (the teacher link sits bottom-right) */}
             <div style={{ position: 'fixed', left: 'clamp(10px, 1.5vw, 24px)', bottom: 'clamp(10px, 2vh, 24px)', zIndex: 2,
               display: 'flex', alignItems: 'center', gap: 8 }}>

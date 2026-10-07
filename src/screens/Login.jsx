@@ -48,7 +48,7 @@ export function ClassPickerScreen({ googleUser, onSelect, onBack }) {
   const look = window.CharKit ? (CharKit.loadLocal(googleUser?.email) || CharKit.fromName(googleUser?.name || 'ผู้เล่น')) : null;
   return (
     <div style={{ position:'fixed', inset:0, overflowY:'auto', fontFamily:TH_FONT, color:INK }}>
-      <div style={{ position:'fixed', inset:0 }}><Scene dim={0.35}/></div>
+      <div style={{ position:'fixed', inset:0 }}><Scene plain dim={0.35}/></div>
       <TeacherLink/>
       <div style={{ position:'relative', minHeight:'100%', boxSizing:'border-box', display:'flex', alignItems:'center', justifyContent:'center', padding:16 }}>
         <PxPanel title="เข้าเล่นด้วยบัญชีโรงเรียน" style={{ width:'100%', maxWidth:480 }}
@@ -231,7 +231,7 @@ export function GoogleSignInScreen({ onSignIn, onSolo }) {
         <SoundButton/>
       </div>
       <div style={{ position: 'fixed', inset: 0 }}>
-        <Scene dim={small ? 0.35 : 0}>
+        <Scene plain dim={small ? 0.35 : 0}>
           <Runners queue={runners} bottom={'max(16px, 3vh)'}/>
         </Scene>
       </div>

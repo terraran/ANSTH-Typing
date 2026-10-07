@@ -1,6 +1,6 @@
 // Pixel-art UI building blocks (styles in assets/ui/pixel.css).
 // Panels and buttons are 9-slice images, so they stretch to any size with crisp edges.
-const { useEffect, useRef } = React;
+const { useEffect, useRef, useState } = React;
 
 export const PX_FONT = "'Press Start 2P', monospace";
 export const TH_FONT = "'Noto Sans Thai Looped', 'Sarabun', sans-serif";
@@ -42,11 +42,31 @@ export function PxIconButton({ icon, label, onClick, href, zoom }) {
     : <button className={cls} onClick={onClick} aria-label={label} title={label}>{inner}</button>;
 }
 
-// Full-screen background: sky, drifting clouds, fields, front grass.
-export function Scene({ dim = 0, children }) {
+// Which stage's backdrop every <Scene> shows: the stage played last on this device (1 = the meadow).
+const STAGE_KEY = 'lastStage', stageSubs = new Set();
+const okStage = n => Math.max(1, Math.min(9, parseInt(n) || 1));
+let sceneStage = (() => { try { return okStage(localStorage.getItem(STAGE_KEY)); } catch { return 1; } })();
+export function setSceneStage(n) {
+  n = okStage(n); if (n === sceneStage) return;
+  sceneStage = n;
+  try { localStorage.setItem(STAGE_KEY, String(n)); } catch {}
+  stageSubs.forEach(f => f(n));
+}
+function useSceneStage() {
+  const [s, set] = useState(sceneStage);
+  useEffect(() => { stageSubs.add(set); set(sceneStage); return () => { stageSubs.delete(set); }; }, []);
+  return s;
+}
+
+// Full-screen background. Stage 1: sky, drifting clouds, fields, front grass; stages 2–9: one
+// picture each (assets/bg/scene-N.png). `plain` keeps the meadow whatever was played (title, login).
+export function Scene({ dim = 0, plain = false, children }) {
+  const played = useSceneStage(), stage = plain ? 1 : played;
   return (
     <div className="scene">
-      <div className="lay l-sky"/><div className="lay l-cl"/><div className="lay l-fi"/><div className="lay l-fr"/>
+      {stage > 1
+        ? <div className="lay" style={{ backgroundImage: `url(assets/bg/scene-${stage}.png)` }}/>
+        : <><div className="lay l-sky"/><div className="lay l-cl"/><div className="lay l-fi"/><div className="lay l-fr"/></>}
       {children}
       {dim > 0 && <div style={{ position: 'absolute', inset: 0, background: `rgba(10,30,40,${dim})` }}/>}
     </div>

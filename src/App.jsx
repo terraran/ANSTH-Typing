@@ -16,7 +16,7 @@ import { RUSH_STARS, emptyProgress, readLocalProgress, stepKey, stepState, write
 import { PenaltyScreen, TestTimer, TextDisplay, TextPager, TimeUpOverlay } from './ui/common';
 import { NameModal, StoryChoiceScreen } from './screens/Story';
 import { ClassPickerScreen, GoogleSignInScreen } from './screens/Login';
-import { PX_FONT, PxButton, PxIconButton, Scene, Sprite, TH_FONT } from './ui/pixel';
+import { PX_FONT, PxButton, PxIconButton, Scene, Sprite, TH_FONT, setSceneStage } from './ui/pixel';
 import { MyStatsScreen } from './screens/MyStatsScreen';
 import { LessonScreen } from './screens/LessonScreen';
 import { WeeklyBoardScreen } from './screens/WeeklyBoardScreen';
@@ -845,6 +845,7 @@ export function ThaiTypingApp() {
       if (!nm) { pendingStoryRef.current={les,ex}; setShowNameModal(true); return; }
     }
     setLesson(les); setExercise(ex);
+    if (les.curriculum && les.stage) setSceneStage(les.stage);   // the backdrop follows the stage played last
     let text;
     if (les.story) {
       const nm=(()=>{try{return localStorage.getItem('adventureName')||'นักผจญภัย';}catch(e){return 'นักผจญภัย';}})();

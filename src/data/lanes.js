@@ -139,3 +139,8 @@ const WORLDS = {
 };
 
 export const laneWorld = stage => WORLDS[stage] || null;
+
+// The same scenery standing still, for lanes that must show the whole race at once
+// (teacher's dashboard, countdown, waiting for the rival): no camera, finish flag kept.
+const STILL = {};
+export const stillWorld = stage => WORLDS[stage] ? (STILL[stage] || (STILL[stage] = { ...WORLDS[stage], travel: 0, still: true })) : null;

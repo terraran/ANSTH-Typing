@@ -10,7 +10,7 @@ import { apiMarkTipsSeen, apiGetHomework, apiGetStudentStats, apiGetWeeklyBoard,
 import { auth } from './auth';
 import { LESSONS, findLesson } from './data/lessons';
 import { stageOf } from './data/curriculum.js';
-import { laneWorld } from './data/lanes';
+import { laneWorld, stillWorld } from './data/lanes';
 import { curriculumText, stageTestText } from './engine/curriculumText.js';
 import { RUSH_STARS, emptyProgress, readLocalProgress, stepKey, stepState, writeLocalProgress } from './engine/progress.js';
 import { PenaltyScreen, TestTimer, TextDisplay, TextPager, TimeUpOverlay } from './ui/common';
@@ -1623,6 +1623,7 @@ export function ThaiTypingApp() {
                 score={score}
                 streak={scoreStreak}
                 myCfg={myCfg} kpm={kpm} laneH={laneH} nowTyping={nowTyping}
+                world={lesson?.curriculum?laneWorld(lesson.stage):null}
               />
             )}
 
@@ -1638,6 +1639,7 @@ export function ThaiTypingApp() {
                 afkLeft={afkLeft}
                 myCfg={myCfg} kpm={kpm} laneH={laneH} nowTyping={nowTyping}
                 startTime={startTime}
+                world={lesson?.curriculum?laneWorld(lesson.stage):null}
               />
             )}
 
@@ -1803,12 +1805,14 @@ export function ThaiTypingApp() {
               sOffset={serverTimeOffset}
               watcherNote={isHostSpectator?'':'คุณตกรอบแล้ว · กำลังดูการแข่งขันต่อ'}
               onBack={()=>{handleLeaveRoom();}}
+              world={lesson?.curriculum?stillWorld(lesson.stage):null}
             />
           )
         )}
         {screen==='countdown'&&(
           <CountdownScreen num={countNum} roomCode={roomCode} roomType={roomType}
-            roomPlayers={roomPlayers} myCfg={myCfg} myName={myRoomName.current||studentName||'ผู้เล่น1'}/>
+            roomPlayers={roomPlayers} myCfg={myCfg} myName={myRoomName.current||studentName||'ผู้เล่น1'}
+            world={lesson?.curriculum?stillWorld(lesson.stage):null}/>
         )}
         {screen==='results'&&lesson?.story&&exercise?.isChoice?(
           <StoryChoiceScreen exercise={exercise}

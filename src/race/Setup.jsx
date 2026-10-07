@@ -199,7 +199,7 @@ export function LobbyScreen({ roomCode, roomInfo, roomPlayers, isHost, roomType,
 
 // COUNTDOWN SCREEN  (Phase 4)
 
-export function CountdownScreen({ num, roomCode, roomType, roomPlayers, myCfg, myName }) {
+export function CountdownScreen({ num, roomCode, roomType, roomPlayers, myCfg, myName, world }) {
   const tf = "'Noto Sans Thai Looped','Sarabun','Noto Sans Thai',sans-serif";
   return (
     <div style={{textAlign:'center',padding:'48px 20px',fontFamily:tf}}>
@@ -213,7 +213,7 @@ export function CountdownScreen({ num, roomCode, roomType, roomPlayers, myCfg, m
         {num>0?'วางนิ้วบน Home Row...':'🏃 พิมพ์เลย!'}</div>
       {window.CharKit&&(
         <div style={{maxWidth:560,margin:'28px auto 0'}}>
-          <CharKit.RaceTrack mode={roomType==='royale'?'royale':'1v1'} scene style={{border:'3px solid #3B2416'}}
+          <CharKit.RaceTrack mode={roomType==='royale'?'royale':'1v1'} scene world={world} style={{border:'3px solid #3B2416'}}
             runners={raceRunners(roomPlayers,{myCfg,
               myLabel:roomType==='royale'?'คุณ':(myName||'คุณ')+' (คุณ)',
               limit:roomType==='royale'?0:1})

@@ -42,7 +42,7 @@ function useLeaveToasts(roomPlayers) {
   return toasts;
 }
 
-export function HostDashboard({ roomCode, roomPlayers, roomType, zoneWpm, zonePos, totalChars = 0, onSpectate, onBack, sOffset=0, watcherNote }) {
+export function HostDashboard({ roomCode, roomPlayers, roomType, zoneWpm, zonePos, totalChars = 0, onSpectate, onBack, sOffset=0, watcherNote, world }) {
   const tf = "'Noto Sans Thai Looped','Sarabun','Noto Sans Thai',sans-serif";
   const sNow = Date.now()+sOffset;
   const isBR = roomType !== '1v1';
@@ -125,7 +125,7 @@ export function HostDashboard({ roomCode, roomPlayers, roomType, zoneWpm, zonePo
 
       {/* Lane: top 5 */}
       {runners.length > 0 && (
-        <CharKit.RaceTrack mode={isBR ? 'royale' : '1v1'} scene height={laneH} style={{flex:'none'}}
+        <CharKit.RaceTrack mode={isBR ? 'royale' : '1v1'} scene height={laneH} world={world} style={{flex:'none'}}
           zonePct={edge / total} info={alive.length > 5 ? '5 อันดับแรก' : ''} runners={runners}/>
       )}
 

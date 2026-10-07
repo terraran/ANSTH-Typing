@@ -379,6 +379,7 @@
   // world: scrolling scenery (src/data/lanes.js) — the lane becomes `travel` px longer than the
   //   screen, the camera follows "me", layers slide at their own speed, there is no finish flag
   //   and a finished runner keeps running out of the right edge. Without it: the still lane.
+  //   world.still (travel 0): only the scenery — the whole race stays in view, flag and all.
   const PAD_L = 30, PAD_R = 46, TRACK_H = 100, IDLE_AFTER = 1500, BEHIND = 7;
   const CAM_AT = 0.35, CAM_EASE = 260, EXIT_SPEED = 0.2;   // camera: runner's spot on screen, glide ms; run-out px/ms
   function RaceTrack(props) {
@@ -459,7 +460,8 @@
         st.tgt = target;
         // Others arrive in ~350 ms Firebase steps, so they glide more slowly.
         st.x += (target - st.x) * (1 - Math.exp(-dt / (r.me ? 70 : 240)));
-        const exiting = !!optRef.current.world && r.finished && !r.out && st.x > 0.985;
+        const w = optRef.current.world;
+        const exiting = !!w && !w.still && r.finished && !r.out && st.x > 0.985;
         st.exit = exiting ? (st.exit || 0) + dt * EXIT_SPEED : 0;
         const moving = exiting || (!r.out && !r.finished && now - st.moveAt < IDLE_AFTER);
         const anim = moving ? 'run' : 'idle';
@@ -522,7 +524,7 @@
           ctx.fillStyle = '#DDE7F0'; ctx.fillRect(0, feetY - 3, width, 9);
         }
         ctx.fillStyle = o.scene ? '#3B2416' : '#94A3B8'; ctx.fillRect(xOf(0) - 2, feetY - 12, 2, 18);
-        if (!o.world) drawFlag();
+        if (!o.world || o.world.still) drawFlag();
         // Storm wall (Battle Royale): everything left of the safe-zone edge
         const zonePct = Number(o.zonePct) || 0;
         if (!isDuel && zonePct > 0) {

@@ -43,7 +43,7 @@ export function raceRunners(roomPlayers, o={}) {
 
 // 1v1 HUD — live score of both players (score decides the winner) + progress lanes
 
-export function OneVsOneHud({ roomCode, roomPlayers, myName, pos, totalChars, score, streak, myCfg, kpm, laneH, nowTyping }) {
+export function OneVsOneHud({ roomCode, roomPlayers, myName, pos, totalChars, score, streak, myCfg, kpm, laneH, nowTyping, world }) {
   const roster=Object.entries(roomPlayers||{}).filter(([,p])=>!p.isSpectator);
   const uid=currentFirebaseUid();
   const mine=roster.find(([key,p])=>key===uid||p.uid===uid)?.[1]||{};
@@ -84,7 +84,7 @@ export function OneVsOneHud({ roomCode, roomPlayers, myName, pos, totalChars, sc
         <span style={{flex:'none',fontSize:11,fontWeight:800,color:'#FFE59A',whiteSpace:'nowrap'}}>{finalSprint?'🏁 ':''}{leadText}</span>
       </div>
       {window.CharKit ? (
-        <CharKit.RaceTrack mode="1v1" scene height={laneH} info={`${myPos} / ${totalChars} ตัว`}
+        <CharKit.RaceTrack mode="1v1" scene height={laneH} world={world} info={`${myPos} / ${totalChars} ตัว`}
           runners={raceRunners(roomPlayers,{myCfg,myLabel:'คุณ',
             myPos,myKpm:kpm,totalChars,limit:1})
             .map((r,i)=>({...r,color:i===0?'#1D4ED8':'#C2620A'}))}/>
@@ -104,7 +104,7 @@ export function OneVsOneHud({ roomCode, roomPlayers, myName, pos, totalChars, sc
   );
 }
 
-export function BattleRoyaleHud({ roomCode, roomPlayers, myName, pos, totalChars, zonePos, playerLives, startTime, myCfg, kpm, afkLeft=null, laneH, nowTyping }) {
+export function BattleRoyaleHud({ roomCode, roomPlayers, myName, pos, totalChars, zonePos, playerLives, startTime, myCfg, kpm, afkLeft=null, laneH, nowTyping, world }) {
   const elapsed=startTime?Math.max(0,(Date.now()-startTime)/1000):0;
   const untilZone=Math.max(0,ZONE_GRACE-Math.floor(elapsed));
   const outsideBy=Math.max(0,zonePos-pos-ZONE_GAP);
@@ -153,7 +153,7 @@ export function BattleRoyaleHud({ roomCode, roomPlayers, myName, pos, totalChars
         </div>
       )}
       {window.CharKit ? (
-        <CharKit.RaceTrack mode="royale" scene height={laneH} zonePct={totalChars?dangerPos/totalChars:0} hitAt={hitAt}
+        <CharKit.RaceTrack mode="royale" scene height={laneH} world={world} zonePct={totalChars?dangerPos/totalChars:0} hitAt={hitAt}
           info={`คุณ ${progress}% · ขอบวง ${edge}% · ${pos} / ${totalChars} ตัว`}
           runners={brTrackRunners(roomPlayers,{myCfg,myPos:pos,myKpm:kpm,totalChars,myOut:playerLives<=0,
             showLeader:elapsed>=ZONE_GRACE})}/>

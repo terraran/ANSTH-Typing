@@ -3,6 +3,7 @@ import { PRESSURE_SECS, fmtScore, pctOf, starsFor } from '../engine/scoring';
 import { Stars, StatPill } from '../ui/common';
 import { brOrder, isOutState, playerState } from '../race/presence';
 import { raceRunners } from '../race/Hud';
+import { stillWorld } from '../data/lanes';
 
 import { PxButton, Sprite, useShortScreen } from '../ui/pixel';
 
@@ -119,6 +120,7 @@ export function ResultsScreen({ cpm, accuracy, errors, totalChars, lesson, saveS
   const stage = resultStage({ roomType, roomCode, roomPlayers, myCfg, myName, duel, soloBest, brRows });
   // 1v1: while the rival is still typing, show a big live lane first; the result page comes after.
   if (duel && duel.outcome==='wait') return <DuelWait roomPlayers={roomPlayers} myCfg={myCfg} totalChars={totalChars}
+    world={lesson?.curriculum?stillWorld(lesson.stage):null}
     myScore={score} rvName={duel.rvName} rvScore={duel.rvScore} short={short} tf={tf}/>;
   // Two columns so the buttons always stay on screen: the stage on the left, scores and numbers on the right.
   return (
@@ -348,7 +350,7 @@ export function ResultsScreen({ cpm, accuracy, errors, totalChars, lesson, saveS
 }
 
 // 1v1 WAIT — I finished first: I stand at the finish line, the rival runs in live (lane drawn at 2×).
-function DuelWait({ roomPlayers, myCfg, totalChars, myScore, rvName, rvScore, short, tf }) {
+function DuelWait({ roomPlayers, myCfg, totalChars, myScore, rvName, rvScore, short, tf, world }) {
   const t0 = useRef(Date.now());
   const [, tick] = useState(0);
   useEffect(() => { const id = setInterval(() => tick(n => n + 1), 250); return () => clearInterval(id); }, []);
@@ -369,7 +371,7 @@ function DuelWait({ roomPlayers, myCfg, totalChars, myScore, rvName, rvScore, sh
       {window.CharKit && totalChars > 0 && (
         <div style={{width:'100%',height:laneH*2,overflow:'hidden',flex:'none'}}>
           <div style={{width:'50%',transform:'scale(2)',transformOrigin:'0 0'}}>
-            <CharKit.RaceTrack mode="1v1" scene height={laneH}
+            <CharKit.RaceTrack mode="1v1" scene height={laneH} world={world}
               runners={raceRunners(roomPlayers,{myCfg,myLabel:'คุณ',myPos:totalChars,totalChars,limit:1})}/>
           </div>
         </div>

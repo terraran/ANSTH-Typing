@@ -1502,7 +1502,7 @@ export function ThaiTypingApp() {
           style={{background:'none',border:0,padding:0,cursor:'pointer',display:'flex',flexDirection:'column',alignItems:'flex-start'}}>
           <span className="px-logo" style={{fontFamily:"'Kanit',sans-serif",fontStyle:'italic',fontWeight:800,fontSize:26,lineHeight:1.2,
             filter:'drop-shadow(2px 0 0 #3B2416) drop-shadow(-2px 0 0 #3B2416) drop-shadow(0 2px 0 #3B2416) drop-shadow(0 -2px 0 #3B2416) drop-shadow(3px 3px 0 #3B2416)'}}>
-            แป้นพิมพ์ผจญภัย</span>
+            คีย์บอร์ดเควส</span>
         </button>
         <div style={{display:'flex',gap:8,alignItems:'center',flexWrap:'wrap'}}>
           <SoundButton/>

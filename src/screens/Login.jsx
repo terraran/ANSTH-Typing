@@ -109,17 +109,14 @@ export function ClassPickerScreen({ googleUser, onSelect, onBack }) {
 const START_WORD = [...'เริ่ม'];
 // Shown as whole syllables (a vowel mark never sits alone); a part turns green once all its letters are typed.
 const START_PARTS = [['เ', 1], ['ริ่', 4], ['ม', 5]];
-const HELP_LINES = [
-  'วางนิ้วชี้ซ้ายที่ ด และนิ้วชี้ขวาที่ ่ (มีปุ่มนูนให้คลำหา)',
-  'แต่ละบทมี 5 ขั้น — พิมพ์ให้แม่นก่อน แล้วค่อยเร่งความเร็ว เพื่อเก็บดาว',
-  'ชนะบอสประจำด่าน เพื่อเปิดด่านต่อไปในแผนที่ผจญภัย',
-];
+// Game logo (คีย์บอร์ดเควส · KEYBOARD QUEST), transparent PNG, 1885×593 → aspect ≈ 3.18
+const LOGO = 'assets/ui/logo.png';
+const LOGO_RATIO = 3.18;
 
 export function GoogleSignInScreen({ onSignIn, onSolo }) {
   const [stage, setStage] = useState('title');   // title | signin
   const [typed, setTyped] = useState(0);         // letters of เริ่ม typed so far
   const [shake, setShake] = useState(0);
-  const [help, setHelp] = useState(false);
   const [runners, setRunners] = useState(() => {
     // This computer's last signed-in character runs out first.
     const mine = window.CharKit ? CharKit.loadLocal('last') : null;
@@ -161,10 +158,9 @@ export function GoogleSignInScreen({ onSignIn, onSolo }) {
   };
   useEffect(() => {
     if (stage !== 'title') return;
-    const focus = () => { if (!help) inputRef.current?.focus({ preventScroll: true }); };
+    const focus = () => { inputRef.current?.focus({ preventScroll: true }); };
     focus();
     const onKey = (e) => {
-      if (help) { if (e.key === 'Escape') setHelp(false); return; }
       if (e.key === 'Enter' || e.key === ' ' || e.key === 'Tab') return;   // let buttons work
       const r = resolveKey(e);
       if (!r || !r.char) return;                // e.g. key = "Process": wait for the input event
@@ -175,7 +171,7 @@ export function GoogleSignInScreen({ onSignIn, onSolo }) {
     window.addEventListener('keydown', onKey, true);
     window.addEventListener('focus', focus);
     return () => { window.removeEventListener('keydown', onKey, true); window.removeEventListener('focus', focus); };
-  }, [stage, help]);
+  }, [stage]);
   const onHiddenInput = (e) => {
     const text = e.target.value; e.target.value = '';
     if (performance.now() - lastKeyAt.current < 120) return;     // already counted by keydown
@@ -239,43 +235,42 @@ export function GoogleSignInScreen({ onSignIn, onSolo }) {
           style={{ position: 'fixed', left: 0, top: 0, width: 1, height: 1, opacity: 0, border: 0, padding: 0 }}/>
       )}
       <div style={{ position: 'relative', minHeight: '100%', boxSizing: 'border-box', display: 'flex', flexDirection: 'column', alignItems: 'center',
-        justifyContent: small ? 'flex-start' : 'center',
-        padding: small ? 'clamp(20px, 5vh, 40px) 16px 40px' : 'clamp(12px, 3vh, 40px) 16px clamp(80px, 16vh, 190px)',
-        gap: small ? 'clamp(16px, 3.5vh, 30px)' : 'clamp(10px, 2.6vh, 34px)' }}>
-        {/* Logo */}
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10, textAlign: 'center' }}>
-          <h1 className="px-logo" style={{ margin: 0, fontFamily: "'Kanit', sans-serif", fontStyle: 'italic', fontWeight: 800,
-            fontSize: small ? 'clamp(40px, min(8vw, 9vh), 76px)' : 'clamp(40px, min(10vw, 10.5vh), 104px)', lineHeight: 1.25, padding: '0 20px' }}>
-            แป้นพิมพ์ผจญภัย</h1>
-          <div className="px-panel" style={{ padding: '0 10px', fontFamily: PX_FONT, fontSize:small ? 12 : 16, fontWeight:400,
-            letterSpacing:2, marginTop: -8 }}>ANSTH TYPING QUEST</div>
-        </div>
+        justifyContent: 'flex-start',
+        padding: small ? 'clamp(16px, 4vh, 40px) 16px 40px' : 'clamp(8px, 3vh, 40px) 16px clamp(80px, 16vh, 190px)',
+        gap: small ? 'clamp(12px, 3vh, 26px)' : 'clamp(4px, 1.6vh, 24px)' }}>
+        {/* Logo — big like a game title screen: up to ~half the screen height (smaller on the sign-in step) */}
+        <h1 style={{ margin: 0, lineHeight: 0 }}>
+          <img src={LOGO} alt="คีย์บอร์ดเควส · Keyboard Quest" draggable={false}
+            style={{ display: 'block', height: 'auto', userSelect: 'none',
+              width: small ? `min(72vw, calc(30vh * ${LOGO_RATIO}))` : `min(88vw, calc(52vh * ${LOGO_RATIO}))`,
+              filter: 'drop-shadow(0 8px 0 rgba(30,58,76,.35))' }}/>
+        </h1>
 
         {stage === 'title' ? (
           <>
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 'clamp(4px, 1.2vh, 12px)' }}>
-              <div className="px-blink" style={{ fontSize: 26, fontWeight: 700, ...outline }}>พิมพ์คำว่า</div>
-              <button key={shake} className={'px-panel' + (shake ? ' px-shake' : '')} onClick={goSignIn} tabIndex={-1}
-                aria-label="พิมพ์คำว่า เริ่ม หรือแตะเพื่อเริ่ม"
-                style={{ padding: '0 22px', fontFamily: TH_FONT, fontSize: 'clamp(40px, 6.5vh, 54px)', fontWeight: 700, lineHeight: 1.4,
-                  letterSpacing: 2, cursor: 'pointer', color: INK }}>
-                {START_PARTS.map(([t, n]) => <span key={n} style={{ color: typed >= n ? '#2E7D32' : INK }}>{t}</span>)}
-              </button>
-              <div style={{ display: 'flex', gap: 6 }} aria-hidden="true">
-                {START_WORD.map((_, i) => <span key={i} style={{ width: 14, height: 14, border: '3px solid ' + INK,
-                  background: i < typed ? '#4CAF50' : '#F5E6BE' }}/>)}
+            {/* พิมพ์คำว่า [เริ่ม] เพื่อออกเดินทาง — one line under the logo */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', flexWrap: 'wrap', gap: 'clamp(10px, 1.5vw, 22px)' }}>
+              <div className="px-blink" style={{ fontSize: 'clamp(22px, 3.6vh, 32px)', fontWeight: 700, ...outline }}>พิมพ์คำว่า</div>
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
+                <button key={shake} className={'px-panel' + (shake ? ' px-shake' : '')} onClick={goSignIn} tabIndex={-1}
+                  aria-label="พิมพ์คำว่า เริ่ม หรือแตะเพื่อเริ่ม"
+                  style={{ padding: '0 20px', fontFamily: TH_FONT, fontSize: 'clamp(34px, 6vh, 54px)', fontWeight: 700, lineHeight: 1.35,
+                    letterSpacing: 2, cursor: 'pointer', color: INK }}>
+                  {START_PARTS.map(([t, n]) => <span key={n} style={{ color: typed >= n ? '#2E7D32' : INK }}>{t}</span>)}
+                </button>
+                <div style={{ display: 'flex', gap: 6 }} aria-hidden="true">
+                  {START_WORD.map((_, i) => <span key={i} style={{ width: 12, height: 12, border: '3px solid ' + INK,
+                    background: i < typed ? '#4CAF50' : '#F5E6BE' }}/>)}
+                </div>
               </div>
-              <div className="px-blink" style={{ fontSize: 26, fontWeight: 700, ...outline }}>เพื่อออกผจญภัย</div>
-              <div style={{ fontSize: 14, fontWeight: 600, ...outline, textShadow: '2px 2px 0 #1E3A4C' }}>(หรือแตะที่คำ)</div>
+              <div className="px-blink" style={{ fontSize: 'clamp(22px, 3.6vh, 32px)', fontWeight: 700, ...outline }}>เพื่อออกเดินทาง</div>
             </div>
-            <div style={{ display: 'flex', gap: 46, alignItems: 'flex-end', flexWrap: 'wrap', justifyContent: 'center' }}>
-              {[['วิธีเล่น', 'i_help', () => setHelp(true)], ['ทดลองเล่น', 'i_play', onSolo]]
-                .map(([label, icon, onClick, href]) => (
-                  <div key={label} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
-                    <span style={{ fontSize: 17, fontWeight: 700, ...outline }}>{label}</span>
-                    <PxIconButton icon={icon} label={label} onClick={onClick} href={href}/>
-                  </div>
-                ))}
+            <div style={{ fontSize: 14, fontWeight: 600, ...outline, textShadow: '2px 2px 0 #1E3A4C' }}>(หรือแตะที่คำ)</div>
+            {/* Try without signing in — small, bottom-left corner (the teacher link sits bottom-right) */}
+            <div style={{ position: 'fixed', left: 'clamp(10px, 1.5vw, 24px)', bottom: 'clamp(10px, 2vh, 24px)', zIndex: 2,
+              display: 'flex', alignItems: 'center', gap: 8 }}>
+              <PxIconButton icon="i_play" label="ทดลองเล่น" onClick={onSolo} zoom/>
+              <span style={{ fontSize: 'clamp(15px, 2.2vh, 20px)', fontWeight: 700, ...outline }}>ทดลองเล่น</span>
             </div>
           </>
         ) : (
@@ -295,23 +290,6 @@ export function GoogleSignInScreen({ onSignIn, onSolo }) {
           </PxPanel>
         )}
       </div>
-
-      {help && (
-        <div role="dialog" aria-modal="true" aria-label="วิธีเล่น" onClick={() => setHelp(false)}
-          style={{ position: 'fixed', inset: 0, background: 'rgba(10,30,40,.55)', display: 'flex', alignItems: 'center',
-            justifyContent: 'center', padding: 16, zIndex: 20 }}>
-          <div onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: 520 }}>
-            <PxPanel title="วิธีเล่น" bodyStyle={{ padding: '8px 14px 14px', display: 'flex', flexDirection: 'column', gap: 12 }}>
-              {HELP_LINES.map((t, i) => (
-                <div key={i} style={{ display: 'flex', gap: 10, alignItems: 'flex-start', fontSize: 16, fontWeight: 600, lineHeight: 1.6 }}>
-                  <span style={{ fontFamily: PX_FONT, fontSize:16, fontWeight:400, color: '#2E7D32' }}>{i + 1}</span>{t}
-                </div>
-              ))}
-              <PxButton onClick={() => setHelp(false)}>เข้าใจแล้ว</PxButton>
-            </PxPanel>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

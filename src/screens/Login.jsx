@@ -66,7 +66,7 @@ export function ClassPickerScreen({ googleUser, onSelect, onBack }) {
           {status==='looking' && (
             <div style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:6, padding:'6px 0' }}>
               {look && <CharKit.CharCanvas config={look} anim="run" scale={2}/>}
-              <div style={{ fontSize:17, fontWeight:700 }} className="px-blink">กำลังค้นหาห้องเรียนของเธอ...</div>
+              <div style={{ fontSize:17, fontWeight:700 }} className="px-blink">กำลังค้นหาห้องเรียนของคุณ...</div>
             </div>
           )}
 
@@ -280,7 +280,7 @@ export function GoogleSignInScreen({ onSignIn, onSolo }) {
           <PxPanel title="เข้าเล่นด้วยบัญชีโรงเรียน" style={{ width: '100%', maxWidth: 460 }}
             bodyStyle={{ padding: '10px 16px 14px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 14, textAlign: 'center' }}>
             <div style={{ fontSize: 16, lineHeight: 1.6, fontWeight: 600, color: '#5A3A22' }}>
-              ดาว ด่านที่ผ่าน และตัวละครของเธอจะถูกเก็บไว้ เล่นต่อเครื่องไหนก็ได้</div>
+              ดาว ด่านที่ผ่าน และตัวละครของคุณจะถูกเก็บไว้ เล่นต่อเครื่องไหนก็ได้</div>
             <div style={{ background: '#FFFFFF', border: '3px solid ' + INK, padding: 6, minHeight: 56, display: 'flex',
               alignItems: 'center', justifyContent: 'center', width: '100%' }}>
               <div id="google-signin-btn"></div>

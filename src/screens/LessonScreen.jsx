@@ -91,6 +91,8 @@ export function LessonScreen({ studentName, classCode, onSelect, onOpenSetup, on
     }
     return null;
   })();
+  // A brand-new player (no star yet) has nothing to "continue" — the button says "เริ่มเล่น" instead.
+  const fresh = CHAPTERS.every(ch=>stageStars(progress,ch.id).got===0);
 
   const pendingHw = homework.filter(h=>!h.passed).length;
   const t = weekly?.test, me = weekly?.me;
@@ -175,7 +177,7 @@ export function LessonScreen({ studentName, classCode, onSelect, onOpenSetup, on
         {/* ── Menu ── */}
         <div className="px-panel px-scroll" style={{ flex:'0 0 340px', maxHeight:'100%', padding:short?'2px 0 4px':'4px 0 8px', display:'flex', flexDirection:'column', gap:short?6:12 }}>
           <PxButton data-tour="continue" disabled={!next} onClick={()=>next&&onSelect(next.lesson,next.ex)} style={{ minHeight:short?52:68, fontSize:short?20:22, textAlign:'center', flex:'none' }}>
-            ▶ เล่นต่อ
+            ▶ {fresh?'เริ่มเล่น':'เล่นต่อ'}
             {next && <span style={SUB}>บท {next.lesson.num} · {next.ex.title}</span>}
           </PxButton>
           {studentName && SCRIPT_URL && (

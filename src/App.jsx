@@ -10,6 +10,7 @@ import { apiMarkTipsSeen, apiGetHomework, apiGetStudentStats, apiGetWeeklyBoard,
 import { auth } from './auth';
 import { LESSONS, findLesson } from './data/lessons';
 import { stageOf } from './data/curriculum.js';
+import { laneWorld } from './data/lanes';
 import { curriculumText, stageTestText } from './engine/curriculumText.js';
 import { RUSH_STARS, emptyProgress, readLocalProgress, stepKey, stepState, writeLocalProgress } from './engine/progress.js';
 import { PenaltyScreen, TestTimer, TextDisplay, TextPager, TimeUpOverlay } from './ui/common';
@@ -1642,7 +1643,7 @@ export function ThaiTypingApp() {
             {/* Solo practice (untimed only): my character runs as I type; races my best run (ghost) if there is one */}
             {!roomCode&&!activeTest&&!activeHw&&!timeLimit&&window.CharKit&&myCfg&&(
               <div style={{border:'3px solid #3B2416',overflow:'hidden',flex:'none'}}>
-                <CharKit.RaceTrack mode="1v1" scene height={laneH} info={`${pos} / ${totalChars} ตัว`} runners={[
+                <CharKit.RaceTrack mode="1v1" scene height={laneH} world={lesson?.curriculum?laneWorld(lesson.stage):null} info={`${pos} / ${totalChars} ตัว`} runners={[
                   {id:'me',me:true,label:'คุณ',cfg:myCfg,pct:totalChars?pos/totalChars:0,kpm,finished:pos>=totalChars,color:'#1D4ED8'},
                   ...(ghostData?[{id:'ghost',label:'👻 สถิติ '+fmtScore(ghostData.score||0)+' คะแนน',cfg:myCfg,alpha:.38,color:'#64748B',kpm:ghostData.cpm,
                     track:{timings:ghostData.timings,start:startTime,total:totalChars}}]:[]),

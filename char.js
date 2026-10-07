@@ -376,11 +376,17 @@
   //   r.track = { timings, start, total } makes a ghost replay its own position
   // hitAt: Date.now() of the last life lost → short red flash (royale)
   // info: small text in the top-right corner (e.g. "43 / 199 ตัว")
+  // world: scrolling scenery (src/data/lanes.js) — the lane becomes `travel` px longer than the
+  //   screen, the camera follows "me", layers slide at their own speed, there is no finish flag
+  //   and a finished runner keeps running out of the right edge. Without it: the still lane.
   const PAD_L = 30, PAD_R = 46, TRACK_H = 100, IDLE_AFTER = 1500, BEHIND = 7;
+  const CAM_AT = 0.35, CAM_EASE = 260, EXIT_SPEED = 0.2;   // camera: runner's spot on screen, glide ms; run-out px/ms
   function RaceTrack(props) {
     const { mode = '1v1', runners = [], style } = props;
     const isDuel = mode !== 'royale';
     const height = props.height || TRACK_H;    // shorter lane on short screens (App passes 84)
+    const world = props.world || null;
+    const layerRefs = useRef([]);            // world layers, moved straight from the frame loop
     const wrapRef = useRef(null), cvRef = useRef(null);
     const optRef = useRef(props); optRef.current = props;
     const spritesRef = useRef(new Map());    // runner id → finished sprite
@@ -415,7 +421,23 @@
       const cv = cvRef.current, dpr = Math.min(2, window.devicePixelRatio || 1);
       cv.width = Math.round(width * dpr); cv.height = Math.round(height * dpr);
       const ctx = cv.getContext('2d');
-      const xOf = pct => PAD_L + Math.max(0, Math.min(1, pct)) * (width - PAD_L - PAD_R);
+      let cam = 0;                             // how far the camera has moved along the lane (px)
+      const laneW = () => width + (optRef.current.world ? optRef.current.world.travel || 0 : 0);
+      const xOf = pct => PAD_L + Math.max(0, Math.min(1, pct)) * (laneW() - PAD_L - PAD_R) - cam;
+
+      // Camera glides after "me" (using last frame's position), then every layer is slid into place.
+      function follow(o, dt) {
+        const w = o.world; if (!w) { cam = 0; return; }
+        const me = (o.runners || []).find(r => r.me), st = me && stateRef.current.get(me.id);
+        const at = PAD_L + (st ? st.x : 0) * (laneW() - PAD_L - PAD_R);
+        const want = Math.max(0, Math.min(laneW() - width, at - width * CAM_AT));
+        cam += (want - cam) * (1 - Math.exp(-dt / CAM_EASE));
+        (w.layers || []).forEach((l, i) => {
+          const el = layerRefs.current[i]; if (!el) return;
+          const off = cam * l.speed;
+          el.style.transform = 'translate3d(' + (l.x == null ? -(off % l.w) : l.x - off).toFixed(2) + 'px,0,0)' + (l.flip ? ' scaleX(-1)' : '');
+        });
+      }
       const font = (w, px) => w + ' ' + px + "px 'Noto Sans Thai Looped','Sarabun','Noto Sans Thai',sans-serif";
       const feetY = height - 9;
 
@@ -437,7 +459,9 @@
         st.tgt = target;
         // Others arrive in ~350 ms Firebase steps, so they glide more slowly.
         st.x += (target - st.x) * (1 - Math.exp(-dt / (r.me ? 70 : 240)));
-        const moving = !r.out && !r.finished && now - st.moveAt < IDLE_AFTER;
+        const exiting = !!optRef.current.world && r.finished && !r.out && st.x > 0.985;
+        st.exit = exiting ? (st.exit || 0) + dt * EXIT_SPEED : 0;
+        const moving = exiting || (!r.out && !r.finished && now - st.moveAt < IDLE_AFTER);
         const anim = moving ? 'run' : 'idle';
         if (anim !== st.anim) { st.anim = anim; st.frame = 0; st.acc = 0; }
         if (!r.out) {
@@ -454,7 +478,7 @@
       function drawRunner(r, st, fy, alpha, dx = 0) {
         const s0 = spritesRef.current.get(r.id); if (!s0) return;
         const s = r.out ? grayOf(s0) : s0;
-        const x = Math.round(xOf(st.x) + dx);
+        const x = Math.round(xOf(st.x) + dx + (st.exit || 0));
         ctx.save();
         ctx.globalAlpha = alpha;
         ctx.fillStyle = 'rgba(15,23,42,.16)';
@@ -491,13 +515,14 @@
 
       function paint(now, dt, o) {
         const rs = o.runners || [];
+        follow(o, dt);
         if (o.scene) ctx.clearRect(0, 0, width, height);     // pixel scene is the wrapper's CSS background
         else {
           ctx.fillStyle = '#F4F8FC'; ctx.fillRect(0, 0, width, height);
           ctx.fillStyle = '#DDE7F0'; ctx.fillRect(0, feetY - 3, width, 9);
         }
-        ctx.fillStyle = o.scene ? '#3B2416' : '#94A3B8'; ctx.fillRect(PAD_L - 2, feetY - 12, 2, 18);
-        drawFlag();
+        ctx.fillStyle = o.scene ? '#3B2416' : '#94A3B8'; ctx.fillRect(xOf(0) - 2, feetY - 12, 2, 18);
+        if (!o.world) drawFlag();
         // Storm wall (Battle Royale): everything left of the safe-zone edge
         const zonePct = Number(o.zonePct) || 0;
         if (!isDuel && zonePct > 0) {
@@ -558,7 +583,7 @@
             ctx.font = font(400, 13); ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
             ctx.fillText('⚡', xOf(st.x) + FULL.w / 2 - 4, feetY - FULL.h + 16);
           }
-          tags.push([(me.label || 'คุณ') + (danger ? ' ⚠️' : ' ▼'),
+          if (!(st.exit > 30)) tags.push([(me.label || 'คุณ') + (danger ? ' ⚠️' : ' ▼'),
             me.out ? '#64748B' : danger ? '#DC2626' : (me.color || '#1D4ED8'), xOf(st.x), feetY - FULL.h - 4]);
         }
         // Tags last so they sit on top. If two tags would overlap, place them side by
@@ -590,10 +615,17 @@
       };
       raf = requestAnimationFrame(tick);
       return () => cancelAnimationFrame(raf);
-    }, [width, height, isDuel]);
+    }, [width, height, isDuel, !!world]);
 
-    return h('div', { ref: wrapRef, className: props.scene ? 'px-lane' : undefined, style: Object.assign({ width: '100%', overflow: 'hidden' }, style) },
-      h('canvas', { ref: cvRef, style: { width: (width || 0) + 'px', height: height + 'px', display: 'block', imageRendering: 'pixelated' } }));
+    const canvas = h('canvas', { ref: cvRef, style: { width: (width || 0) + 'px', height: height + 'px', display: 'block', imageRendering: 'pixelated', position: 'relative' } });
+    if (!world) return h('div', { ref: wrapRef, className: props.scene ? 'px-lane' : undefined, style: Object.assign({ width: '100%', overflow: 'hidden' }, style) }, canvas);
+    // Scrolling world: one element per layer behind the canvas; follow() only changes their transform.
+    return h('div', { ref: wrapRef, style: Object.assign({ width: '100%', overflow: 'hidden', position: 'relative', background: world.sky || '#8ED4E4' }, style) },
+      (world.layers || []).map((l, i) => h('div', { key: i, ref: el => { layerRefs.current[i] = el; }, 'aria-hidden': true, style: {
+        position: 'absolute', left: 0, bottom: l.y || 0, width: l.x == null ? (width || 0) + l.w * 2 : l.w, height: l.h,
+        backgroundImage: 'url(' + l.src + ')', backgroundRepeat: l.x == null ? 'repeat-x' : 'no-repeat', backgroundSize: l.w + 'px ' + l.h + 'px',
+        transform: 'translate3d(' + (l.x || 0) + 'px,0,0)' + (l.flip ? ' scaleX(-1)' : ''), willChange: 'transform', pointerEvents: 'none' } })),
+      canvas);
   }
 
   // ── Phase 3: result stage (win / lose / draw) ───────────────

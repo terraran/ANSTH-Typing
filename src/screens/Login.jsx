@@ -10,12 +10,17 @@ const { useEffect, useRef, useState } = React;
 
 // CLASS PICKER — auto-lookup by email, fallback to manual entry
 
-// Quiet text link for teachers — bottom corner, low contrast, so students are not drawn to it.
-function TeacherLink() {
+// Quiet text links — bottom corner, low contrast, so students are not drawn to them:
+// "สำหรับครู ›" (editions with a teacher page) and the privacy policy (editions that have one).
+function FooterLinks() {
+  if (!EDITION.teacherLink && !EDITION.privacy) return null;
+  const a = { color: 'rgba(255,255,255,.75)', textDecoration: 'none' };
   return (
-    <a href="teacher2.html" style={{ position: 'fixed', right: 12, bottom: 8, zIndex: 2, fontSize: 12, fontWeight: 600,
-      color: 'rgba(255,255,255,.75)', textDecoration: 'none', fontFamily: TH_FONT, textShadow: '1px 1px 0 rgba(0,0,0,.35)' }}>
-      สำหรับครู ›</a>
+    <div style={{ position: 'fixed', right: 12, bottom: 8, zIndex: 2, fontSize: 12, fontWeight: 600, fontFamily: TH_FONT,
+      textShadow: '1px 1px 0 rgba(0,0,0,.35)', display: 'flex', gap: 14 }}>
+      {EDITION.privacy && <a href={EDITION.privacy} target="_blank" rel="noopener" style={a}>นโยบายความเป็นส่วนตัว</a>}
+      {EDITION.teacherLink && <a href="teacher2.html" style={a}>สำหรับครู ›</a>}
+    </div>
   );
 }
 
@@ -50,7 +55,7 @@ export function ClassPickerScreen({ googleUser, onSelect, onBack }) {
   return (
     <div style={{ position:'fixed', inset:0, overflowY:'auto', fontFamily:TH_FONT, color:INK }}>
       <div style={{ position:'fixed', inset:0 }}><Scene plain dim={0.35}/></div>
-      {EDITION.teacherLink && <TeacherLink/>}
+      <FooterLinks/>
       <div style={{ position:'relative', minHeight:'100%', boxSizing:'border-box', display:'flex', alignItems:'center', justifyContent:'center', padding:16 }}>
         <PxPanel title={EDITION.text.pickerTitle} style={{ width:'100%', maxWidth:480 }}
           bodyStyle={{ padding:'8px 14px 14px', display:'flex', flexDirection:'column', gap:14 }}>
@@ -242,7 +247,7 @@ export function GoogleSignInScreen({ onSignIn, onSolo, onCode, initialCode = '' 
     <div style={{ position: 'fixed', inset: 0, overflowY: 'auto', overflowX: 'hidden', fontFamily: TH_FONT, color: INK }}
       onMouseDown={e => { if (stage === 'title' && !e.target.closest('button,a')) setTimeout(() => inputRef.current?.focus({ preventScroll: true }), 0); }}>
       {/* Scene and runners stay put while the content scrolls (short screens only) */}
-      {EDITION.teacherLink && <TeacherLink/>}
+      <FooterLinks/>
       {/* Sound settings (same 🔊 panel as in the game) — top-right corner; clicking it also starts the music */}
       <div style={{ position: 'fixed', top: 'clamp(8px, 1.6vh, 16px)', right: 'clamp(8px, 1.2vw, 20px)', zIndex: 3 }}>
         <SoundButton/>

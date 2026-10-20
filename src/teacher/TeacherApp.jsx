@@ -65,6 +65,7 @@ function Login({ onToken, error }) {
         <div id="gsi" style={{ minHeight: 44, display: 'flex', justifyContent: 'center' }}/>
         {error && <div className="err">{error}</div>}
         <a className="hint" href="index.html">← กลับไปหน้าเกม</a>
+        {EDITION.privacy && <a className="hint" href={EDITION.privacy} target="_blank" rel="noopener">นโยบายความเป็นส่วนตัว</a>}
       </div>
     </div>
   );

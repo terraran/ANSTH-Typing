@@ -24,8 +24,9 @@ for (const w of cur.warnings.slice(0, 30)) console.log('  (เตือน)', w)
 fs.rmSync(OUT, { recursive: true, force: true });
 fs.mkdirSync(OUT);
 
-await build({
-  entryPoints: ['src/main.jsx'],
+// The game (index.html → app.js) and the new teacher page (teacher2.html → teacher2.js)
+for (const [entry, out] of [['src/main.jsx', 'app.js'], ['src/teacher/main.jsx', 'teacher2.js']]) await build({
+  entryPoints: [entry],
   bundle: true,
   minify: true,
   format: 'iife',
@@ -33,7 +34,7 @@ await build({
   loader: { '.js': 'jsx' },
   jsxFactory: 'React.createElement',      // React is loaded from the CDN <script> in index.html
   jsxFragment: 'React.Fragment',
-  outfile: path.join(OUT, 'app.js'),
+  outfile: path.join(OUT, out),
   logLevel: 'info',
 });
 
@@ -48,7 +49,8 @@ const indexPath = path.join(OUT, 'index.html');
 const html = fs.readFileSync(indexPath, 'utf8');
 if (!html.includes('__BUILD__')) throw new Error('index.html: build id placeholder missing');
 fs.writeFileSync(indexPath, html.replaceAll('__BUILD__', buildId));
-const teacherPath = path.join(OUT, 'teacher.html');
-if (fs.existsSync(teacherPath))
-  fs.writeFileSync(teacherPath, fs.readFileSync(teacherPath, 'utf8').replaceAll('__BUILD__', buildId));
+for (const page of ['teacher.html', 'teacher2.html']) {
+  const p = path.join(OUT, page);
+  if (fs.existsSync(p)) fs.writeFileSync(p, fs.readFileSync(p, 'utf8').replaceAll('__BUILD__', buildId));
+}
 console.log('build', buildId, 'ok');

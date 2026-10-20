@@ -32,3 +32,16 @@ export const getHomework = apiGetHomework;
 export const submitHomework = apiSubmitHomework;
 
 export const titleRunners = apiTitleRunners;
+
+// ── Teacher page (teacher2.html) — the same Apps Script actions teacher.html uses ──
+// → { classes: ['Y603', …] }  (throws 'Unauthorized' for accounts not in TEACHER_EMAILS)
+export const teacherClasses = () => apiRequest('getClasses');
+// → { students: [{ name, totalSessions, avgCpm, avgAcc, bestCpm, lastActive,
+//                  sessions: [{ date, exercise, cpm, wpm, accuracy, errors, chars, duration }] }] }
+export const classData = classCode => apiRequest('getClassData', { classCode });
+// → { unlocks: [{ classCode, studentName ('' = whole class), stage }], classes: { code: [names] } }
+export const getUnlocks = () => apiRequest('getUnlocks');
+// stage 0 = remove the unlock; studentName '' = whole class. Replies with getUnlocks' shape.
+export const setUnlock = (classCode, studentName, stage) => apiRequest('setUnlock', { classCode, studentName, stage });
+// Show Mr.AT's tips again to a whole class → { reset: n }
+export const resetTips = classCode => apiRequest('resetTips', { target: classCode });

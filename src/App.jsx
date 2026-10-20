@@ -1,4 +1,4 @@
-import { SCRIPT_URL } from './config';
+import { EDITION, backend } from './edition';
 import { buildChunks, cleanTypingWords, generateBRText, generateStoryText, generateText, generateTimedText, seededRng } from './engine/text';
 import { CHAR_CLASS, CLASS_NAMES, KEY_META, findKeyForChar, resolveKey, validateInput } from './engine/keymap';
 import { KEYS_ON, KeyTester } from './ui/KeyTester';
@@ -6,7 +6,6 @@ import { ERROR_BURST, ERROR_WINDOW_MS, PRESSURE_SECS, SPAM_PENALTY, SPAM_WINDOW_
 import { ROOM_CODE_LEN, ROOM_CODE_RE, ZONE_GAP, ZONE_GRACE, ZONE_TICK, currentFirebaseUid, ensureFirebaseUser, fbArmLobby, fbArmRace, fbClearActiveRoom, fbCreate, fbDisarm, fbGet, fbGetActiveRoom, fbJoin, fbKeepSeat, fbListen, fbRemove, fbServerOffset, fbSetActiveRoom, fbSetChar, fbSetStatus, fbUpdatePlayer, getDB, getZonePos, getZoneSpeed, makeFreeCode, normalizeRoomCode, zonePosAt } from './firebase';
 import { brOrder, brRaceOver, dcLeftMs, graceMs, isOutState, playerState } from './race/presence';
 import { LeaveConfirm, RejoinBanner } from './race/PresenceUI';
-import { apiMarkTipsSeen, apiGetHomework, apiGetStudentStats, apiGetWeeklyBoard, apiGetWeeklyPast, apiSubmitHomework, apiRequest, apiSaveMatch, apiSubmitWeekly, describeApiError, saveSession } from './api';
 import { auth } from './auth';
 import { LESSONS, findLesson } from './data/lessons';
 import { stageOf } from './data/curriculum.js';
@@ -39,7 +38,7 @@ const { useCallback, useEffect, useMemo, useRef, useState } = React;
 
 export function ThaiTypingApp() {
   if (PERF_ON) perf.renders++;
-  const [screen,        setScreen]        = useState(SCRIPT_URL ? 'google-login' : 'lessons');
+  const [screen,        setScreen]        = useState(backend.enabled ? 'google-login' : 'lessons');
   const [classCode,     setClassCode]     = useState('');
   const [studentName,   setStudentName]   = useState('');
   const [displayName,   setDisplayName]   = useState('');
@@ -681,7 +680,7 @@ export function ThaiTypingApp() {
       if (sc > (highScores[k] || 0)) {
         const next = {...highScores, [k]: sc};
         setHighScores(next);
-        if (!studentName || !SCRIPT_URL) writeGuestHighScores(next);
+        if (!studentName || !backend.enabled) writeGuestHighScores(next);
       }
       if (lesson.curriculum) {
         const mins = startTime && endTime ? (endTime - startTime) / 60000 : 0;
@@ -699,14 +698,14 @@ export function ThaiTypingApp() {
           const np = { ...progress, stars: { ...progress.stars, [k]: Math.max(stars, prevStars) },
             cleared: clears ? { ...progress.cleared, [lesson.id]: true } : progress.cleared };
           setProgress(np);
-          if (studentName && SCRIPT_URL) {
-            apiRequest('saveProgress', { code: classCode, student: studentName, key: k, stars: Math.max(stars, prevStars), cleared: clears ? lesson.id : '' })
+          if (studentName && backend.enabled) {
+            backend.saveProgress({ classCode, studentName, key: k, stars: Math.max(stars, prevStars), cleared: clears ? lesson.id : '' })
               .catch(() => {});
           } else writeLocalProgress(np);
         }
       } else setCurResult(null);
     }
-    if (!studentName || !SCRIPT_URL) return;
+    if (!studentName || !backend.enabled) return;
     if (rcRef.current) return;            // races are saved to the Matches sheet (recordMatch), not Sessions
     if (hasSaved.current) return;         // guard — only save once per results view
     hasSaved.current = true;
@@ -722,7 +721,7 @@ export function ThaiTypingApp() {
       const acc = (pos + errors) > 0 ? Math.round(pos / (pos + errors) * 100) : 100;
       const net = exercise?.kind === 'long' || exercise?.kind === 'longtimed';
       const wpm = net ? netThaiWpmOf(pressCountRef.current, errors, mins) : thaiWpmOf(pressCountRef.current, mins);
-      apiSubmitHomework({
+      backend.submitHomework({
         classCode, studentName, hwId:h.hwId, stars:lessonStars(wpm, acc, stageTarget(h.stage || lesson?.stage)),
         cpm:finalKpm, accuracy:finalAcc, errors, totalChars:pos, duration:Math.max(1, Math.min(duration, HW_SECS)),
       })
@@ -731,21 +730,21 @@ export function ThaiTypingApp() {
           setHwResult(r => r ? { ...r, stars:d.stars, passed:d.passed, late:d.late } : r);
           if (d.homework) { setHomework(d.homework); hwLoadedAt.current = Date.now(); }
         })
-        .catch(err => { setSaveStatus('error'); setSaveError(describeApiError(err)); });
+        .catch(err => { setSaveStatus('error'); setSaveError(backend.describeError(err)); });
       return;
     }
     if (testRef.current) {
       // Weekly test attempt → Submissions; the reply is the updated board with my new rank
-      apiSubmitWeekly({
+      backend.submitWeekly({
         classCode, studentName, testId:testRef.current.testId,
         score:scoreRef.current, maxScore, cpm:finalKpm, accuracy:finalAcc,
         errors, totalChars:pos, duration:Math.min(duration,TEST_SECS),
       })
         .then(d => { setSaveStatus('saved'); setTestBoard(d); setWeekly(d); setWeeklyStatus('ok'); })
-        .catch(err => { setSaveStatus('error'); setSaveError(describeApiError(err)); });
+        .catch(err => { setSaveStatus('error'); setSaveError(backend.describeError(err)); });
       return;
     }
-    saveSession({
+    backend.saveSession({
       classCode, studentName,
       email: googleUser?.email || '',
       lessonId: lesson?.id || 0,
@@ -762,8 +761,8 @@ export function ThaiTypingApp() {
 
   // Load practice high scores: from Sheets when signed in, else this device.
   useEffect(() => {
-    if (studentName && SCRIPT_URL) {
-      apiGetStudentStats(classCode, studentName)
+    if (studentName && backend.enabled) {
+      backend.getStats(classCode, studentName)
         .then(d => {
           setHighScores(d.highScores || {});
           // Backend without Progress.gs yet → keep this device's progress so nothing locks up
@@ -779,10 +778,10 @@ export function ThaiTypingApp() {
   // Weekly board: loaded at sign-in, when the board opens, every 60 s while it is
   // open, and right after a test is submitted (the submit reply is the new board).
   const loadWeekly = useCallback(async () => {
-    if (!classCode || !studentName || !SCRIPT_URL) { setWeekly(null); setWeeklyStatus('idle'); return; }
+    if (!classCode || !studentName || !backend.enabled || !EDITION.weekly) { setWeekly(null); setWeeklyStatus('idle'); return; }
     setWeeklyStatus('loading');
     try {
-      const d = await apiGetWeeklyBoard(classCode, studentName);
+      const d = await backend.weeklyBoard(classCode, studentName);
       setWeekly(d); setWeeklyStatus('ok');
     } catch { setWeeklyStatus('error'); }
   }, [classCode, studentName]);
@@ -790,9 +789,9 @@ export function ThaiTypingApp() {
 
   // Homework: loaded at sign-in and again when the lesson menu opens (at most once a minute)
   const loadHomework = useCallback(async () => {
-    if (!classCode || !studentName || !SCRIPT_URL) { setHomework([]); return; }
+    if (!classCode || !studentName || !backend.enabled || !EDITION.homework) { setHomework([]); return; }
     hwLoadedAt.current = Date.now();
-    try { const d = await apiGetHomework(classCode, studentName); setHomework(d.homework || []); }
+    try { const d = await backend.getHomework(classCode, studentName); setHomework(d.homework || []); }
     catch { /* keep the last list (backend without Homework.gs → empty) */ }
   }, [classCode, studentName]);
   useEffect(() => { loadHomework(); }, [loadHomework]);
@@ -818,11 +817,11 @@ export function ThaiTypingApp() {
   const saveCharacter = useCallback(async (cfg) => {
     CharKit.saveLocal(googleUser?.email||'guest', cfg);
     setCharacter(cfg);
-    if (studentName && SCRIPT_URL && auth.idToken) {
+    if (studentName && backend.enabled && auth.idToken) {
       try {
-        await apiRequest('saveCharacter',{code:classCode,student:studentName,character:JSON.stringify(cfg)});
+        await backend.saveCharacter(classCode, studentName, cfg);
       } catch (err) {
-        throw new Error(describeApiError(err)+' — บันทึกไว้ในเครื่องนี้แล้ว');
+        throw new Error(backend.describeError(err)+' — บันทึกไว้ในเครื่องนี้แล้ว');
       }
     }
   },[googleUser, studentName, classCode]);
@@ -1047,7 +1046,7 @@ export function ThaiTypingApp() {
   // Send this race to the Matches sheet (signed-in students only, once per race).
   const recordMatch = useCallback((m) => {
     const info=roomInfoRef.current, code=rcRef.current;
-    if (!code || !info?.raceStartsAt || !snRef.current || !SCRIPT_URL || !auth.idToken) return;
+    if (!code || !info?.raceStartsAt || !snRef.current || !backend.enabled || !EDITION.saveMatch || !auth.idToken) return;
     const matchId=code+'-'+info.raceStartsAt;
     if (matchSavedRef.current===matchId) return;
     matchSavedRef.current=matchId;
@@ -1056,7 +1055,7 @@ export function ThaiTypingApp() {
     const cpm=mins?Math.min(3000,Math.round(pressCountRef.current/mins)):0;
     const accuracy=(st.pos+st.errors)>0?Math.round(st.pos/(st.pos+st.errors)*100):100;
     setSaveStatus('saving');
-    apiSaveMatch({classCode:ccRef.current,studentName:snRef.current,matchId,type:info.type,room:code,
+    backend.saveMatch({classCode:ccRef.current,studentName:snRef.current,matchId,type:info.type,room:code,
       cpm,accuracy,chars:st.pos,...m})
       .then(d=>setSaveStatus(d&&d.ok?'saved':'error'))
       .catch(()=>{ setSaveStatus('error'); matchSavedRef.current=''; });
@@ -1267,7 +1266,7 @@ export function ThaiTypingApp() {
     if (typeof google !== 'undefined') {
       try { google.accounts.id.disableAutoSelect(); } catch {}
     }
-    setScreen(SCRIPT_URL ? 'google-login' : 'lessons');
+    setScreen(backend.enabled ? 'google-login' : 'lessons');
   },[]);
 
   useEffect(() => {
@@ -1437,7 +1436,7 @@ export function ThaiTypingApp() {
               setClassCode(code);
               // Guide tips: seen list from the sheet (+ anything seen on this device before it synced)
               guideInit({who:googleUser?.email||'', serverSeen:Array.isArray(tipsSeen)?tipsSeen:null,
-                sync:(ids)=>apiMarkTipsSeen(code, foundName||googleUser?.name||'', ids)});
+                sync:(ids)=>backend.markTipsSeen(code, foundName||googleUser?.name||'', ids)});
               if (window.CharKit) {
                 const who = googleUser?.email || 'guest';
                 const ch = CharKit.sanitize(serverChar) || CharKit.loadLocal(who);
@@ -1573,7 +1572,7 @@ export function ThaiTypingApp() {
         {screen==='weekly'&&(
           <WeeklyBoardScreen data={weekly} status={weeklyStatus}
             onRefresh={loadWeekly} onStart={startWeeklyTest}
-            onLoadPast={id=>apiGetWeeklyPast(classCode, studentName, id)}
+            onLoadPast={id=>backend.weeklyPast(classCode, studentName, id)}
             onBack={()=>setScreen('lessons')}/>
         )}
 

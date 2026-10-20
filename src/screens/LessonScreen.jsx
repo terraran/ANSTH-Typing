@@ -1,5 +1,5 @@
 import { CHAPTERS, LESSONS } from '../data/lessons';
-import { SCRIPT_URL } from '../config';
+import { EDITION, backend } from '../edition';
 import { fmtScore, hsKey } from '../engine/scoring';
 import { emptyProgress, lessonAnyOpen, lessonComplete, stageDone, stageOpen, stageStars, starsOf as progStars, stepState } from '../engine/progress';
 import { ROOM_CODE_LEN, normalizeRoomCode } from '../firebase';
@@ -144,7 +144,7 @@ export function LessonScreen({ studentName, classCode, onSelect, onOpenSetup, on
             {!studentName && <span style={{ fontSize:12, fontWeight:600, color:'#E8CF95', whiteSpace:'nowrap' }}>ทดลองเล่น — ดาวและคะแนนจะไม่ถูกบันทึก</span>}
           </div>
           <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
-            {!studentName && SCRIPT_URL && <PxButton onClick={()=>onLogin&&onLogin()} style={{ fontSize:14, minHeight:'var(--hb)' }}>เข้าสู่ระบบเพื่อบันทึกผล</PxButton>}
+            {!studentName && backend.enabled && <PxButton onClick={()=>onLogin&&onLogin()} style={{ fontSize:14, minHeight:'var(--hb)' }}>เข้าสู่ระบบเพื่อบันทึกผล</PxButton>}
             <PxButton onClick={()=>onOpenCharacter&&onOpenCharacter()} style={{ fontSize:14, minHeight:'var(--hb)' }}>{character?'แต่งตัวละคร':'สร้างตัวละคร'}</PxButton>
             {studentName && <PxButton onClick={()=>onViewStats&&onViewStats()} style={{ fontSize:14, minHeight:'var(--hb)' }}>สถิติของฉัน</PxButton>}
           </div>
@@ -180,13 +180,13 @@ export function LessonScreen({ studentName, classCode, onSelect, onOpenSetup, on
             ▶ {fresh?'เริ่มเล่น':'เล่นต่อ'}
             {next && <span style={SUB}>บท {next.lesson.num} · {next.ex.title}</span>}
           </PxButton>
-          {studentName && SCRIPT_URL && (
+          {studentName && backend.enabled && EDITION.homework && (
             <PxButton data-tour="homework" color="blue" onClick={()=>setView(v=>v==='homework'?'map':'homework')} style={{ position:'relative', minHeight:short?44:52, flex:'none' }}>
               การบ้าน{pendingHw>0 && badge(pendingHw)}
               <span style={SUB}>{homework.length ? (pendingHw?`ค้าง ${pendingHw} ชิ้น`:'ส่งครบแล้ว') : 'ยังไม่มีการบ้าน'}</span>
             </PxButton>
           )}
-          {studentName && SCRIPT_URL && (
+          {studentName && backend.enabled && EDITION.weekly && (
             <PxButton data-tour="weekly" color="gold" onClick={()=>onOpenWeekly&&onOpenWeekly()} style={{ position:'relative', minHeight:short?44:52, flex:'none' }}>
               ภารกิจประจำสัปดาห์{t && !me && badge('ใหม่')}
               <span style={SUB}>{weeklySub}</span>

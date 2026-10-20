@@ -9,7 +9,7 @@ import { convertCurriculum, lessonIndexJs } from './curriculum.mjs';
 
 const OUT = 'dist';
 const SKIP = new Set([OUT, 'src', 'scripts', 'data', 'node_modules', '.github', '.git',
-  'package.json', 'package-lock.json', 'README.md']);
+  'package.json', 'package-lock.json', 'README.md', 'edition.json']);   // edition.json is read by the bundle (src/edition.js)
 const buildId = (process.env.GITHUB_SHA || Date.now().toString(36)).slice(0, 10);
 
 // 0. data/curriculum.xlsx → src/data/curriculum.gen.js (stops the build if a word is not typeable yet)

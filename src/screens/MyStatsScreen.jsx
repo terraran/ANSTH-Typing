@@ -1,4 +1,4 @@
-import { apiGetStudentStats } from '../api';
+import { backend } from '../edition';
 import { fmtScore } from '../engine/scoring';
 
 const { useEffect, useMemo, useState } = React;
@@ -251,7 +251,7 @@ export function MyStatsScreen({ studentName, classCode, myCfg, onBack }) {
   const [openOpp, setOpenOpp] = useState(null);
 
   useEffect(() => {
-    apiGetStudentStats(classCode, studentName)
+    backend.getStats(classCode, studentName)
       .then(d => { setData(d); setLoading(false); })
       .catch(() => { setData({ error:true }); setLoading(false); });
   }, []);

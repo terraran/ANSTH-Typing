@@ -1,4 +1,4 @@
-import { apiRequest, apiTitleRunners, describeApiError } from '../api';
+import { EDITION, backend } from '../edition';
 import { resolveKey, thaiOfTyped } from '../engine/keymap';
 import { INK, PX_FONT, PxButton, PxIconButton, PxPanel, Runners, Scene, Sprite, TH_FONT } from '../ui/pixel';
 import { auth, parseJwt } from '../auth';
@@ -29,7 +29,7 @@ export function ClassPickerScreen({ googleUser, onSelect, onBack }) {
     setStatus('looking'); setErrMsg('');
     (async () => {
       try {
-        const data = await apiRequest('lookupByEmail');
+        const data = await backend.lookup();
         if (cancelled) return;
         setResult(data);
         setStatus('found');
@@ -37,7 +37,7 @@ export function ClassPickerScreen({ googleUser, onSelect, onBack }) {
       } catch (err) {
         if (cancelled) return;
         console.warn('lookupByEmail failed:',err?.message);
-        setErrMsg(describeApiError(err));
+        setErrMsg(backend.describeError(err));
         setStatus(err?.message==='Email not found in roster'?'notfound':'error');
       }
     })();
@@ -49,9 +49,9 @@ export function ClassPickerScreen({ googleUser, onSelect, onBack }) {
   return (
     <div style={{ position:'fixed', inset:0, overflowY:'auto', fontFamily:TH_FONT, color:INK }}>
       <div style={{ position:'fixed', inset:0 }}><Scene plain dim={0.35}/></div>
-      <TeacherLink/>
+      {EDITION.teacherLink && <TeacherLink/>}
       <div style={{ position:'relative', minHeight:'100%', boxSizing:'border-box', display:'flex', alignItems:'center', justifyContent:'center', padding:16 }}>
-        <PxPanel title="เข้าเล่นด้วยบัญชีโรงเรียน" style={{ width:'100%', maxWidth:480 }}
+        <PxPanel title={EDITION.text.pickerTitle} style={{ width:'100%', maxWidth:480 }}
           bodyStyle={{ padding:'8px 14px 14px', display:'flex', flexDirection:'column', gap:14 }}>
           {/* Account */}
           <div style={{ display:'flex', alignItems:'center', gap:12, background:'#F8EED2', border:'3px solid '+INK, padding:'8px 12px' }}>
@@ -66,7 +66,7 @@ export function ClassPickerScreen({ googleUser, onSelect, onBack }) {
           {status==='looking' && (
             <div style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:6, padding:'6px 0' }}>
               {look && <CharKit.CharCanvas config={look} anim="run" scale={2}/>}
-              <div style={{ fontSize:17, fontWeight:700 }} className="px-blink">กำลังค้นหาห้องเรียนของคุณ...</div>
+              <div style={{ fontSize:17, fontWeight:700 }} className="px-blink">{EDITION.text.pickerLooking}</div>
             </div>
           )}
 
@@ -89,7 +89,7 @@ export function ClassPickerScreen({ googleUser, onSelect, onBack }) {
                 <div>
                   {errMsg}
                   {status==='notfound' && <div style={{ marginTop:4, fontSize:14 }}>
-                    ตรวจว่าเข้าด้วยบัญชีโรงเรียน หรือแจ้งครูให้เพิ่มอีเมลนี้ในรายชื่อห้อง</div>}
+                    {EDITION.text.pickerNotFound}</div>}
                 </div>
               </div>
               <PxButton onClick={()=>setAttempt(n=>n+1)}>↻ ลองอีกครั้ง</PxButton>
@@ -128,7 +128,7 @@ export function GoogleSignInScreen({ onSignIn, onSolo }) {
   // Classmates' characters (looks only — no names) for the runners.
   useEffect(() => {
     let off = false;
-    apiTitleRunners().then(list => {
+    backend.titleRunners().then(list => {
       if (off || !list.length) return;
       setRunners(prev => [...prev, ...list]);
     });
@@ -225,7 +225,7 @@ export function GoogleSignInScreen({ onSignIn, onSolo }) {
     <div style={{ position: 'fixed', inset: 0, overflowY: 'auto', overflowX: 'hidden', fontFamily: TH_FONT, color: INK }}
       onMouseDown={e => { if (stage === 'title' && !e.target.closest('button,a')) setTimeout(() => inputRef.current?.focus({ preventScroll: true }), 0); }}>
       {/* Scene and runners stay put while the content scrolls (short screens only) */}
-      <TeacherLink/>
+      {EDITION.teacherLink && <TeacherLink/>}
       {/* Sound settings (same 🔊 panel as in the game) — top-right corner; clicking it also starts the music */}
       <div style={{ position: 'fixed', top: 'clamp(8px, 1.6vh, 16px)', right: 'clamp(8px, 1.2vw, 20px)', zIndex: 3 }}>
         <SoundButton/>
@@ -277,7 +277,7 @@ export function GoogleSignInScreen({ onSignIn, onSolo }) {
             </div>
           </>
         ) : (
-          <PxPanel title="เข้าเล่นด้วยบัญชีโรงเรียน" style={{ width: '100%', maxWidth: 460 }}
+          <PxPanel title={EDITION.text.pickerTitle} style={{ width: '100%', maxWidth: 460 }}
             bodyStyle={{ padding: '10px 16px 14px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 14, textAlign: 'center' }}>
             <div style={{ fontSize: 16, lineHeight: 1.6, fontWeight: 600, color: '#5A3A22' }}>
               ดาว ด่านที่ผ่าน และตัวละครของคุณจะถูกเก็บไว้ เล่นต่อเครื่องไหนก็ได้</div>

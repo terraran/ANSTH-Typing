@@ -1,5 +1,52 @@
 import { backend } from '../edition';
 import { fmtScore } from '../engine/scoring';
+import { INK, PxButton, PxPanel } from '../ui/pixel';
+
+// Delete my account (public edition, Google players only): type ลบ to confirm — it can't be undone.
+function DeleteAccount({ onDeleted }) {
+  const [open, setOpen] = useState(false);
+  const [word, setWord] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState('');
+  useEffect(() => { if (!open) return; const k = e => e.key === 'Escape' && !busy && setOpen(false); addEventListener('keydown', k); return () => removeEventListener('keydown', k); }, [open, busy]);
+  async function go() {
+    setBusy(true); setErr('');
+    try { await backend.deleteMyAccount(); onDeleted(); }
+    catch (e) { setErr(backend.describeError(e)); setBusy(false); }
+  }
+  return (
+    <>
+      <div style={{ flex: 'none', display: 'flex', justifyContent: 'flex-end' }}>
+        <button onClick={() => { setOpen(true); setWord(''); setErr(''); }}
+          style={{ background: 'none', border: 0, color: '#B3261E', textDecoration: 'underline', cursor: 'pointer', fontSize: 13, fontWeight: 600, fontFamily: 'inherit', padding: 2 }}>
+          ลบบัญชีและข้อมูลทั้งหมด…</button>
+      </div>
+      {open && (
+        <div onClick={() => !busy && setOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 60, background: 'rgba(20,12,6,.6)', display: 'grid', placeItems: 'center', padding: 16 }}>
+          <div onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" aria-label="ลบบัญชี" style={{ width: 'min(480px, 100%)' }}>
+            <PxPanel title="ลบบัญชีถาวร?" bodyStyle={{ padding: '10px 16px 14px', display: 'flex', flexDirection: 'column', gap: 10, color: INK, fontSize: 15, lineHeight: 1.6 }}>
+              <div>จะลบทันทีและ <b>กู้คืนไม่ได้</b>:</div>
+              <ul style={{ margin: 0, paddingLeft: 22 }}>
+                <li>ดาว ด่านที่ผ่าน คะแนน และผลฝึกทั้งหมด</li>
+                <li>ตัวละครที่แต่งไว้</li>
+                <li>บัญชีล็อกอินของเกม (ชื่อและอีเมลจากบัญชี Google)</li>
+              </ul>
+              <div style={{ fontSize: 13, color: '#6A4A30' }}>บัญชี Google ของคุณเองไม่ได้ถูกลบ · ถ้าล็อกอินใหม่จะเริ่มจากด่าน 1</div>
+              <label style={{ fontWeight: 700 }}>พิมพ์คำว่า <b style={{ color: '#B3261E' }}>ลบ</b> เพื่อยืนยัน
+                <input value={word} onChange={e => setWord(e.target.value.trim())} autoFocus disabled={busy}
+                  style={{ display: 'block', width: '100%', marginTop: 4, fontSize: 18, padding: '6px 10px', border: '3px solid ' + INK, background: '#FFF9E6', fontFamily: 'inherit' }}/></label>
+              {err && <div style={{ color: '#B3261E', fontWeight: 700, fontSize: 14 }}>{err}</div>}
+              <div style={{ display: 'flex', gap: 10 }}>
+                <PxButton style={{ flex: 1, fontSize: 15 }} disabled={busy} onClick={() => setOpen(false)}>ยกเลิก</PxButton>
+                <PxButton color="red" style={{ flex: 1, fontSize: 15 }} disabled={busy || word !== 'ลบ'} onClick={go}>{busy ? 'กำลังลบ…' : 'ลบบัญชีถาวร'}</PxButton>
+              </div>
+            </PxPanel>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
 
 const { useEffect, useMemo, useState } = React;
 
@@ -244,7 +291,7 @@ function MatchRow({ m, oppChars, showOpp=true }) {
   );
 }
 
-export function MyStatsScreen({ studentName, classCode, myCfg, onBack }) {
+export function MyStatsScreen({ studentName, classCode, roomName, myCfg, onBack, onAccountDeleted }) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState('ov');
@@ -429,7 +476,7 @@ export function MyStatsScreen({ studentName, classCode, myCfg, onBack }) {
         {window.CharKit?<CharKit.Avatar config={myCfg} size={44}/>:<span style={{fontSize:30}}>📊</span>}
         <div style={{minWidth:0}}>
           <div style={{fontSize:19,fontWeight:800,color:'var(--c-t1)'}}>สถิติของ {studentName}</div>
-          <div style={{fontSize:12,color:'var(--c-t3)'}}>ห้อง {classCode} · ฝึก {S.sessions.length} รอบ · แข่ง {games} ครั้ง</div>
+          <div style={{fontSize:12,color:'var(--c-t3)'}}>{(roomName ?? classCode) ? 'ห้อง ' + (roomName ?? classCode) + ' · ' : ''}ฝึก {S.sessions.length} รอบ · แข่ง {games} ครั้ง</div>
         </div>
         <div role="tablist" style={{display:'flex',gap:6,flexWrap:'wrap',alignItems:'center',marginLeft:'auto'}}>
           {TABS.map(([k,l])=>(
@@ -442,6 +489,7 @@ export function MyStatsScreen({ studentName, classCode, myCfg, onBack }) {
         </div>
       </div>
       {tab==='ov'&&overview}{tab==='solo'&&solo}{tab==='duel'&&duel}{tab==='br'&&br}{tab==='h2h'&&h2h}
+      {backend.canDeleteAccount?.() && onAccountDeleted && <DeleteAccount onDeleted={onAccountDeleted}/>}
     </div>
   );
 }

@@ -1560,8 +1560,16 @@ export function ThaiTypingApp() {
           <MyStatsScreen
             studentName={studentName}
             classCode={classCode}
+            roomName={backend.lookupCode ? (codeUser?.className || '') : undefined}
             myCfg={myCfg}
             onBack={() => setScreen('lessons')}
+            onAccountDeleted={() => {
+              // forget what this computer kept for the account, then back to the title screen
+              const em = googleUser?.email || '';
+              try { ['char_v1:' + em, 'char_v1:last', 'guideSeen:' + em].forEach(k => localStorage.removeItem(k)); } catch {}
+              handleLogout();
+              setNotice('ลบบัญชีและข้อมูลทั้งหมดแล้ว');
+            }}
           />
         )}
         {screen==='character' && window.CharKit && (

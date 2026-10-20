@@ -77,6 +77,8 @@ export function describeError(err) {
     CODE_FORMAT: `รหัสมี ${CODE_LEN} ตัว (ไม่มีตัว S B Z O I U และเลข 0 1 5)`,
     NOT_SIGNED_IN: 'ยังไม่ได้เข้าสู่ระบบ',
     NOT_AVAILABLE: 'เวอร์ชันนี้ยังไม่มีฟีเจอร์นี้',
+    REAUTH: 'เข้าสู่ระบบนานเกินไป — กด "ออกจากระบบ" แล้วล็อกอิน Google ใหม่ จากนั้นลองลบอีกครั้ง',
+    'auth/requires-recent-login': 'เข้าสู่ระบบนานเกินไป — กด "ออกจากระบบ" แล้วล็อกอิน Google ใหม่ จากนั้นลองลบอีกครั้ง',
     NETWORK: 'โหลด Firebase ไม่ได้ — ตรวจอินเทอร์เน็ต',
     'permission-denied': 'ไม่มีสิทธิ์ทำรายการนี้',
     unavailable: 'เชื่อมต่อเซิร์ฟเวอร์ไม่ได้ — ลองใหม่อีกครั้ง',
@@ -123,6 +125,23 @@ export async function lookupCode(typed) {
 }
 
 export function signOut() { me = null; }
+
+// A Google-account player may delete themselves (not code players: their teacher deletes the room).
+export const canDeleteAccount = () => me?.kind === 'user';
+
+// Delete this player's play data AND their Firebase login (where Google's name/e-mail are kept).
+// Firebase only deletes recently signed-in accounts, so sign in again with this page's Google token first.
+export async function deleteMyAccount() {
+  const p = mine();
+  if (p.kind !== 'user') throw new Error('NOT_AVAILABLE');
+  const u = (await fb()).auth().currentUser;
+  if (!u || u.isAnonymous) throw new Error('NOT_SIGNED_IN');
+  try { await u.reauthenticateWithCredential(firebase.auth.GoogleAuthProvider.credential(session.idToken)); }
+  catch { throw new Error('REAUTH'); }
+  await p.ref.delete();
+  await u.delete();
+  me = null; session.fbSubject = '';
+}
 
 // ── saving play data (player's own document only) ─────────────────
 

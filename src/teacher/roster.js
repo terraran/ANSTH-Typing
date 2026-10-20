@@ -56,8 +56,9 @@ export function buildRows(students, unlocks, classCode) {
     const prevAvg = prev.length ? prev.reduce((a, s) => a + wpmOf(s), 0) / prev.length : null;
     const wpm = last ? wpmOf(last) : null;
     const ul = unlockOf(unlocks, classCode, st.name);
+    if (st.teacherStage > 0) { ul.stage = st.teacherStage; ul.own = true; }   // code classrooms: unlock kept on the student
     return {
-      no: i + 1, name: st.name, sessions, total: st.totalSessions ?? sessions.length,
+      no: st.no ?? i + 1, name: st.name, code: st.code, noName: !!st.noName, sessions, total: st.totalSessions ?? sessions.length,
       lesson, stage, stars, stageStars,
       wpm, acc: last ? Math.round(Number(last.accuracy) || 0) : null,
       trend: wpm != null && prevAvg != null ? Math.round(wpm - prevAvg) : 0,

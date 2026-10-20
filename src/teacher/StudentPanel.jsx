@@ -1,5 +1,7 @@
 // Right-hand panel when a row is clicked: numbers, speed chart vs the stage targets, stars per stage, recent sessions.
+const { useState } = React;
 import { STAGES, STAGE_MAX, dayText, flagOf, wpmOf } from './roster';
+import { fmtCode } from './classroom/localRoster';
 
 function SpeedChart({ sessions, stage }) {
   const list = sessions.slice(-20);
@@ -31,7 +33,8 @@ function SpeedChart({ sessions, stage }) {
   );
 }
 
-export function StudentPanel({ r, onClose, onUnlock }) {
+export function StudentPanel({ r, onClose, onUnlock, onReissue }) {
+  const [showCode, setShowCode] = useState(false);
   const f = flagOf(r);
   const tgt = STAGES[Math.max(0, r.stage - 1)].target;
   const recent = r.sessions.slice(-8).reverse();
@@ -45,6 +48,8 @@ export function StudentPanel({ r, onClose, onUnlock }) {
       <div className="row6">
         {f ? <span className={'chip ' + f[0]}>{f[1]}</span> : <span className="chip ok">✓ ปกติ</span>}
         <span className="hint">ฝึกทั้งหมด {r.total} ครั้ง · ล่าสุด {dayText(r.days)}</span>
+        {r.code && <span className="hint">รหัส <span className="num">{showCode ? fmtCode(r.code) : r.code.slice(0, 2) + '••-••••'}</span>{' '}
+          <button className="linkbtn" onClick={() => setShowCode(v => !v)}>{showCode ? 'ซ่อน' : 'แสดง'}</button></span>}
       </div>
       <div className="kv">
         <div className="stat"><small>ล่าสุด</small><b className="num">{r.wpm ?? '—'}</b><small>WPM</small></div>
@@ -73,7 +78,10 @@ export function StudentPanel({ r, onClose, onUnlock }) {
             <span className="num" style={Number(s.accuracy) < 85 ? { color: 'var(--red)' } : null}>{Math.round(Number(s.accuracy) || 0)}%</span></div>
         )) : <div className="hint">ยังไม่เคยฝึก</div>}</div>
       </div>
-      <button className="btn" onClick={onUnlock}>🔓 ปลดล็อกให้คนนี้…</button>
+      <div className="row6">
+        {onReissue && <button className="btn gold" style={{ flex: 1 }} onClick={onReissue} title="การ์ดหาย: รหัสใหม่ ดาวเดิมยังอยู่">🔁 ออกรหัสใหม่</button>}
+        <button className="btn" style={{ flex: 1 }} onClick={onUnlock}>🔓 ปลดล็อกให้คนนี้…</button>
+      </div>
     </div>
   );
 }

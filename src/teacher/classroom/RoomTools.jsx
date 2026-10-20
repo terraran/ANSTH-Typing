@@ -1,0 +1,92 @@
+// Code-classroom extras on a room page (public edition): add students, more-menu (reissue codes,
+// rename, delete, tips), the backup reminder and dropping a backup file to show names here.
+const { useEffect, useRef, useState } = React;
+import { Modal } from '../ui';
+import { downloadBackup, parseNames, readBackup, saveRoster } from './localRoster';
+
+export function AddStudentsDialog({ api, classId, nextNo, onAdded, onClose }) {
+  const [mode, setMode] = useState('count');
+  const [count, setCount] = useState(1);
+  const [text, setText] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState('');
+  const names = parseNames(text);
+  const n = mode === 'list' ? names.length : Math.max(0, Math.min(50, Number(count) || 0));
+  async function add() {
+    if (!n) return;
+    setBusy(true); setErr('');
+    try {
+      const codes = await api.addStudents(classId, n);
+      onAdded(codes, mode === 'list' ? Object.fromEntries(codes.map((c, i) => [c.no, names[i]])) : {});
+    } catch (e) { setErr('เพิ่มไม่ได้: ' + api.describeError(e)); setBusy(false); }
+  }
+  return (
+    <Modal title="＋ เพิ่มนักเรียน" onClose={onClose}>
+      <div className="hint">คนใหม่ต่อท้ายรายชื่อ เริ่มที่เลขที่ {nextNo}</div>
+      <span className="seg"><button className={mode === 'count' ? 'on' : ''} onClick={() => setMode('count')}>ใส่จำนวน</button>
+        <button className={mode === 'list' ? 'on' : ''} onClick={() => setMode('list')}>วางรายชื่อ</button></span>
+      {mode === 'count'
+        ? <div className="row6"><input className="bignum" type="number" min="1" max="50" value={count} onChange={e => setCount(e.target.value)} aria-label="จำนวน"/> คน</div>
+        : <textarea className="pastebox" value={text} onChange={e => setText(e.target.value)} placeholder="1 บรรทัด = 1 คน" aria-label="รายชื่อ"/>}
+      <div className="hint">🔒 ชื่อเก็บในเครื่องนี้เท่านั้น</div>
+      {err && <div className="err">{err}</div>}
+      <div className="row6"><span className="spacer"/><button className="btn ghost" onClick={onClose}>ปิด</button>
+        <button className="btn" disabled={busy || !n} onClick={add}>{busy ? 'กำลังสร้างรหัส…' : `เพิ่ม ${n || ''} คน`}</button></div>
+    </Modal>
+  );
+}
+
+export function RenameDialog({ name, onSave, onClose }) {
+  const [v, setV] = useState(name);
+  return (
+    <Modal title="✏️ เปลี่ยนชื่อห้อง" onClose={onClose}>
+      <input className="big" value={v} maxLength={60} autoFocus onChange={e => setV(e.target.value)} onKeyDown={e => e.key === 'Enter' && v.trim() && onSave(v.trim())}/>
+      <div className="row6"><span className="spacer"/><button className="btn ghost" onClick={onClose}>ปิด</button>
+        <button className="btn" disabled={!v.trim()} onClick={() => onSave(v.trim())}>บันทึก</button></div>
+    </Modal>
+  );
+}
+
+// "⋯" button with a small menu: items = [[label, onClick, disabled?], …]
+export function MoreMenu({ items }) {
+  const [open, setOpen] = useState(false), ref = useRef(null);
+  useEffect(() => {
+    if (!open) return;
+    const close = e => { if (!ref.current?.contains(e.target)) setOpen(false); };
+    const esc = e => e.key === 'Escape' && setOpen(false);
+    addEventListener('mousedown', close); addEventListener('keydown', esc);
+    return () => { removeEventListener('mousedown', close); removeEventListener('keydown', esc); };
+  }, [open]);
+  return (
+    <div className="more" ref={ref}>
+      <button className="btn ghost" onClick={() => setOpen(o => !o)} aria-haspopup="menu" aria-expanded={open} aria-label="เมนูเพิ่มเติม">⋯</button>
+      {open && <div className="menu card" role="menu">{items.map(([t, f, off]) =>
+        <button key={t} role="menuitem" disabled={off} onClick={() => { setOpen(false); f(); }}>{t}</button>)}</div>}
+    </div>
+  );
+}
+
+// Backup reminder / "no names on this computer" banner for a room.
+export function RosterAlert({ roster, students, classId, className, owner, onRoster, onPick }) {
+  if (!students.length) return null;
+  if (roster && roster.mode === 'list' && !roster.backedUp) return (
+    <div className="alert"><span>💾</span>
+      <span className="grow"><b>ยังไม่ได้สำรองรายชื่อ</b> — ชื่อนักเรียนเก็บอยู่ในเครื่องนี้เท่านั้น ถ้าล้างเบราว์เซอร์หรือเปลี่ยนเครื่อง ชื่อจะหาย (รหัสและคะแนนยังอยู่)</span>
+      <button className="btn sm" onClick={() => { downloadBackup(classId, className, students, roster.names); onRoster(saveRoster(owner, classId, { ...roster, backedUp: true })); }}>ดาวน์โหลดไฟล์สำรอง</button>
+    </div>);
+  if (!roster) return (
+    <div className="alert drop"><span>📂</span>
+      <span className="grow"><b>เครื่องนี้ยังไม่มีรายชื่อห้องนี้</b> — ลากไฟล์สำรอง (.csv) มาวางที่ไหนก็ได้บนหน้านี้ เพื่อแสดงชื่อนักเรียน · ไฟล์ไม่ถูกส่งขึ้นเซิร์ฟเวอร์</span>
+      <button className="btn sm blue" onClick={onPick}>เลือกไฟล์…</button>
+    </div>);
+  return null;
+}
+
+// Read a dropped / picked backup file for this room → roster, or an error message.
+export async function importBackup(file, classId, className) {
+  const text = await file.text();
+  let b;
+  try { b = readBackup(text); } catch { return { error: `"${file.name}" ไม่ใช่ไฟล์สำรองรายชื่อของคีย์บอร์ดเควส` }; }
+  if (b.classId && b.classId !== classId) return { error: `ไฟล์นี้เป็นของห้อง "${b.className}" ไม่ใช่ "${className}" — เปิดห้องนั้นก่อนแล้วลากไฟล์มาวางใหม่`, otherClass: b.classId };
+  return { roster: { names: b.names, mode: 'list', backedUp: true } };
+}

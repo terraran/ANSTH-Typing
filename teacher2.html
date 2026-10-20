@@ -177,6 +177,79 @@ table.grid.static tbody tr{cursor:default}
 .starpick small{display:block;font-weight:400;opacity:.75;font-size:.85em}
 .modal select{border:2px solid #CDBB94;border-radius:6px;padding:3px 6px;background:#fff;font-weight:600;max-width:100%}
 
+/* ── code classrooms (public edition) ── */
+.linkbtn{background:none;border:0;padding:0;color:var(--blue);text-decoration:underline;cursor:pointer;font-size:inherit}
+.more{position:relative}
+.more .menu{position:absolute;right:0;top:calc(100% + 6px);z-index:20;display:flex;flex-direction:column;padding:6px;min-width:250px}
+.more .menu button{text-align:left;border:0;background:none;padding:6px 10px;border-radius:6px;font-weight:600;cursor:pointer;white-space:nowrap}
+.more .menu button:hover{background:#FFF3CF}
+.more .menu button:disabled{opacity:.45;cursor:default;background:none}
+.alert.drop{border-color:var(--blue);background:#DCEBFA}
+.top-msg{flex:0 1 auto;max-width:55vw;padding:3px 10px;color:var(--ink)}
+.dropveil{position:fixed;inset:0;z-index:50;background:rgba(47,120,196,.25);border:6px dashed var(--blue);display:none;place-items:center;font-size:2em;font-weight:700;color:#0E3D70;pointer-events:none}
+body.dragging .dropveil{display:grid}
+input.big{font-size:1.25em;padding:6px 10px;width:100%;border:2px solid #CDBB94;border-radius:6px;background:#fff}
+.bignum{font-family:var(--px);font-size:1.2em;width:4.5em;text-align:center;padding:6px;border:2px solid #CDBB94;border-radius:6px;background:#fff}
+.pastebox{min-height:120px;resize:vertical;font:inherit;padding:6px 8px;border:2px solid #CDBB94;border-radius:6px}
+/* create-room wizard */
+.wiz{align-items:center}
+.steps{display:flex;gap:10px;align-items:center;flex-shrink:0;margin-top:.4vh}
+.step{display:flex;align-items:center;gap:8px;font-weight:700;padding:3px 12px;border-radius:99px;opacity:.6;background:#FFFCF3}
+.step b{width:1.8em;height:1.8em;border-radius:50%;display:grid;place-items:center;background:var(--ink);color:#fff;font-family:var(--px);font-size:.7em}
+.step.on{opacity:1;background:var(--gold)}
+.step.done{opacity:1}.step.done b{background:var(--green)}
+.steps i{width:30px;height:3px;background:#CDBB94}
+.wbox{width:min(1040px,94vw);flex:1;min-height:0;display:flex;flex-direction:column}
+.wbox .head{font-weight:700;font-size:1.1em;margin-bottom:6px}
+.wbody{flex:1;min-height:0;display:flex;flex-direction:column;gap:1.2vh}
+.wcenter{flex:1;display:flex;flex-direction:column;justify-content:center;gap:2vh;max-width:640px;margin:0 auto;width:100%}
+.wfoot{display:flex;gap:10px;justify-content:flex-end;align-items:center;flex-shrink:0}
+.two-opt{display:grid;grid-template-columns:1fr 1.4fr;gap:14px;flex:1;min-height:0}
+.opt{padding:10px 12px;display:flex;flex-direction:column;gap:8px;min-height:0;cursor:pointer;opacity:.75}
+.opt.on{opacity:1;outline:3px solid var(--gold);outline-offset:-1px}
+.opt h4{display:flex;gap:8px;align-items:center}
+.opt .radio{width:18px;height:18px;border-radius:50%;border:3px solid var(--ink);display:inline-block;flex-shrink:0}
+.opt.on .radio{background:radial-gradient(var(--ink) 40%,transparent 45%)}
+.paste{display:flex;gap:10px;flex:1;min-height:0}
+.paste textarea{flex:1;min-height:0;resize:none;font:inherit;font-size:.9em;padding:6px 8px;border:2px solid #CDBB94;border-radius:6px}
+.paste .preview{flex:1;min-height:0;overflow:auto;font-size:.85em;padding:4px 6px}
+.paste .preview>div{display:flex;gap:8px}
+.paste .preview .num{width:2.4em;text-align:right;opacity:.6;padding-top:.25em;flex-shrink:0}
+.codes{flex:1;min-height:0;overflow:auto;display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:6px;align-content:start;padding:2px}
+.codes .c{display:flex;align-items:center;gap:8px;padding:4px 8px;font-size:.88em;white-space:nowrap;overflow:hidden}
+.codes .no{opacity:.6;width:2em;text-align:right}
+.codes .nm{flex:1;overflow:hidden;text-overflow:ellipsis}
+.codes .cd{font-family:var(--px);font-size:.68em;color:#1F6B3D}
+/* printable cards */
+.cards-view{position:fixed;inset:0;z-index:30;background:var(--bg);display:flex;gap:16px;padding:1.4vh 1.6vw}
+.cards-side{width:290px;flex-shrink:0;display:flex;flex-direction:column;gap:10px;align-self:flex-start}
+.cards-side label{cursor:pointer}
+.cards-preview{flex:1;min-width:0;overflow:auto;display:flex;justify-content:center}
+.sheets{zoom:var(--k,.5);display:flex;flex-direction:column;gap:24px;padding-bottom:24px}
+.sheet{width:210mm;height:297mm;background:#fff;box-shadow:0 6px 24px rgba(0,0,0,.3);display:grid;grid-template-columns:1fr 1fr;grid-template-rows:repeat(5,1fr);padding:8mm;color:#222;flex-shrink:0}
+.kcard{border:1.5px dashed #999;margin:-0.75px;padding:4mm 4.5mm;display:grid;grid-template-columns:1fr 27mm;grid-template-rows:auto auto auto 1fr;column-gap:4mm;position:relative;font-size:10.5pt;line-height:1.3;overflow:hidden}
+.kcard .ct{grid-column:1/3;display:flex;align-items:center;gap:2mm;font-weight:700;font-size:9.5pt;border-bottom:1.5px solid #3B2416;padding-bottom:1.2mm;margin-bottom:1.5mm;color:#3B2416;white-space:nowrap}
+.kcard .ct img{height:5.5mm}
+.kcard .ct .rm{margin-left:auto;font-weight:600;overflow:hidden;text-overflow:ellipsis}
+.kcard .who2{font-weight:700;font-size:11pt;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.kcard .who2 .no{font-family:var(--px);font-size:7.5pt;margin-right:1.5mm;background:#3B2416;color:#fff;padding:.6mm 1.2mm;border-radius:1mm}
+.kcard .code{font-family:var(--px);font-size:13.5pt;letter-spacing:.8mm;margin:2mm 0 1.6mm;color:#1F4E36;white-space:nowrap}
+.kcard .code small{display:block;font-family:'Noto Sans Thai Looped',sans-serif;font-size:7.5pt;letter-spacing:0;color:#666;margin-bottom:.6mm}
+.kcard ol{margin:0;padding-left:4.2mm;font-size:8pt;color:#333}
+.kcard .qr{grid-column:2;grid-row:2/5;align-self:center;text-align:center;font-size:6.5pt;color:#555}
+.kcard .qr svg,.kcard .qr-wait{width:27mm;height:27mm;display:block}
+.scissor{position:absolute;left:1mm;top:-1mm;font-size:8pt;color:#999;line-height:1}
+@media print{
+  @page{size:A4;margin:0}
+  html,body,#root{height:auto;overflow:visible;background:#fff}
+  body *{visibility:hidden}
+  .sheets,.sheets *{visibility:visible}
+  .cards-view{position:static;padding:0;display:block}
+  .cards-preview{overflow:visible;display:block}
+  .sheets{zoom:1;position:absolute;left:0;top:0;gap:0;padding:0}
+  .sheet{box-shadow:none;page-break-after:always;break-after:page}
+}
+
 /* student panel */
 .side{width:min(360px,26vw);flex-shrink:0;display:flex;flex-direction:column;min-height:0;gap:7px;padding:10px 12px}
 .side h3{display:flex;align-items:center;gap:8px;font-size:1.05em}

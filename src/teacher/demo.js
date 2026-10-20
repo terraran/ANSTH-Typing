@@ -96,3 +96,32 @@ export function demoApi() {
     deleteWeeklyTest: async testId => { tests = tests.filter(t => t.testId !== testId); return { ok: true }; },
   };
 }
+
+// Stand-in for backend/public.js (code classrooms) while DEMO is on in the public edition.
+export function demoPublicRaw() {
+  const CH = 'ACDEFGHJKLMNPQRTVWXY2346789';
+  const code = () => Array.from({ length: 8 }, () => CH[Math.floor(Math.random() * CH.length)]).join('');
+  let classes = [{ id: 'demoA', name: 'ม.1/3 · คอมพิวเตอร์', count: 32, teacherStage: 0, createdAt: 1 }];
+  const codes = {};                                   // code → { classId, no, teacherStage, sessions }
+  const seed = (classId, from, n) => {
+    const fake = demoClass(classId + from);
+    for (let i = 0; i < n; i++) { const s = fake[i % fake.length]; codes[code()] = { classId, no: from + i, teacherStage: 0, sessions: s.sessions.slice().reverse() }; }
+  };
+  seed('demoA', 1, 32);
+  const issue = (classId, nos) => nos.map(no => { const c = code(); codes[c] = { classId, no, teacherStage: 0, sessions: [] }; return { no, code: c }; });
+  return {
+    describeError: e => 'เกิดข้อผิดพลาด: ' + (e?.message || e),
+    teacherClasses: async () => ({ classes: classes.map(c => ({ ...c })) }),
+    createClass: async (name, count) => { const id = 'demo' + Date.now(); classes.push({ id, name, count, teacherStage: 0, createdAt: Date.now() }); return { id, codes: issue(id, Array.from({ length: count }, (_, i) => i + 1)) }; },
+    addStudents: async (id, n) => { const c = classes.find(x => x.id === id); const from = c.count + 1; c.count += n; return issue(id, Array.from({ length: n }, (_, i) => from + i)); },
+    reissueCode: async old => { const s = codes[old]; delete codes[old]; const c = code(); codes[c] = s; return { no: s.no, code: c }; },
+    classData: async id => ({ students: Object.entries(codes).filter(([, s]) => s.classId === id).map(([c, s]) => ({
+      code: c, no: s.no, name: '', teacherStage: s.teacherStage, totalSessions: s.sessions.length,
+      avgAcc: s.sessions.length ? Math.round(s.sessions.reduce((a, r) => a + r.accuracy, 0) / s.sessions.length) : 0,
+      lastActive: s.sessions[0]?.date || '', sessions: s.sessions.slice().reverse() })).sort((a, b) => a.no - b.no) }),
+    setUnlock: async (id, c, stage) => { if (c) codes[c].teacherStage = stage; else classes.find(x => x.id === id).teacherStage = stage; return { ok: true }; },
+    resetTips: async id => ({ reset: Object.values(codes).filter(s => s.classId === id).length }),
+    renameClass: async (id, name) => { classes.find(x => x.id === id).name = name; return { ok: true }; },
+    deleteClass: async id => { classes = classes.filter(x => x.id !== id); for (const c of Object.keys(codes)) if (codes[c].classId === id) delete codes[c]; return { ok: true }; },
+  };
+}

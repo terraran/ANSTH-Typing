@@ -1,6 +1,6 @@
 // New teacher page (teacher2.html): sign in → one table per class.
 // Style "B": clean layout in the game's colours and fonts (styles live in teacher2.html).
-const { useEffect, useMemo, useState } = React;
+const { useEffect, useMemo, useRef, useState } = React;
 import { GOOGLE_CLIENT_ID } from '../config';
 import { auth, parseJwt } from '../auth';
 import { EDITION, backend } from '../edition';
@@ -8,12 +8,20 @@ import { STAGES, buildRows, dayText, flagOf, needsCare, LESSON_COUNT, STAR_MAX }
 import { StudentPanel } from './StudentPanel';
 import { HomeworkTab } from './HomeworkTab';
 import { WeeklyTab } from './WeeklyTab';
-import { DEMO, demoApi } from './demo';
+import { DEMO, demoApi, demoPublicRaw } from './demo';
+import { publicApi } from './classroom/publicApi';
+import { CreateRoom } from './classroom/CreateRoom';
+import { CardsView } from './classroom/Cards';
+import { AddStudentsDialog, MoreMenu, RenameDialog, RosterAlert, importBackup } from './classroom/RoomTools';
+import { downloadBackup, forgetRoster, loadRoster, saveRoster } from './classroom/localRoster';
 import { gradeOf, groups, roomLabel } from './rooms';
 import { Modal, StagePick } from './ui';
 
+// Public edition: rooms of student codes (backend/public.js); school: Apps Script rooms from the roster sheet.
+const PUBLIC = EDITION.backend === 'public';
 // Demo (localhost only): made-up classes, nothing is sent anywhere.
-const api = DEMO ? demoApi() : backend;
+const api = PUBLIC ? publicApi(DEMO ? demoPublicRaw() : backend) : DEMO ? demoApi() : backend;
+const roomName = c => api.label ? api.label(c) : 'ห้อง ' + roomLabel(c);
 
 const ERRORS = {
   Unauthorized: 'บัญชีนี้ไม่ได้อยู่ในรายชื่อครู (TEACHER_EMAILS)',
@@ -91,7 +99,7 @@ function StageCell({ r }) {
 function UnlockDialog({ code, ticked, current, busy, onSave, onClose, onWholeClass }) {
   const [stage, setStage] = useState(current || 1);
   return (
-    <Modal title={`🔓 ปลดล็อกด่าน · ห้อง ${roomLabel(code)}`} onClose={onClose}>
+    <Modal title={`🔓 ปลดล็อกด่าน · ${roomName(code)}`} onClose={onClose}>
       <div className="hint">ปกตินักเรียนต้องผ่านบอสก่อนถึงไปด่านถัดไป — ปลดล็อกเมื่ออยากให้ข้ามไปเรียนด่านที่สอนอยู่ · มีผลเมื่อนักเรียนเข้าเกมครั้งถัดไป</div>
       <div><b className="sm">ให้</b> <span className="seg">
         <button className={ticked.length ? '' : 'on'} onClick={onWholeClass}>ทั้งห้อง</button>
@@ -109,7 +117,7 @@ function UnlockDialog({ code, ticked, current, busy, onSave, onClose, onWholeCla
   );
 }
 
-function Room({ code, rows, loading, error, unlocks, onReload, onUnlocks, tab, setTab, hw, wk, onHw, onReloadHw, onReloadWk }) {
+function Room({ code, rows, loading, error, unlocks, onReload, onUnlocks, tab, setTab, hw, wk, onHw, onReloadHw, onReloadWk, pub }) {
   const [sort, setSort] = useState({ k: 'no', dir: 1 });
   const [sel, setSel] = useState(null);
   const [tick, setTick] = useState(() => new Set());
@@ -119,7 +127,8 @@ function Room({ code, rows, loading, error, unlocks, onReload, onUnlocks, tab, s
   const [msg, setMsg] = useState(null);
   const [narrow, setNarrow] = useState(innerWidth < 1700);
   useEffect(() => { const f = () => setNarrow(innerWidth < 1700); addEventListener('resize', f); return () => removeEventListener('resize', f); }, []);
-  useEffect(() => { setSel(null); setTick(new Set()); setFilt(0); setMsg(null); setDlg(false); }, [code]);
+  const [pdlg, setPdlg] = useState(null);            // public edition dialogs: 'add' | 'rename'
+  useEffect(() => { setSel(null); setTick(new Set()); setFilt(0); setMsg(null); setDlg(false); setPdlg(null); }, [code]);
 
   const classUnlock = (unlocks || []).find(u => u.classCode === code && !u.studentName);
 
@@ -147,31 +156,53 @@ function Room({ code, rows, loading, error, unlocks, onReload, onUnlocks, tab, s
   const toggle = (no, on) => setTick(t => { const n = new Set(t); on ? n.add(no) : n.delete(no); return n; });
 
   async function doUnlock(stage) {
-    const who = ticked.length ? ticked.map(r => r.name) : [''];
+    const who = ticked.length ? ticked.map(r => r.code || r.name) : [''];
     const what = stage ? `ปลดล็อกถึงด่าน ${stage}` : 'ยกเลิกการปลดล็อก';
-    const target = ticked.length ? `นักเรียนที่ติ๊กไว้ ${ticked.length} คน` : `ทั้งห้อง ${roomLabel(code)}`;
+    const target = ticked.length ? `นักเรียนที่ติ๊กไว้ ${ticked.length} คน` : `ทั้ง${roomName(code)}`;
     setBusy('unlock'); setMsg(null);
     try {
       let d = null;
       for (const name of who) d = await api.setUnlock(code, name, stage);
       if (d) onUnlocks(d.unlocks || []);
+      if (api.reloadAfterUnlock && ticked.length) onReload();
       setMsg(['ok', `${what} ให้${target}แล้ว — มีผลเมื่อนักเรียนเข้าเกมครั้งถัดไป`]);
       setDlg(false);
     } catch (e) { setMsg(['err', 'บันทึกไม่ได้: ' + errText(e)]); }
     setBusy('');
   }
   async function doTips() {
-    if (!confirm(`ให้นักเรียนห้อง ${roomLabel(code)} เห็นคำแนะนำของ Mr.AT ทั้งหมดอีกครั้ง?\n(มีผลตอนนักเรียนเข้าสู่ระบบครั้งถัดไป)`)) return;
+    if (!confirm(`ให้นักเรียน${roomName(code)} เห็นคำแนะนำของ Mr.AT ทั้งหมดอีกครั้ง?\n(มีผลตอนนักเรียนเข้าสู่ระบบครั้งถัดไป)`)) return;
     setBusy('tips'); setMsg(null);
     try { const r = await api.resetTips(code); setMsg(['ok', `รีเซ็ตคำแนะนำให้ ${r.reset || 0} คนแล้ว`]); }
     catch (e) { setMsg(['err', 'รีเซ็ตไม่สำเร็จ: ' + errText(e)]); }
     setBusy('');
   }
 
+  // ── code classrooms (public edition) ──
+  async function reissue(list) {
+    if (!list.length) return;
+    if (!confirm(`ออกรหัสใหม่ให้ ${list.length === 1 ? list[0].name : list.length + ' คน'}?\nรหัสเดิมจะใช้ไม่ได้อีก ดาวและผลฝึกยังอยู่ครบ — พิมพ์การ์ดใหม่ให้นักเรียน`)) return;
+    setBusy('reissue'); setMsg(null);
+    try {
+      for (const r of list) await api.reissueCode(r.code);
+      pub.onChanged(); setTick(new Set(list.map(r => r.no)));
+      setMsg(['ok', `ออกรหัสใหม่ ${list.length} คนแล้ว — ติ๊กไว้ให้แล้ว กด 🖨️ พิมพ์การ์ด เพื่อพิมพ์เฉพาะคนเหล่านี้`]);
+    } catch (e) { setMsg(['err', 'ออกรหัสใหม่ไม่ได้: ' + errText(e)]); }
+    setBusy('');
+  }
+  async function rename(name) {
+    try { await api.renameClass(code, name); setPdlg(null); pub.onRenamed(); } catch (e) { setMsg(['err', 'เปลี่ยนชื่อไม่ได้: ' + errText(e)]); }
+  }
+  async function remove() {
+    if (!confirm(`ลบ${roomName(code)}?\nรหัสของนักเรียน ${rows.length} คนจะใช้ไม่ได้ และดาว/ผลฝึกทั้งหมดของห้องนี้จะหายถาวร`)) return;
+    if (prompt('พิมพ์คำว่า ลบ เพื่อยืนยัน') !== 'ลบ') return;
+    try { await api.deleteClass(code); pub.onDeleted(); } catch (e) { setMsg(['err', 'ลบไม่ได้: ' + errText(e)]); }
+  }
+
   return (
     <section className="page">
       <div className="roomhead">
-        <h2>ห้อง {roomLabel(code)}</h2>
+        <h2>{roomName(code)}</h2>
         <div className="stats">
           <div className="stat"><span>นักเรียน</span><b className="num">{rows.length}</b></div>
           <div className="stat"><span>เล่นใน 7 วัน</span><b className="num">{active}</b></div>
@@ -182,7 +213,18 @@ function Room({ code, rows, loading, error, unlocks, onReload, onUnlocks, tab, s
         <div className="spacer"/>
         <button className="btn ghost" onClick={() => setDlg(true)} title={classUnlock ? `ตอนนี้ทั้งห้องเล่นได้ถึงด่าน ${classUnlock.stage}` : 'ตอนนี้เล่นตามลำดับ'}>
           {classUnlock ? `🔓 ปลดล็อกถึงด่าน ${classUnlock.stage}…` : '🔓 ปลดล็อกด่าน…'}</button>
-        <button className="btn ghost" onClick={doTips} disabled={!!busy}>💡 ให้ดูคำแนะนำใหม่</button>
+        {pub ? <>
+          <button className="btn ghost" onClick={() => setPdlg('add')}>＋ นักเรียน</button>
+          <button className="btn ghost" onClick={() => pub.onPrint(ticked.map(r => r.no))}>🖨️ พิมพ์การ์ด</button>
+          <button className="btn ghost" onClick={pub.onBackup} title="ไฟล์ .csv ที่มีชื่อ เลขที่ และรหัส — ใช้เปิดชื่อในเครื่องอื่น">💾 สำรอง</button>
+          <MoreMenu items={[
+            [`🔁 ออกรหัสใหม่ให้คนที่ติ๊ก (${ticked.length})`, () => reissue(ticked), !ticked.length || !!busy],
+            ['💡 ให้ดูคำแนะนำใหม่', doTips, !!busy],
+            ['📂 เปิดไฟล์สำรองรายชื่อ…', pub.onPick],
+            ['✏️ เปลี่ยนชื่อห้อง', () => setPdlg('rename')],
+            ['🗑️ ลบห้องนี้', remove],
+          ]}/>
+        </> : <button className="btn ghost" onClick={doTips} disabled={!!busy}>💡 ให้ดูคำแนะนำใหม่</button>}
         <button className="btn ghost" onClick={() => { onReload(); if (tab === 'hw') onReloadHw(); if (tab === 'wk') onReloadWk(); }}
           disabled={loading} title="โหลดข้อมูลใหม่" aria-label="โหลดข้อมูลใหม่">↻</button>
       </div>
@@ -193,6 +235,7 @@ function Room({ code, rows, loading, error, unlocks, onReload, onUnlocks, tab, s
 
       {msg && <div className={'alert ' + msg[0]}><span className="grow">{msg[1]}</span><button className="x" onClick={() => setMsg(null)} aria-label="ปิด">✕</button></div>}
       {error && <div className="alert err"><span className="grow">โหลดข้อมูลไม่ได้: {error}</span><button className="btn sm" onClick={onReload}>ลองใหม่</button></div>}
+      {pub && !loading && <RosterAlert {...pub.alert} students={rows}/>}
 
       {tab === 'hw' && <HomeworkTab code={code} data={hw.data} error={hw.error} api={api} onData={onHw} onReload={onReloadHw} noOf={noOf}/>}
       {tab === 'wk' && <WeeklyTab code={code} data={wk.data} error={wk.error} api={api} onReload={onReloadWk}/>}
@@ -228,11 +271,16 @@ function Room({ code, rows, loading, error, unlocks, onReload, onUnlocks, tab, s
               <button key={i} className={filt === i ? 'on' : ''} onClick={() => setFilt(i)}>{t}</button>)}</span>
           </div>
         </div>
-        {selRow && <StudentPanel r={selRow} onClose={() => setSel(null)} onUnlock={() => { setTick(new Set([selRow.no])); setDlg(true); }}/>}
+        {selRow && <StudentPanel r={selRow} onClose={() => setSel(null)} onUnlock={() => { setTick(new Set([selRow.no])); setDlg(true); }}
+          onReissue={pub ? () => reissue([selRow]) : null}/>}
       </div>}
       {dlg && <UnlockDialog code={code} ticked={ticked} busy={busy === 'unlock'}
         current={ticked.length === 1 && ticked[0].unlockOwn ? ticked[0].unlock : classUnlock ? Number(classUnlock.stage) : 1}
         onSave={doUnlock} onClose={() => setDlg(false)} onWholeClass={() => setTick(new Set())}/>}
+      {pdlg === 'add' && <AddStudentsDialog api={api} classId={code} nextNo={Math.max(0, ...rows.map(r => r.no)) + 1} onClose={() => setPdlg(null)}
+        onAdded={(codes, names) => { setPdlg(null); pub.onAdded(codes, names); setTick(new Set(codes.map(c => c.no)));
+          setMsg(['ok', `เพิ่มนักเรียน ${codes.length} คนแล้ว — ติ๊กไว้ให้แล้ว กด 🖨️ พิมพ์การ์ด เพื่อพิมพ์เฉพาะคนใหม่`]); }}/>}
+      {pdlg === 'rename' && <RenameDialog name={api.label(code)} onSave={rename} onClose={() => setPdlg(null)}/>}
     </section>
   );
 }
@@ -247,6 +295,12 @@ export function TeacherApp() {
   const [tab, setTab] = useState('st');
   const [hw, setHw] = useState({});              // { data, error } — homework of every room (one call)
   const [wk, setWk] = useState({});              // { data, error } — weekly tests of every grade
+  const [view, setView] = useState('room');      // public edition: 'room' | 'create' | 'cards'
+  const [printNos, setPrintNos] = useState([]);
+  const [roster, setRoster] = useState(null);    // public edition: names of the open room (this computer only)
+  const [dropMsg, setDropMsg] = useState(null);
+  const fileRef = useRef(null);
+  const owner = DEMO ? 'demo' : token ? parseJwt(token)?.sub || '' : '';
   const email = DEMO ? 'ตัวอย่าง (ข้อมูลสมมุติ)' : token ? parseJwt(token)?.email : '';
 
   function signOut(err) {
@@ -260,7 +314,7 @@ export function TeacherApp() {
     if (!DEMO) auth.idToken = token;
     api.teacherClasses().then(d => {
       try { sessionStorage.setItem(TOKEN_KEY, token); } catch {}
-      const cs = (d.classes || []).slice().sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+      const cs = PUBLIC ? d.classes || [] : (d.classes || []).slice().sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
       setClasses(cs);
       let last = ''; try { last = localStorage.getItem('teacherClass') || ''; } catch {}
       setCode(cs.includes(last) ? last : cs[0] || '');
@@ -289,10 +343,52 @@ export function TeacherApp() {
     if (!code) return;
     try { localStorage.setItem('teacherClass', code); } catch {}
     if (!data[code]) load(code);
+    if (PUBLIC) { setRoster(loadRoster(owner, code)); setDropMsg(null); }
   }, [code]);
 
   const cur = data[code] || {};
-  const rows = useMemo(() => buildRows(cur.students, unlocks, code), [cur.students, unlocks, code]);
+  // Code classrooms: the server has numbers only; names come from this computer's list.
+  const students = useMemo(() => !PUBLIC || !cur.students ? cur.students : cur.students.map(s => {
+    const n = roster?.names?.[s.no];
+    return { ...s, name: n || 'เลขที่ ' + s.no, noName: !n };
+  }), [cur.students, roster]);
+  const rows = useMemo(() => buildRows(students, unlocks, code), [students, unlocks, code]);
+
+  async function reloadClasses(pick) {
+    const d = await api.teacherClasses();
+    setClasses(d.classes || []);
+    setCode(pick && d.classes.includes(pick) ? pick : d.classes[0] || '');
+  }
+  function useFile(file) {
+    if (!file) return;
+    importBackup(file, code, api.label?.(code)).then(r => {
+      if (r.error) { setDropMsg(['err', r.error]); return; }
+      setRoster(saveRoster(owner, code, r.roster));
+      setDropMsg(['ok', `แสดงชื่อนักเรียน ${Object.keys(r.roster.names).length} คนจากไฟล์สำรองแล้ว (เก็บไว้ในเครื่องนี้)`]);
+    });
+  }
+  useEffect(() => {                                  // drop a backup file anywhere on the page
+    if (!PUBLIC || !code) return;
+    const over = e => { if ([...(e.dataTransfer?.types || [])].includes('Files')) { e.preventDefault(); document.body.classList.add('dragging'); } };
+    const leave = e => { if (!e.relatedTarget) document.body.classList.remove('dragging'); };
+    const drop = e => { if (!e.dataTransfer?.files?.length) return; e.preventDefault(); document.body.classList.remove('dragging'); useFile(e.dataTransfer.files[0]); };
+    addEventListener('dragover', over); addEventListener('dragleave', leave); addEventListener('drop', drop);
+    return () => { removeEventListener('dragover', over); removeEventListener('dragleave', leave); removeEventListener('drop', drop); };
+  }, [code, owner]);
+
+  const pub = PUBLIC && {
+    onPrint: nos => { setPrintNos(nos); setView('cards'); },
+    onBackup: () => { downloadBackup(code, api.label(code), rows, roster?.names); if (roster) setRoster(saveRoster(owner, code, { ...roster, backedUp: true })); },
+    onPick: () => fileRef.current?.click(),
+    onChanged: () => { load(code); if (roster) setRoster(saveRoster(owner, code, { ...roster, backedUp: false })); },
+    onAdded: (codes, names) => {
+      const next = { names: { ...(roster?.names || {}), ...names }, mode: roster?.mode || (Object.keys(names).length ? 'list' : 'count'), backedUp: false };
+      setRoster(saveRoster(owner, code, next)); load(code);
+    },
+    onRenamed: () => setClasses(cs => [...cs]),
+    onDeleted: () => { forgetRoster(owner, code); setData(d => { const n = { ...d }; delete n[code]; return n; }); reloadClasses(); },
+    alert: { roster, classId: code, className: api.label?.(code), owner, onRoster: setRoster, onPick: () => fileRef.current?.click() },
+  };
 
   if (!token) return <Login onToken={t => { setLoginErr(''); setToken(t); }} error={loginErr}/>;
   return (
@@ -300,9 +396,17 @@ export function TeacherApp() {
       <div className="top">
         <div className="brand"><img src="assets/ui/logo.png" alt=""/><span>หน้าครู</span></div>
         <div className="spacer"/>
+        {dropMsg && <div className={'alert top-msg ' + dropMsg[0]}><span className="grow">{dropMsg[1]}</span><button className="x" onClick={() => setDropMsg(null)} aria-label="ปิด">✕</button></div>}
         <div className="who"><span>{email}</span><button className="btn ghost sm" onClick={() => signOut('')}>ออกจากระบบ</button></div>
       </div>
+      {PUBLIC && <input ref={fileRef} type="file" accept=".csv,text/csv" hidden onChange={e => { useFile(e.target.files[0]); e.target.value = ''; }}/>}
+      {PUBLIC && <div className="dropveil">📂 ปล่อยไฟล์สำรองตรงนี้</div>}
+      {PUBLIC && view === 'cards' && <CardsView className={api.label(code)} students={rows} names={roster?.names} ticked={printNos} onClose={() => setView('room')}/>}
       {!classes ? <div className="empty">กำลังโหลดรายชื่อห้อง…</div>
+        : PUBLIC && (view === 'create' || !classes.length) ? <CreateRoom api={api} owner={owner} first={!classes.length}
+            onCancel={classes.length ? () => setView('room') : null}
+            onPrint={id => { reloadClasses(id).then(() => { setPrintNos([]); setView('cards'); }); }}
+            onDone={id => { setView('room'); reloadClasses(id); }}/>
         : !classes.length ? <div className="empty">ยังไม่มีห้องเรียน — เพิ่มนักเรียนในแท็บ Roster ของ Google Sheet ก่อน</div>
         : <div className="layout">
             <nav className="card sidebar" aria-label="เลือกห้อง">
@@ -310,13 +414,14 @@ export function TeacherApp() {
               <div className="side-list">{groups(classes).map(([g, cs]) => <React.Fragment key={g}>
                 {g && <h4>{g}</h4>}
                 {cs.map(c => <button key={c} className={c === code ? 'on' : ''} aria-current={c === code ? 'page' : undefined}
-                  onClick={() => setCode(c)}>ห้อง {roomLabel(c)}</button>)}
+                  onClick={() => { setCode(c); setView('room'); }}>{roomName(c)}</button>)}
               </React.Fragment>)}</div>
+              {PUBLIC && <button className="btn sm" onClick={() => setView('create')}>＋ สร้างห้องใหม่</button>}
               <a className="side-link" title="สร้างห้องแข่งให้นักเรียนในหน้าเกม" href="index.html" target="_blank" rel="noopener">🏁 เปิดเกม ↗</a>
             </nav>
             <Room code={code} rows={rows} loading={!!cur.loading} error={cur.error} unlocks={unlocks}
             onReload={() => load(code)} onUnlocks={setUnlocks} tab={tab} setTab={setTab}
-            hw={hw} wk={wk} onHw={d => setHw({ data: d })} onReloadHw={loadHw} onReloadWk={loadWk}/>
+            hw={hw} wk={wk} onHw={d => setHw({ data: d })} onReloadHw={loadHw} onReloadWk={loadWk} pub={pub}/>
           </div>}
     </div>
   );

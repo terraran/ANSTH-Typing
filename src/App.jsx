@@ -15,6 +15,7 @@ import { RUSH_STARS, emptyProgress, readLocalProgress, stepKey, stepState, write
 import { PenaltyScreen, TestTimer, TextDisplay, TextPager, TimeUpOverlay } from './ui/common';
 import { NameModal, StoryChoiceScreen } from './screens/Story';
 import { ClassPickerScreen, GoogleSignInScreen } from './screens/Login';
+import { codeFromUrl } from './screens/CodeEntry';
 import { PX_FONT, PxButton, PxIconButton, Scene, Sprite, TH_FONT, setSceneStage } from './ui/pixel';
 import { MyStatsScreen } from './screens/MyStatsScreen';
 import { LessonScreen } from './screens/LessonScreen';
@@ -95,6 +96,8 @@ export function ThaiTypingApp() {
   const pendingStoryRef = useRef(null);
   // Google Sign-In
   const [googleUser, setGoogleUser]   = useState(null); // { name, email, picture, sub }
+  const [codeUser, setCodeUser]       = useState(null); // public edition: { code, no, className } — signed in with a classroom code
+  const [startCode] = useState(() => backend.lookupCode ? codeFromUrl() : '');   // ?code= from a card's QR
   // Pixel character — saved per Google account (school computers are shared)
   const [character, setCharacter] = useState(()=>window.CharKit?CharKit.loadLocal('guest'):null);
   // Weekly test (one per grade level per week)
@@ -815,16 +818,16 @@ export function ThaiTypingApp() {
 
     // Save on this device first, then to Google Sheets when signed in.
   const saveCharacter = useCallback(async (cfg) => {
-    CharKit.saveLocal(googleUser?.email||'guest', cfg);
+    CharKit.saveLocal(googleUser?.email||(codeUser?'code:'+codeUser.code:'guest'), cfg);
     setCharacter(cfg);
-    if (studentName && backend.enabled && auth.idToken) {
+    if (studentName && backend.enabled && (auth.idToken || codeUser)) {
       try {
         await backend.saveCharacter(classCode, studentName, cfg);
       } catch (err) {
         throw new Error(backend.describeError(err)+' — บันทึกไว้ในเครื่องนี้แล้ว');
       }
     }
-  },[googleUser, studentName, classCode]);
+  },[googleUser, codeUser, studentName, classCode]);
 
   // Curriculum: the step after this one (next step of the lesson, else step 1 of the next lesson)
   // Only offered when that step is open (a failed Rush does not open the step before it).
@@ -1256,7 +1259,7 @@ export function ThaiTypingApp() {
     setClassCode(''); setStudentName(''); setDisplayName('');
     setLesson(null); setExercise(null); setTarget(''); setPos(0);
     setErrors(0); setStartTime(null); setEndTime(null); setSaveStatus('idle');
-    setGoogleUser(null); setWeekly(null); setWeeklyStatus('idle'); setTestBoard(null);
+    setGoogleUser(null); setCodeUser(null); backend.signOut?.(); setWeekly(null); setWeeklyStatus('idle'); setTestBoard(null);
     setCharacter(window.CharKit?CharKit.loadLocal('guest'):null);
     guideInit({who:''});
     setActiveTest(null); testRef.current=null;
@@ -1460,6 +1463,22 @@ export function ThaiTypingApp() {
         auth.subject=profile?.sub||'';
         setGoogleUser(profile);
         setScreen('class-picker');
+      }}
+      initialCode={startCode}
+      onCode={who => {
+        // Classroom code: the student is "เลขที่ N" in the game and in races (no typed names)
+        const name = 'เลขที่ ' + who.no, key = 'code:' + who.code;
+        setCodeUser({ code: who.code, no: who.no, className: who.className || '' });
+        setClassCode(who.classCode);
+        guideInit({ who: key, serverSeen: Array.isArray(who.tipsSeen) ? who.tipsSeen : null,
+          sync: ids => backend.markTipsSeen(who.classCode, name, ids) });
+        if (window.CharKit) {
+          const ch = CharKit.sanitize(who.character) || CharKit.loadLocal(key);
+          setCharacter(ch);
+          if (ch) CharKit.saveLocal(key, ch);
+        }
+        setStudentName(name); setDisplayName(name);
+        setScreen('lessons');
       }}
       onSolo={async() => { auth.idToken=''; auth.subject=''; auth.fbSubject=''; if(typeof firebase!=='undefined'&&firebase.apps.length&&firebase.auth().currentUser&&!firebase.auth().currentUser.isAnonymous)await firebase.auth().signOut().catch(()=>{}); setGoogleUser(null); setStudentName(''); guideInit({who:''}); setScreen('lessons'); }}
     />

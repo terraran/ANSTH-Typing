@@ -13,6 +13,10 @@ export function saveRoster(owner, classId, roster) {
   return roster;
 }
 export function forgetRoster(owner, classId) { try { localStorage.removeItem(key(owner, classId)); } catch {} }
+// Signing out: no names stay behind on a shared computer (they come back from Google Drive next time).
+export function forgetAllRosters(owner) {
+  try { Object.keys(localStorage).filter(k => k.startsWith(`kq.roster.${owner}.`)).forEach(k => localStorage.removeItem(k)); } catch {}
+}
 
 // Names pasted from Excel → ['ด.ช. ...', ...]. One line per student, in เลขที่ order.
 // A copied "เลขที่ <tab> ชื่อ" pair keeps only the name; empty lines are skipped.

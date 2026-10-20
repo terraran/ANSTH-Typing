@@ -4,6 +4,7 @@ import { INK, PX_FONT, PxButton, PxIconButton, PxPanel, Runners, Scene, Sprite, 
 import { auth, parseJwt } from '../auth';
 import { GOOGLE_CLIENT_ID } from '../config';
 import { SoundButton } from '../ui/SoundButton';
+import { CardConfirm, CodeBox, checkCode } from './CodeEntry';
 
 const { useEffect, useRef, useState } = React;
 
@@ -114,8 +115,14 @@ const START_PARTS = [['เ', 1], ['ริ่', 4], ['ม', 5]];
 const LOGO = 'assets/ui/logo.png';
 const LOGO_RATIO = 3.18;
 
-export function GoogleSignInScreen({ onSignIn, onSolo }) {
-  const [stage, setStage] = useState('title');   // title | signin
+// Public edition: students sign in with the code on their teacher's card (backend/public.js).
+const CODES = !!backend.lookupCode;
+
+export function GoogleSignInScreen({ onSignIn, onSolo, onCode, initialCode = '' }) {
+  const [stage, setStage] = useState(initialCode ? 'checking' : 'title');   // title | signin | checking | confirm
+  const [code, setCode] = useState(initialCode);
+  const [codeErr, setCodeErr] = useState('');
+  const [who, setWho] = useState(null);         // the card being confirmed
   const [typed, setTyped] = useState(0);         // letters of เริ่ม typed so far
   const [shake, setShake] = useState(0);
   const [runners, setRunners] = useState(() => {
@@ -216,10 +223,20 @@ export function GoogleSignInScreen({ onSignIn, onSolo }) {
     return () => { stop = true; };
   }, [stage]);
 
+  // Code from the card's QR: look it up straight away, then ask "is this your card?"
+  useEffect(() => { if (initialCode) tryCode(initialCode); }, []);
+  async function tryCode(c) {
+    setStage('checking'); setCodeErr('');
+    const r = await checkCode(c);
+    if (r.who) { setWho(r.who); setStage('confirm'); }
+    else { setCodeErr(r.error); setStage('signin'); }
+  }
+  const notMine = () => { backend.signOut(); setWho(null); setCode(''); setStage('signin'); };
+
   const goSignIn = () => { typedRef.current = START_WORD.length; setTyped(START_WORD.length); setStage('signin'); };
   const back = () => { typedRef.current = 0; swapRef.current = null; setTyped(0); setStage('title'); };
   const outline = { color: '#FFFFFF', textShadow: '3px 3px 0 #1E3A4C, -2px 0 0 #1E3A4C, 2px 0 0 #1E3A4C, 0 -2px 0 #1E3A4C, 0 2px 0 #1E3A4C' };
-  const small = stage === 'signin';
+  const small = stage !== 'title';
 
   return (
     <div style={{ position: 'fixed', inset: 0, overflowY: 'auto', overflowX: 'hidden', fontFamily: TH_FONT, color: INK }}
@@ -276,6 +293,32 @@ export function GoogleSignInScreen({ onSignIn, onSolo }) {
               <span style={{ fontSize: 'clamp(15px, 2.2vh, 20px)', fontWeight: 700, ...outline }}>ทดลองเล่น</span>
             </div>
           </>
+        ) : stage === 'checking' ? (
+          <PxPanel title="กำลังตรวจรหัส…" style={{ width: '100%', maxWidth: 460 }} bodyStyle={{ padding: 20, textAlign: 'center', fontWeight: 700 }}>
+            <span className="spin">⏳</span> รอสักครู่
+          </PxPanel>
+        ) : stage === 'confirm' ? (
+          <PxPanel title="นี่คือการ์ดของคุณใช่ไหม?" style={{ width: '100%', maxWidth: 500 }} bodyStyle={{ padding: '10px 16px 14px' }}>
+            <CardConfirm who={who} onYes={() => onCode(who)} onNo={notMine}/>
+          </PxPanel>
+        ) : CODES ? (
+          <PxPanel title="เข้าด้วยรหัสห้องเรียน" style={{ width: '100%', maxWidth: 500 }}
+            bodyStyle={{ padding: '10px 16px 14px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 'clamp(8px, 1.6vh, 12px)', textAlign: 'center' }}>
+            <div style={{ fontSize: 16, fontWeight: 700, color: '#5A3A22' }}>พิมพ์รหัส 8 ตัวจากการ์ดที่ครูให้</div>
+            <CodeBox value={code} onChange={v => { setCode(v); setCodeErr(''); }} onEnter={() => code.length === 8 && tryCode(code)} error={!!codeErr}/>
+            {codeErr ? <div style={{ color: '#C62828', fontWeight: 700, fontSize: 15 }}>{codeErr}</div>
+              : <div style={{ fontSize: 13, color: '#6A4A30' }}>ตัวเล็กตัวใหญ่ได้หมด · ไม่ต้องพิมพ์ขีด · ในรหัสไม่มีตัว O I S B Z U และเลข 0 1 5</div>}
+            <PxButton style={{ width: '100%' }} disabled={code.length < 8} onClick={() => tryCode(code)}>เข้าเล่น ▶</PxButton>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%', fontSize: 13, color: '#8C6E4E', fontWeight: 700 }}>
+              <span style={{ flex: 1, height: 3, background: '#C9A66B' }}/>หรือเล่นเองด้วยบัญชี Google<span style={{ flex: 1, height: 3, background: '#C9A66B' }}/></div>
+            <div style={{ background: '#FFFFFF', border: '3px solid ' + INK, padding: 4, minHeight: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%' }}>
+              <div id="google-signin-btn"></div>
+            </div>
+            <div style={{ display: 'flex', gap: 12, width: '100%' }}>
+              <PxButton color="blue" style={{ flex: 1, fontSize: 15 }} onClick={onSolo}>ทดลองเล่น (ไม่บันทึก)</PxButton>
+              <PxButton style={{ flex: .6, fontSize: 15 }} onClick={back}>← กลับ</PxButton>
+            </div>
+          </PxPanel>
         ) : (
           <PxPanel title={EDITION.text.pickerTitle} style={{ width: '100%', maxWidth: 460 }}
             bodyStyle={{ padding: '10px 16px 14px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 14, textAlign: 'center' }}>

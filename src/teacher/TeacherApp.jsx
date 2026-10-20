@@ -13,7 +13,7 @@ import { publicApi } from './classroom/publicApi';
 import { CreateRoom } from './classroom/CreateRoom';
 import { CardsView } from './classroom/Cards';
 import { AddStudentsDialog, MoreMenu, NamesDialog, RenameDialog, RosterAlert, importBackup } from './classroom/RoomTools';
-import { downloadBackup, forgetRoster, loadRoster, saveRoster } from './classroom/localRoster';
+import { downloadBackup, forgetAllRosters, forgetRoster, loadRoster, saveRoster } from './classroom/localRoster';
 import { demoDrive, realDrive } from './classroom/driveRoster';
 import { gradeOf, groups, roomLabel } from './rooms';
 import { Modal, StagePick } from './ui';
@@ -314,6 +314,7 @@ export function TeacherApp() {
   const email = DEMO ? 'ตัวอย่าง (ข้อมูลสมมุติ)' : token ? parseJwt(token)?.email : '';
 
   function signOut(err) {
+    if (PUBLIC && owner && !DEMO) forgetAllRosters(owner);     // names leave this computer (Drive keeps them)
     try { sessionStorage.removeItem(TOKEN_KEY); google.accounts.id.disableAutoSelect(); } catch {}
     auth.idToken = ''; setToken(''); setClasses(null); setData({}); setLoginErr(err || '');
   }

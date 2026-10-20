@@ -131,6 +131,52 @@ table.grid.narrow td,table.grid.narrow th{padding-left:5px;padding-right:5px}
 .foot{display:flex;justify-content:space-between;align-items:center;gap:10px;font-size:.8em;padding-top:5px;flex-shrink:0}
 .foot>span:first-child{opacity:.8}
 
+/* tabs under the room name: นักเรียน / การบ้าน / แบบทดสอบ */
+.tabs{display:flex;gap:4px;align-items:flex-end;border-bottom:2px solid var(--ink);flex-shrink:0;margin-bottom:-.4vh}
+.tabs button{border:2px solid var(--ink);border-bottom:0;border-radius:8px 8px 0 0;background:#EFE5CC;padding:3px 14px;font-weight:700;cursor:pointer;margin-bottom:-2px}
+.tabs button.on{background:var(--paper);padding-bottom:5px;box-shadow:0 3px 0 var(--gold) inset}
+.tabs button:focus-visible,.item:focus-visible,.week:focus-visible,.chipbtn:focus-visible,.starpick button:focus-visible{outline:3px solid var(--gold);outline-offset:2px}
+.tabs .cnt{font-family:var(--px);font-size:.6em;background:var(--ink);color:#fff;border-radius:99px;padding:2px 6px;margin-left:5px;vertical-align:middle}
+table.grid.static tbody tr{cursor:default}
+.split{flex:1;min-height:0;display:flex;gap:12px}
+.list{width:min(400px,32vw);flex-shrink:0;display:flex;flex-direction:column;gap:6px;min-height:0;padding:8px 10px}
+.list .scroll,.weeks .scroll{flex:1;min-height:0;overflow:auto;display:flex;flex-direction:column;gap:6px;scrollbar-width:thin;padding:2px}
+.list h4{font-size:.8em;opacity:.7;margin:4px 2px 0}
+.item,.week{border:2px solid #D9C9A3;border-radius:8px;padding:6px 10px;cursor:pointer;background:#FFFDF7;flex-shrink:0}
+.item:hover,.week:hover{border-color:var(--ink)}
+.item.on,.week.on{border-color:var(--ink);background:#FFF3CF;box-shadow:0 2px 0 var(--ink)}
+.item .t{font-weight:700;display:flex;gap:6px;align-items:baseline;flex-wrap:wrap}
+.item .t .who{font-size:.8em;color:#B86E00;font-weight:600}
+.item .m{font-size:.78em;opacity:.75;margin:1px 0 4px}
+.bar{display:flex;align-items:center;gap:8px;font-size:.78em;min-width:260px}
+.bar .track{flex:1;height:8px;background:#E8DCC0;border-radius:99px;overflow:hidden;border:1px solid rgba(59,36,22,.25);min-width:60px}
+.bar .fill{height:100%;background:var(--green)}
+.detail{flex:1;min-width:0;display:flex;flex-direction:column;gap:8px;min-height:0;padding:10px 12px}
+.detail h3{font-size:1.05em;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.detail h3 .hint{font-weight:400}
+.counts{display:flex;gap:6px;flex-wrap:wrap}
+.weeks{width:220px;flex-shrink:0;display:flex;flex-direction:column;gap:6px;padding:8px 10px;min-height:0}
+.week{padding:5px 10px;font-size:.88em}
+.week b{display:block}
+.week .tag{font-size:.75em;font-weight:700;color:#1F6B3D}
+.week.empty{border-style:dashed;opacity:.85}
+.two{flex:1;min-height:0;display:flex;gap:12px}
+.two>div{min-height:0;display:flex;flex-direction:column}
+.notdone{width:min(300px,28%);flex-shrink:0;font-size:.85em;overflow:auto;display:block!important}
+.notdone .room{margin-bottom:6px}
+.notdone .room.me{background:#FFF3CF;border-radius:6px;padding:2px 6px}
+.field{display:flex;flex-direction:column;gap:4px}
+.field>b{font-size:.9em}
+.datechips{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.datechips input{border:2px solid #CDBB94;border-radius:6px;padding:2px 6px;background:#fff}
+.chipbtn{border:2px solid var(--ink);border-radius:99px;background:var(--paper);padding:1px 10px;font-weight:700;font-size:.85em;cursor:pointer}
+.chipbtn.on{background:var(--gold)}
+.starpick{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+.starpick button{border:2px solid var(--ink);border-radius:7px;background:var(--paper);padding:4px 8px;font-weight:700;cursor:pointer;font-size:.85em;text-align:left}
+.starpick button.on{background:var(--gold)}
+.starpick small{display:block;font-weight:400;opacity:.75;font-size:.85em}
+.modal select{border:2px solid #CDBB94;border-radius:6px;padding:3px 6px;background:#fff;font-weight:600;max-width:100%}
+
 /* student panel */
 .side{width:min(360px,26vw);flex-shrink:0;display:flex;flex-direction:column;min-height:0;gap:7px;padding:10px 12px}
 .side h3{display:flex;align-items:center;gap:8px;font-size:1.05em}

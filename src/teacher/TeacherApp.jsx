@@ -6,31 +6,14 @@ import { auth, parseJwt } from '../auth';
 import { EDITION, backend } from '../edition';
 import { STAGES, buildRows, dayText, flagOf, needsCare, LESSON_COUNT, STAR_MAX } from './roster';
 import { StudentPanel } from './StudentPanel';
-import { DEMO, demoClass } from './demo';
+import { HomeworkTab } from './HomeworkTab';
+import { WeeklyTab } from './WeeklyTab';
+import { DEMO, demoApi } from './demo';
+import { gradeOf, groups, roomLabel } from './rooms';
+import { Modal, StagePick } from './ui';
 
 // Demo (localhost only): made-up classes, nothing is sent anywhere.
-const api = DEMO ? {
-  teacherClasses: async () => ({ classes: ['Y503', 'Y505', 'Y601', 'Y603', 'Y604'] }),
-  getUnlocks: async () => ({ unlocks: demoUnlocks }),
-  classData: async c => ({ students: demoClass(c) }),
-  setUnlock: async (classCode, studentName, stage) => {
-    demoUnlocks = demoUnlocks.filter(u => !(u.classCode === classCode && u.studentName === studentName));
-    if (stage) demoUnlocks.push({ classCode, studentName, stage });
-    return { unlocks: demoUnlocks };
-  },
-  resetTips: async () => ({ reset: 32 }),
-} : backend;
-let demoUnlocks = [{ classCode: 'Y603', studentName: '', stage: 3 }];
-
-// Y603 → Y6.3 (how rooms are written at school)
-export const roomLabel = c => { const m = /^Y(\d)(\d{2})$/.exec(c || ''); return m ? `Y${m[1]}.${parseInt(m[2], 10)}` : c; };
-
-// Rooms grouped by grade for the sidebar: Y601, Y602 → "Y6"; codes without a grade go in one unnamed group.
-function groups(classes) {
-  const m = new Map();
-  for (const c of classes) { const g = (/^Y(\d)\d{2}$/.exec(c) || [])[1]; const k = g ? 'Y' + g : ''; m.set(k, [...(m.get(k) || []), c]); }
-  return [...m];
-}
+const api = DEMO ? demoApi() : backend;
 
 const ERRORS = {
   Unauthorized: 'บัญชีนี้ไม่ได้อยู่ในรายชื่อครู (TEACHER_EMAILS)',
@@ -107,32 +90,26 @@ function StageCell({ r }) {
 // 🔓 dialog: pick a stage for the whole class or the students ticked in the table.
 function UnlockDialog({ code, ticked, current, busy, onSave, onClose, onWholeClass }) {
   const [stage, setStage] = useState(current || 1);
-  useEffect(() => { const k = e => e.key === 'Escape' && onClose(); addEventListener('keydown', k); return () => removeEventListener('keydown', k); }, []);
   return (
-    <div className="modal-bg" onClick={onClose}>
-      <div className="card modal" role="dialog" aria-modal="true" aria-label="ปลดล็อกด่าน" onClick={e => e.stopPropagation()}>
-        <h3>🔓 ปลดล็อกด่าน · ห้อง {roomLabel(code)}<button className="x" onClick={onClose} aria-label="ปิด">✕</button></h3>
-        <div className="hint">ปกตินักเรียนต้องผ่านบอสก่อนถึงไปด่านถัดไป — ปลดล็อกเมื่ออยากให้ข้ามไปเรียนด่านที่สอนอยู่ · มีผลเมื่อนักเรียนเข้าเกมครั้งถัดไป</div>
-        <div><b className="sm">ให้</b> <span className="seg">
-          <button className={ticked.length ? '' : 'on'} onClick={onWholeClass}>ทั้งห้อง</button>
-          <button className={ticked.length ? 'on' : ''} disabled={!ticked.length} title="ติ๊กช่องหน้าชื่อในตารางเพื่อเลือก">ที่ติ๊กไว้ในตาราง ({ticked.length})</button>
-        </span>
-        {ticked.length > 0 && ticked.length <= 3 && <span className="hint"> {ticked.map(r => r.name).join(', ')}</span>}</div>
-        <div><b className="sm">เล่นได้ถึง</b>
-          <div className="stagepick">{STAGES.map(s =>
-            <button key={s.id} className={stage === s.id ? 'on' : ''} onClick={() => setStage(s.id)}>ด่าน {s.id}<small>{s.title}</small></button>)}</div></div>
-        <div className="row6">
-          <button className="btn ghost sm" disabled={busy} onClick={() => onSave(0)}>ยกเลิกการปลดล็อก</button>
-          <span className="spacer"/>
-          <button className="btn ghost" onClick={onClose}>ปิด</button>
-          <button className="btn" disabled={busy} onClick={() => onSave(stage)}>{busy ? 'กำลังบันทึก…' : 'บันทึก'}</button>
-        </div>
+    <Modal title={`🔓 ปลดล็อกด่าน · ห้อง ${roomLabel(code)}`} onClose={onClose}>
+      <div className="hint">ปกตินักเรียนต้องผ่านบอสก่อนถึงไปด่านถัดไป — ปลดล็อกเมื่ออยากให้ข้ามไปเรียนด่านที่สอนอยู่ · มีผลเมื่อนักเรียนเข้าเกมครั้งถัดไป</div>
+      <div><b className="sm">ให้</b> <span className="seg">
+        <button className={ticked.length ? '' : 'on'} onClick={onWholeClass}>ทั้งห้อง</button>
+        <button className={ticked.length ? 'on' : ''} disabled={!ticked.length} title="ติ๊กช่องหน้าชื่อในตารางเพื่อเลือก">ที่ติ๊กไว้ในตาราง ({ticked.length})</button>
+      </span>
+      {ticked.length > 0 && ticked.length <= 3 && <span className="hint"> {ticked.map(r => r.name).join(', ')}</span>}</div>
+      <div><b className="sm">เล่นได้ถึง</b><StagePick value={stage} onChange={setStage}/></div>
+      <div className="row6">
+        <button className="btn ghost sm" disabled={busy} onClick={() => onSave(0)}>ยกเลิกการปลดล็อก</button>
+        <span className="spacer"/>
+        <button className="btn ghost" onClick={onClose}>ปิด</button>
+        <button className="btn" disabled={busy} onClick={() => onSave(stage)}>{busy ? 'กำลังบันทึก…' : 'บันทึก'}</button>
       </div>
-    </div>
+    </Modal>
   );
 }
 
-function Room({ code, rows, loading, error, unlocks, onReload, onUnlocks }) {
+function Room({ code, rows, loading, error, unlocks, onReload, onUnlocks, tab, setTab, hw, wk, onHw, onReloadHw, onReloadWk }) {
   const [sort, setSort] = useState({ k: 'no', dir: 1 });
   const [sel, setSel] = useState(null);
   const [tick, setTick] = useState(() => new Set());
@@ -159,6 +136,12 @@ function Room({ code, rows, loading, error, unlocks, onReload, onUnlocks }) {
   const active = rows.filter(r => r.days != null && r.days <= 7).length;
   const withWpm = rows.filter(r => r.wpm != null);
   const avgWpm = withWpm.length ? Math.round(withWpm.reduce((a, r) => a + r.wpm, 0) / withWpm.length) : '—';
+
+  const hwCount = (hw.data?.homework || []).filter(h => h.classCode === code && h.dueDate >= (hw.data.today || '')).length;
+  const grade = gradeOf(code, wk.data?.grades);
+  const tabs = [['st', '👥 นักเรียน'], EDITION.homework && ['hw', '📚 การบ้าน', hwCount],
+    EDITION.weekly && ['wk', '🏆 แบบทดสอบประจำสัปดาห์' + (grade ? ' · ' + grade.grade : '')]].filter(Boolean);
+  const noOf = name => rows.find(r => r.name === name)?.no ?? 999;
 
   const sortBy = k => setSort(s => s.k === k ? { k, dir: -s.dir } : { k, dir: ASC_FIRST.has(k) ? 1 : -1 });
   const toggle = (no, on) => setTick(t => { const n = new Set(t); on ? n.add(no) : n.delete(no); return n; });
@@ -200,14 +183,20 @@ function Room({ code, rows, loading, error, unlocks, onReload, onUnlocks }) {
         <button className="btn ghost" onClick={() => setDlg(true)} title={classUnlock ? `ตอนนี้ทั้งห้องเล่นได้ถึงด่าน ${classUnlock.stage}` : 'ตอนนี้เล่นตามลำดับ'}>
           {classUnlock ? `🔓 ปลดล็อกถึงด่าน ${classUnlock.stage}…` : '🔓 ปลดล็อกด่าน…'}</button>
         <button className="btn ghost" onClick={doTips} disabled={!!busy}>💡 ให้ดูคำแนะนำใหม่</button>
-        {(EDITION.homework || EDITION.weekly) && <a className="btn ghost" href="teacher.html" title="การบ้านและแบบทดสอบประจำสัปดาห์ยังอยู่ที่หน้าครูเดิม">📚 การบ้าน / แบบทดสอบ ↗</a>}
-        <button className="btn ghost" onClick={onReload} disabled={loading} title="โหลดข้อมูลใหม่" aria-label="โหลดข้อมูลใหม่">↻</button>
+        <button className="btn ghost" onClick={() => { onReload(); if (tab === 'hw') onReloadHw(); if (tab === 'wk') onReloadWk(); }}
+          disabled={loading} title="โหลดข้อมูลใหม่" aria-label="โหลดข้อมูลใหม่">↻</button>
       </div>
+
+      {tabs.length > 1 && <div className="tabs" role="tablist">{tabs.map(([k, t, n]) =>
+        <button key={k} role="tab" aria-selected={tab === k} className={tab === k ? 'on' : ''} onClick={() => setTab(k)}>
+          {t}{n > 0 && <span className="cnt">{n}</span>}</button>)}</div>}
 
       {msg && <div className={'alert ' + msg[0]}><span className="grow">{msg[1]}</span><button className="x" onClick={() => setMsg(null)} aria-label="ปิด">✕</button></div>}
       {error && <div className="alert err"><span className="grow">โหลดข้อมูลไม่ได้: {error}</span><button className="btn sm" onClick={onReload}>ลองใหม่</button></div>}
 
-      <div className="tablewrap">
+      {tab === 'hw' && <HomeworkTab code={code} data={hw.data} error={hw.error} api={api} onData={onHw} onReload={onReloadHw} noOf={noOf}/>}
+      {tab === 'wk' && <WeeklyTab code={code} data={wk.data} error={wk.error} api={api} onReload={onReloadWk}/>}
+      {tab === 'st' && <div className="tablewrap">
         <div className="card tbox">
           <div className="tscroll">
             <table className={'grid' + (selRow && narrow ? ' narrow' : '')}>
@@ -240,7 +229,7 @@ function Room({ code, rows, loading, error, unlocks, onReload, onUnlocks }) {
           </div>
         </div>
         {selRow && <StudentPanel r={selRow} onClose={() => setSel(null)} onUnlock={() => { setTick(new Set([selRow.no])); setDlg(true); }}/>}
-      </div>
+      </div>}
       {dlg && <UnlockDialog code={code} ticked={ticked} busy={busy === 'unlock'}
         current={ticked.length === 1 && ticked[0].unlockOwn ? ticked[0].unlock : classUnlock ? Number(classUnlock.stage) : 1}
         onSave={doUnlock} onClose={() => setDlg(false)} onWholeClass={() => setTick(new Set())}/>}
@@ -255,6 +244,9 @@ export function TeacherApp() {
   const [code, setCode] = useState('');
   const [data, setData] = useState({});          // code → { students, error, loading }
   const [unlocks, setUnlocks] = useState([]);
+  const [tab, setTab] = useState('st');
+  const [hw, setHw] = useState({});              // { data, error } — homework of every room (one call)
+  const [wk, setWk] = useState({});              // { data, error } — weekly tests of every grade
   const email = DEMO ? 'ตัวอย่าง (ข้อมูลสมมุติ)' : token ? parseJwt(token)?.email : '';
 
   function signOut(err) {
@@ -274,7 +266,17 @@ export function TeacherApp() {
       setCode(cs.includes(last) ? last : cs[0] || '');
     }).catch(e => signOut(errText(e)));
     api.getUnlocks().then(d => setUnlocks(d.unlocks || [])).catch(() => {});
+    loadHw(); loadWk();
   }, [token]);
+
+  function loadHw() {
+    if (!EDITION.homework) return;
+    api.homeworkList().then(d => setHw({ data: d })).catch(e => { if (!expired(e)) setHw(h => ({ ...h, error: errText(e) })); });
+  }
+  function loadWk() {
+    if (!EDITION.weekly) return;
+    api.weeklyTests().then(d => setWk({ data: d })).catch(e => { if (!expired(e)) setWk(w => ({ ...w, error: errText(e) })); });
+  }
 
   function load(c) {
     if (!c) return;
@@ -313,7 +315,8 @@ export function TeacherApp() {
               <a className="side-link" title="สร้างห้องแข่งให้นักเรียนในหน้าเกม" href="index.html" target="_blank" rel="noopener">🏁 เปิดเกม ↗</a>
             </nav>
             <Room code={code} rows={rows} loading={!!cur.loading} error={cur.error} unlocks={unlocks}
-            onReload={() => load(code)} onUnlocks={setUnlocks}/>
+            onReload={() => load(code)} onUnlocks={setUnlocks} tab={tab} setTab={setTab}
+            hw={hw} wk={wk} onHw={d => setHw({ data: d })} onReloadHw={loadHw} onReloadWk={loadWk}/>
           </div>}
     </div>
   );

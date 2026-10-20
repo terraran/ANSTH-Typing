@@ -31,15 +31,15 @@
   const SKIRT = { navy: [[16, 22, 54], [26, 36, 84], [48, 64, 128]], black: [[12, 12, 16], [22, 22, 28], [50, 50, 60]], red: [[104, 14, 24], [150, 26, 36], [222, 56, 62]] };
   const TIE = { navy: [[22, 30, 72], [60, 80, 150]], red: [[150, 20, 30], [236, 70, 72]] };
   const GOV_BODIES = [
-    { id: 'gov_boy_brown',      name: 'รัฐบาล กางเกงน้ำตาล', sheet: 'polo_blue', gov: 'boy', bottom: PANTS.brown, belt: true, swatch: '#76532f', socks: 'brown', shoes: 'brown' },
-    { id: 'gov_boy_black',      name: 'รัฐบาล กางเกงดำ',     sheet: 'polo_blue', gov: 'boy', bottom: PANTS.black, belt: true, swatch: '#26262c', socks: 'white', shoes: 'black' },
-    { id: 'gov_boy_navy',       name: 'รัฐบาล กางเกงน้ำเงิน', sheet: 'polo_blue', gov: 'boy', bottom: PANTS.navy,  belt: true, swatch: '#283a76', socks: 'white', shoes: 'black' },
-    { id: 'gov_girl_bow_navy',  name: 'รัฐบาล โบว์ กระโปรงน้ำเงิน',    sheet: 'girl', gov: 'girl', bottom: SKIRT.navy,  tie: TIE.navy, shape: 'bow',   swatch: '#1e2a66', socks: 'white', shoes: 'black' },
-    { id: 'gov_girl_tie_red',   name: 'รัฐบาล เนกไท กระโปรงแดง',      sheet: 'girl', gov: 'girl', bottom: SKIRT.red,   tie: TIE.red,  shape: 'cross', swatch: '#b8232f', socks: 'white', shoes: 'black' },
-    { id: 'gov_girl_bow_black', name: 'รัฐบาล โบว์ กระโปรงดำ',        sheet: 'girl', gov: 'girl', bottom: SKIRT.black, tie: TIE.navy, shape: 'bow',   swatch: '#1c1c22', socks: 'white', shoes: 'black' },
-    { id: 'gov_girl_navy',      name: 'รัฐบาล คอเชิ้ต กระโปรงน้ำเงิน', sheet: 'girl', gov: 'girl', bottom: SKIRT.navy,  belt: true, swatch: '#1e2a66', socks: 'white', shoes: 'black' },
-    { id: 'gov_girl_red',       name: 'รัฐบาล คอเชิ้ต กระโปรงแดง',    sheet: 'girl', gov: 'girl', bottom: SKIRT.red,   belt: true, swatch: '#b8232f', socks: 'white', shoes: 'black' },
-    { id: 'gov_girl_black',     name: 'รัฐบาล คอเชิ้ต กระโปรงดำ',     sheet: 'girl', gov: 'girl', bottom: SKIRT.black, belt: true, swatch: '#1c1c22', socks: 'white', shoes: 'black' },
+    { id: 'gov_boy_brown',      name: 'กางเกงน้ำตาล', sheet: 'polo_blue', gov: 'boy', bottom: PANTS.brown, belt: true, swatch: '#76532f', socks: 'brown', shoes: 'brown' },
+    { id: 'gov_boy_black',      name: 'กางเกงดำ',     sheet: 'polo_blue', gov: 'boy', bottom: PANTS.black, belt: true, swatch: '#26262c', socks: 'white', shoes: 'black' },
+    { id: 'gov_boy_navy',       name: 'กางเกงน้ำเงิน', sheet: 'polo_blue', gov: 'boy', bottom: PANTS.navy,  belt: true, swatch: '#283a76', socks: 'white', shoes: 'black' },
+    { id: 'gov_girl_bow_navy',  name: 'กระโปรงน้ำเงิน โบว์',    sheet: 'girl', gov: 'girl', bottom: SKIRT.navy,  tie: TIE.navy, shape: 'bow',   swatch: '#1e2a66', socks: 'white', shoes: 'black' },
+    { id: 'gov_girl_tie_red',   name: 'กระโปรงแดง เนกไท',      sheet: 'girl', gov: 'girl', bottom: SKIRT.red,   tie: TIE.red,  shape: 'cross', swatch: '#b8232f', socks: 'white', shoes: 'black' },
+    { id: 'gov_girl_bow_black', name: 'กระโปรงดำ โบว์',        sheet: 'girl', gov: 'girl', bottom: SKIRT.black, tie: TIE.navy, shape: 'bow',   swatch: '#1c1c22', socks: 'white', shoes: 'black' },
+    { id: 'gov_girl_navy',      name: 'กระโปรงน้ำเงิน', sheet: 'girl', gov: 'girl', bottom: SKIRT.navy,  belt: true, swatch: '#1e2a66', socks: 'white', shoes: 'black' },
+    { id: 'gov_girl_red',       name: 'กระโปรงแดง',    sheet: 'girl', gov: 'girl', bottom: SKIRT.red,   belt: true, swatch: '#b8232f', socks: 'white', shoes: 'black' },
+    { id: 'gov_girl_black',     name: 'กระโปรงดำ',     sheet: 'girl', gov: 'girl', bottom: SKIRT.black, belt: true, swatch: '#1c1c22', socks: 'white', shoes: 'black' },
   ];
   // The school edition shows its own uniforms + polos; the public edition swaps the school uniforms for the
   // government ones (useOutfits). sanitize() only accepts the edition's own list.

@@ -1,0 +1,68 @@
+rules_version = '2';
+// Firestore rules for the public edition (keyboard-quest-th). Used by src/backend/public.js.
+// Publish: Firebase console → Firestore Database → Rules → paste this file → Publish.
+//
+//   users/{uid}    a Google-account player; only that account can read/write it
+//   codes/{code}   a classroom student; the code is the key: anyone signed in (anonymous is enough)
+//                  can open ONE code they know, nobody can list codes except the teacher who owns them.
+//                  No names are ever stored.
+//   classes/{id}   a teacher's room (name, unlock stage)
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() { return request.auth != null; }
+    function google() { return signedIn() && request.auth.token.firebase.sign_in_provider == 'google.com'; }
+    // Fields a player writes while playing (same set for users and codes)
+    function playKeys() { return ['character', 'tipsSeen', 'progress', 'highScores', 'sessions', 'matches', 'updatedAt']; }
+    function playOk(d) {
+      return (!('tipsSeen' in d) || (d.tipsSeen is list && d.tipsSeen.size() <= 200))
+          && (!('sessions' in d) || (d.sessions is list && d.sessions.size() <= 50))
+          && (!('matches' in d) || (d.matches is list && d.matches.size() <= 50))
+          && (!('progress' in d) || d.progress is map)
+          && (!('highScores' in d) || d.highScores is map)
+          && (!('character' in d) || d.character == null || d.character is map);
+    }
+    function onlyChanged(keys) { return request.resource.data.diff(resource.data).affectedKeys().hasOnly(keys); }
+
+    match /users/{uid} {
+      allow get: if signedIn() && request.auth.uid == uid;
+      allow create: if google() && request.auth.uid == uid
+        && request.resource.data.keys().hasOnly(playKeys().concat(['createdAt'])) && playOk(request.resource.data);
+      allow update: if google() && request.auth.uid == uid && onlyChanged(playKeys()) && playOk(request.resource.data);
+      allow delete: if google() && request.auth.uid == uid;       // "ลบบัญชี"
+    }
+
+    match /classes/{classId} {
+      // Students read their room's name + unlock stage; teachers list only their own rooms.
+      allow get: if signedIn();
+      allow list: if google() && resource.data.ownerUid == request.auth.uid;
+      allow create: if google() && request.resource.data.ownerUid == request.auth.uid
+        && request.resource.data.keys().hasOnly(['ownerUid', 'name', 'count', 'teacherStage', 'createdAt'])
+        && request.resource.data.name is string && request.resource.data.name.size() <= 60
+        && request.resource.data.count is int && request.resource.data.count >= 0 && request.resource.data.count <= 100;
+      allow update: if google() && resource.data.ownerUid == request.auth.uid
+        && onlyChanged(['name', 'count', 'teacherStage'])
+        && request.resource.data.name.size() <= 60 && request.resource.data.count <= 100
+        && request.resource.data.teacherStage is int && request.resource.data.teacherStage >= 0 && request.resource.data.teacherStage <= 9;
+      allow delete: if google() && resource.data.ownerUid == request.auth.uid;
+    }
+
+    match /codes/{code} {
+      function owner() { return google() && resource.data.ownerUid == request.auth.uid; }
+      // Knowing the code = access to that one student. Listing is only for the owning teacher.
+      allow get: if signedIn();
+      allow list: if google() && resource.data.ownerUid == request.auth.uid;
+      // The teacher makes codes in their own rooms (code: 8 characters, no look-alikes).
+      allow create: if google() && code.matches('^[ACDEFGHJKLMNPQRTVWXY2346789]{8}$')
+        && request.resource.data.ownerUid == request.auth.uid
+        && get(/databases/$(database)/documents/classes/$(request.resource.data.classId)).data.ownerUid == request.auth.uid
+        && request.resource.data.keys().hasOnly(playKeys().concat(['ownerUid', 'classId', 'no', 'active', 'teacherStage', 'createdAt']))
+        && request.resource.data.no is int && request.resource.data.active == true && playOk(request.resource.data);
+      // The student saves play data only; the teacher can unlock stages, reset tips, switch a code off.
+      allow update: if (signedIn() && resource.data.active == true && onlyChanged(playKeys()) && playOk(request.resource.data))
+        || (owner() && onlyChanged(['teacherStage', 'tipsSeen', 'active', 'updatedAt'])
+            && request.resource.data.teacherStage is int && request.resource.data.teacherStage >= 0 && request.resource.data.teacherStage <= 9);
+      allow delete: if owner();
+    }
+  }
+}

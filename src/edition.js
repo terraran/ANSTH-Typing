@@ -3,6 +3,7 @@
 // Anything the two editions do differently lives here: wording, feature switches, the backend.
 import overrides from '../edition.json';
 import * as schoolBackend from './backend/school';
+import * as publicBackend from './backend/public';
 
 const SCHOOL = {
   id: 'school',
@@ -21,5 +22,6 @@ const SCHOOL = {
 
 export const EDITION = { ...SCHOOL, ...overrides, text: { ...SCHOOL.text, ...(overrides.text || {}) } };
 
-// One set of calls the screens use for saving/loading, whichever backend is behind it.
-export const backend = schoolBackend;
+// One set of calls the screens use for saving/loading, whichever backend is behind it:
+// edition.json "backend": "public" → Firebase (backend/public.js), otherwise Apps Script (backend/school.js).
+export const backend = overrides.backend === 'public' ? publicBackend : schoolBackend;

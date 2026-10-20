@@ -9,7 +9,7 @@ import { convertCurriculum, lessonIndexJs } from './curriculum.mjs';
 
 const OUT = 'dist';
 const SKIP = new Set([OUT, 'src', 'scripts', 'data', 'node_modules', '.github', '.git',
-  'package.json', 'package-lock.json', 'README.md', 'edition.json']);   // edition.json is read by the bundle (src/edition.js)
+  'package.json', 'package-lock.json', 'README.md', 'edition.json', 'firestore.rules']);   // edition.json is read by the bundle (src/edition.js)
 // Files this edition leaves off the site (edition.json "skip", e.g. teacher.html in the public edition).
 // They stay in the repo so merges from the school repo never hit a deleted file.
 const edition = JSON.parse(fs.readFileSync('edition.json', 'utf8'));

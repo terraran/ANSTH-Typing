@@ -36,6 +36,33 @@ export function AddStudentsDialog({ api, classId, nextNo, onAdded, onClose }) {
   );
 }
 
+// Type or paste the whole list (1 line = 1 เลขที่). Lines past the last student are ignored;
+// an empty line leaves that number without a name.
+export function NamesDialog({ students, names, onSave, onClose }) {
+  const max = Math.max(0, ...students.map(s => s.no));
+  const [text, setText] = useState(() => Array.from({ length: max }, (_, i) => names?.[i + 1] || '').join('\n').replace(/\n+$/, ''));
+  const lines = text.split(/\r?\n/).map(l => { const c = l.split('\t').map(x => x.trim()).filter(Boolean); if (c.length > 1 && /^\d+\.?$/.test(c[0])) c.shift(); return c.join(' ').trim(); });
+  const filled = lines.slice(0, max).filter(Boolean).length, extra = Math.max(0, lines.filter(Boolean).length - max);
+  function save() {
+    const map = {};
+    lines.slice(0, max).forEach((n, i) => { if (n) map[i + 1] = n; });
+    onSave(map);
+  }
+  return (
+    <Modal wide title="✏️ ใส่/แก้รายชื่อนักเรียน" onClose={onClose}>
+      <div className="hint">วางชื่อจาก Excel หรือพิมพ์เอง — บรรทัดที่ 1 = เลขที่ 1, บรรทัดที่ 2 = เลขที่ 2 … (ห้องนี้มี {max} คน)</div>
+      <div className="paste names-edit">
+        <textarea value={text} onChange={e => setText(e.target.value)} autoFocus aria-label="รายชื่อนักเรียน"/>
+        <div className="preview well"><b>ตัวอย่าง</b>{Array.from({ length: max }, (_, i) =>
+          <div key={i} style={lines[i] ? null : { opacity: .45 }}><span className="num">{i + 1}</span><span>{lines[i] || '(ไม่มีชื่อ)'}</span></div>)}</div>
+      </div>
+      <div className="hint">🔒 ชื่อเก็บในเครื่องนี้และใน Google Drive ของคุณเท่านั้น · ใส่แล้ว {filled}/{max} คน{extra > 0 && <b style={{ color: 'var(--red)' }}> · เกิน {extra} บรรทัด (ไม่ใช้) — เพิ่มนักเรียนด้วยปุ่ม "＋ นักเรียน"</b>}</div>
+      <div className="row6"><span className="spacer"/><button className="btn ghost" onClick={onClose}>ปิด</button>
+        <button className="btn" onClick={save}>บันทึกรายชื่อ</button></div>
+    </Modal>
+  );
+}
+
 export function RenameDialog({ name, onSave, onClose }) {
   const [v, setV] = useState(name);
   return (

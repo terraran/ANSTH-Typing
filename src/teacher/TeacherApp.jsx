@@ -12,7 +12,7 @@ import { DEMO, demoApi, demoPublicRaw } from './demo';
 import { publicApi } from './classroom/publicApi';
 import { CreateRoom } from './classroom/CreateRoom';
 import { CardsView } from './classroom/Cards';
-import { AddStudentsDialog, MoreMenu, RenameDialog, RosterAlert, importBackup } from './classroom/RoomTools';
+import { AddStudentsDialog, MoreMenu, NamesDialog, RenameDialog, RosterAlert, importBackup } from './classroom/RoomTools';
 import { downloadBackup, forgetRoster, loadRoster, saveRoster } from './classroom/localRoster';
 import { demoDrive, realDrive } from './classroom/driveRoster';
 import { gradeOf, groups, roomLabel } from './rooms';
@@ -130,7 +130,7 @@ function Room({ code, rows, loading, error, unlocks, onReload, onUnlocks, tab, s
   const [msg, setMsg] = useState(null);
   const [narrow, setNarrow] = useState(innerWidth < 1700);
   useEffect(() => { const f = () => setNarrow(innerWidth < 1700); addEventListener('resize', f); return () => removeEventListener('resize', f); }, []);
-  const [pdlg, setPdlg] = useState(null);            // public edition dialogs: 'add' | 'rename'
+  const [pdlg, setPdlg] = useState(null);            // public edition dialogs: 'add' | 'names' | 'rename'
   useEffect(() => { setSel(null); setTick(new Set()); setFilt(0); setMsg(null); setDlg(false); setPdlg(null); }, [code]);
 
   const classUnlock = (unlocks || []).find(u => u.classCode === code && !u.studentName);
@@ -222,6 +222,7 @@ function Room({ code, rows, loading, error, unlocks, onReload, onUnlocks, tab, s
           <button className="btn ghost" onClick={pub.onSaveDrive} disabled={pub.busy} title="บันทึกรายชื่อลง Google Drive ของคุณ (เซิร์ฟเวอร์ของเกมไม่เห็นชื่อ)">☁️ Drive</button>
           <MoreMenu items={[
             [`🔁 ออกรหัสใหม่ให้คนที่ติ๊ก (${ticked.length})`, () => reissue(ticked), !ticked.length || !!busy],
+            ['✏️ ใส่/แก้รายชื่อนักเรียน', () => setPdlg('names')],
             ['💡 ให้ดูคำแนะนำใหม่', doTips, !!busy],
             ['⬇️ ดาวน์โหลดรายชื่อ (.csv)', pub.onBackup],
             ['☁️ ดึงรายชื่อจาก Drive อีกครั้ง', pub.onPullDrive],
@@ -286,6 +287,8 @@ function Room({ code, rows, loading, error, unlocks, onReload, onUnlocks, tab, s
         onAdded={(codes, names) => { setPdlg(null); pub.onAdded(codes, names); setTick(new Set(codes.map(c => c.no)));
           setMsg(['ok', `เพิ่มนักเรียน ${codes.length} คนแล้ว — ติ๊กไว้ให้แล้ว กด 🖨️ พิมพ์การ์ด เพื่อพิมพ์เฉพาะคนใหม่`]); }}/>}
       {pdlg === 'rename' && <RenameDialog name={api.label(code)} onSave={rename} onClose={() => setPdlg(null)}/>}
+      {pdlg === 'names' && <NamesDialog students={rows} names={pub.names} onClose={() => setPdlg(null)}
+        onSave={names => { setPdlg(null); pub.onNames(names); }}/>}
     </section>
   );
 }
@@ -384,7 +387,9 @@ export function TeacherApp() {
   }, [code, owner]);
 
   // ── Google Drive (the teacher's own) ──
-  async function saveDrive() {
+  const rosterNow = roster;
+  async function saveDrive(given) {
+    const roster = given || rosterNow;
     if (!roster || roster.mode !== 'list') { setDropMsg(['ok', 'ห้องนี้ไม่มีรายชื่อ — ไม่ต้องบันทึก']); return; }
     setDriveBusy(true);
     try {
@@ -416,7 +421,13 @@ export function TeacherApp() {
 
   const pub = PUBLIC && {
     busy: driveBusy,
-    onSaveDrive: saveDrive,
+    names: roster?.names,
+    onSaveDrive: () => saveDrive(),
+    onNames: names => {                          // from the ✏️ dialog: keep here, then put in Drive (this click may open Google's popup)
+      const next = saveRoster(owner, code, { names, mode: Object.keys(names).length ? 'list' : 'count', backedUp: false, drive: !!roster?.drive });
+      setRoster(next);
+      if (next.mode === 'list') saveDrive(next);
+    },
     onPullDrive: () => pullDrive(false),
     onPrint: nos => { setPrintNos(nos); setView('cards'); },
     onBackup: () => { downloadBackup(code, api.label(code), rows, roster?.names); if (roster) setRoster(saveRoster(owner, code, { ...roster, backedUp: true })); },
@@ -453,12 +464,12 @@ export function TeacherApp() {
         : <div className="layout">
             <nav className="card sidebar" aria-label="เลือกห้อง">
               <b className="side-title">ห้องของฉัน</b>
+              {PUBLIC && <button className="btn sm new-room" onClick={() => setView('create')}>＋ สร้างห้องใหม่</button>}
               <div className="side-list">{groups(classes).map(([g, cs]) => <React.Fragment key={g}>
                 {g && <h4>{g}</h4>}
                 {cs.map(c => <button key={c} className={c === code ? 'on' : ''} aria-current={c === code ? 'page' : undefined}
                   onClick={() => { setCode(c); setView('room'); }}>{roomName(c)}</button>)}
               </React.Fragment>)}</div>
-              {PUBLIC && <button className="btn sm" onClick={() => setView('create')}>＋ สร้างห้องใหม่</button>}
               <a className="side-link" title="สร้างห้องแข่งให้นักเรียนในหน้าเกม" href="index.html" target="_blank" rel="noopener">🏁 เปิดเกม ↗</a>
             </nav>
             <Room code={code} rows={rows} loading={!!cur.loading} error={cur.error} unlocks={unlocks}

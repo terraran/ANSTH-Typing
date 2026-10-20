@@ -14,6 +14,7 @@ import { CreateRoom } from './classroom/CreateRoom';
 import { CardsView } from './classroom/Cards';
 import { AddStudentsDialog, MoreMenu, RenameDialog, RosterAlert, importBackup } from './classroom/RoomTools';
 import { downloadBackup, forgetRoster, loadRoster, saveRoster } from './classroom/localRoster';
+import { demoDrive, realDrive } from './classroom/driveRoster';
 import { gradeOf, groups, roomLabel } from './rooms';
 import { Modal, StagePick } from './ui';
 
@@ -22,6 +23,8 @@ const PUBLIC = EDITION.backend === 'public';
 // Demo (localhost only): made-up classes, nothing is sent anywhere.
 const api = PUBLIC ? publicApi(DEMO ? demoPublicRaw() : backend) : DEMO ? demoApi() : backend;
 const roomName = c => api.label ? api.label(c) : 'ห้อง ' + roomLabel(c);
+// Code classrooms keep names in the teacher's own Google Drive (pretend Drive in the demo).
+const drive = PUBLIC ? (DEMO ? demoDrive() : realDrive) : null;
 
 const ERRORS = {
   Unauthorized: 'บัญชีนี้ไม่ได้อยู่ในรายชื่อครู (TEACHER_EMAILS)',
@@ -216,10 +219,12 @@ function Room({ code, rows, loading, error, unlocks, onReload, onUnlocks, tab, s
         {pub ? <>
           <button className="btn ghost" onClick={() => setPdlg('add')}>＋ นักเรียน</button>
           <button className="btn ghost" onClick={() => pub.onPrint(ticked.map(r => r.no))}>🖨️ พิมพ์การ์ด</button>
-          <button className="btn ghost" onClick={pub.onBackup} title="ไฟล์ .csv ที่มีชื่อ เลขที่ และรหัส — ใช้เปิดชื่อในเครื่องอื่น">💾 สำรอง</button>
+          <button className="btn ghost" onClick={pub.onSaveDrive} disabled={pub.busy} title="บันทึกรายชื่อลง Google Drive ของคุณ (เซิร์ฟเวอร์ของเกมไม่เห็นชื่อ)">☁️ Drive</button>
           <MoreMenu items={[
             [`🔁 ออกรหัสใหม่ให้คนที่ติ๊ก (${ticked.length})`, () => reissue(ticked), !ticked.length || !!busy],
             ['💡 ให้ดูคำแนะนำใหม่', doTips, !!busy],
+            ['⬇️ ดาวน์โหลดรายชื่อ (.csv)', pub.onBackup],
+            ['☁️ ดึงรายชื่อจาก Drive อีกครั้ง', pub.onPullDrive],
             ['📂 เปิดไฟล์สำรองรายชื่อ…', pub.onPick],
             ['✏️ เปลี่ยนชื่อห้อง', () => setPdlg('rename')],
             ['🗑️ ลบห้องนี้', remove],
@@ -299,8 +304,10 @@ export function TeacherApp() {
   const [printNos, setPrintNos] = useState([]);
   const [roster, setRoster] = useState(null);    // public edition: names of the open room (this computer only)
   const [dropMsg, setDropMsg] = useState(null);
+  const [driveBusy, setDriveBusy] = useState(false);
   const fileRef = useRef(null);
   const owner = DEMO ? 'demo' : token ? parseJwt(token)?.sub || '' : '';
+  const hint = DEMO ? '' : token ? parseJwt(token)?.email || '' : '';
   const email = DEMO ? 'ตัวอย่าง (ข้อมูลสมมุติ)' : token ? parseJwt(token)?.email : '';
 
   function signOut(err) {
@@ -376,18 +383,53 @@ export function TeacherApp() {
     return () => { removeEventListener('dragover', over); removeEventListener('dragleave', leave); removeEventListener('drop', drop); };
   }, [code, owner]);
 
+  // ── Google Drive (the teacher's own) ──
+  async function saveDrive() {
+    if (!roster || roster.mode !== 'list') { setDropMsg(['ok', 'ห้องนี้ไม่มีรายชื่อ — ไม่ต้องบันทึก']); return; }
+    setDriveBusy(true);
+    try {
+      await drive.connectDrive(hint);
+      await drive.saveToDrive(code, api.label(code), cur.students || [], roster.names);
+      setRoster(saveRoster(owner, code, { ...roster, backedUp: true, drive: true }));
+      setDropMsg(['ok', 'บันทึกรายชื่อลง Google Drive แล้ว']);
+    } catch (e) { setDropMsg(['err', drive.describeDriveError(e)]); }
+    setDriveBusy(false);
+  }
+  async function pullDrive(quiet) {
+    setDriveBusy(true);
+    try {
+      await drive.connectDrive(hint);
+      const all = await drive.loadAllFromDrive(); let found = 0;
+      for (const [id, names] of Object.entries(all)) if (classes?.includes(id)) { saveRoster(owner, id, { names, mode: 'list', backedUp: true, drive: true }); found++; }
+      const mine = all[code];
+      if (mine) setRoster(loadRoster(owner, code));
+      if (!quiet) setDropMsg(mine ? ['ok', `ดึงรายชื่อจาก Google Drive แล้ว (${found} ห้อง)`] : ['err', 'ไม่พบรายชื่อของห้องนี้ใน Google Drive ของบัญชีนี้ — ห้องนี้อาจใส่แค่จำนวน หรือบันทึกไว้ในบัญชีอื่น']);
+    } catch (e) { if (!quiet) setDropMsg(['err', drive.describeDriveError(e)]); }
+    setDriveBusy(false);
+  }
+  // Already connected to Drive in this tab: fill a room with no names, and save changed lists, by themselves.
+  useEffect(() => {
+    if (!PUBLIC || !code || !cur.students || cur.loading || !drive.driveReady() || driveBusy) return;
+    if (!roster) { pullDrive(true); return; }
+    if (roster.mode === 'list' && roster.drive && !roster.backedUp) saveDrive();
+  }, [code, cur.students, cur.loading, roster]);
+
   const pub = PUBLIC && {
+    busy: driveBusy,
+    onSaveDrive: saveDrive,
+    onPullDrive: () => pullDrive(false),
     onPrint: nos => { setPrintNos(nos); setView('cards'); },
     onBackup: () => { downloadBackup(code, api.label(code), rows, roster?.names); if (roster) setRoster(saveRoster(owner, code, { ...roster, backedUp: true })); },
     onPick: () => fileRef.current?.click(),
     onChanged: () => { load(code); if (roster) setRoster(saveRoster(owner, code, { ...roster, backedUp: false })); },
     onAdded: (codes, names) => {
-      const next = { names: { ...(roster?.names || {}), ...names }, mode: roster?.mode || (Object.keys(names).length ? 'list' : 'count'), backedUp: false };
+      const next = { names: { ...(roster?.names || {}), ...names }, mode: roster?.mode || (Object.keys(names).length ? 'list' : 'count'), backedUp: false, drive: !!roster?.drive };
       setRoster(saveRoster(owner, code, next)); load(code);
     },
-    onRenamed: () => setClasses(cs => [...cs]),
-    onDeleted: () => { forgetRoster(owner, code); setData(d => { const n = { ...d }; delete n[code]; return n; }); reloadClasses(); },
-    alert: { roster, classId: code, className: api.label?.(code), owner, onRoster: setRoster, onPick: () => fileRef.current?.click() },
+    onRenamed: () => { setClasses(cs => [...cs]); if (roster?.mode === 'list') setRoster(saveRoster(owner, code, { ...roster, backedUp: false })); },
+    onDeleted: () => { forgetRoster(owner, code); if (drive.driveReady()) drive.deleteFromDrive(code); setData(d => { const n = { ...d }; delete n[code]; return n; }); reloadClasses(); },
+    alert: { roster, classId: code, className: api.label?.(code), owner, onRoster: setRoster, onPick: () => fileRef.current?.click(),
+      onSaveDrive: saveDrive, onPullDrive: () => pullDrive(false), busy: driveBusy },
   };
 
   if (!token) return <Login onToken={t => { setLoginErr(''); setToken(t); }} error={loginErr}/>;
@@ -403,7 +445,7 @@ export function TeacherApp() {
       {PUBLIC && <div className="dropveil">📂 ปล่อยไฟล์สำรองตรงนี้</div>}
       {PUBLIC && view === 'cards' && <CardsView className={api.label(code)} students={rows} names={roster?.names} ticked={printNos} onClose={() => setView('room')}/>}
       {!classes ? <div className="empty">กำลังโหลดรายชื่อห้อง…</div>
-        : PUBLIC && (view === 'create' || !classes.length) ? <CreateRoom api={api} owner={owner} first={!classes.length}
+        : PUBLIC && (view === 'create' || !classes.length) ? <CreateRoom api={api} owner={owner} drive={drive} hint={hint} first={!classes.length}
             onCancel={classes.length ? () => setView('room') : null}
             onPrint={id => { reloadClasses(id).then(() => { setPrintNos([]); setView('cards'); }); }}
             onDone={id => { setView('room'); reloadClasses(id); }}/>

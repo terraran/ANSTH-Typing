@@ -67,17 +67,20 @@ export function MoreMenu({ items }) {
 }
 
 // Backup reminder / "no names on this computer" banner for a room.
-export function RosterAlert({ roster, students, classId, className, owner, onRoster, onPick }) {
+export function RosterAlert({ roster, students, classId, className, owner, onRoster, onPick, onSaveDrive, onPullDrive, busy }) {
   if (!students.length) return null;
   if (roster && roster.mode === 'list' && !roster.backedUp) return (
-    <div className="alert"><span>💾</span>
-      <span className="grow"><b>ยังไม่ได้สำรองรายชื่อ</b> — ชื่อนักเรียนเก็บอยู่ในเครื่องนี้เท่านั้น ถ้าล้างเบราว์เซอร์หรือเปลี่ยนเครื่อง ชื่อจะหาย (รหัสและคะแนนยังอยู่)</span>
-      <button className="btn sm" onClick={() => { downloadBackup(classId, className, students, roster.names); onRoster(saveRoster(owner, classId, { ...roster, backedUp: true })); }}>ดาวน์โหลดไฟล์สำรอง</button>
+    <div className="alert"><span>☁️</span>
+      <span className="grow"><b>{roster.drive ? 'รายชื่อมีการเปลี่ยนแปลง ยังไม่ได้บันทึกลง Google Drive' : 'ยังไม่ได้บันทึกรายชื่อลง Google Drive'}</b> — ตอนนี้ชื่ออยู่ในเครื่องนี้เท่านั้น ถ้าเปลี่ยนเครื่องหรือล้างเบราว์เซอร์ ชื่อจะหาย (รหัสและคะแนนยังอยู่)</span>
+      <button className="btn sm gold" disabled={busy} onClick={onSaveDrive}>{busy ? 'กำลังบันทึก…' : '☁️ บันทึกลง Drive'}</button>
+      <button className="btn sm ghost" onClick={() => { downloadBackup(classId, className, students, roster.names); onRoster(saveRoster(owner, classId, { ...roster, backedUp: true })); }}>⬇️ .csv</button>
     </div>);
   if (!roster) return (
-    <div className="alert drop"><span>📂</span>
-      <span className="grow"><b>เครื่องนี้ยังไม่มีรายชื่อห้องนี้</b> — ลากไฟล์สำรอง (.csv) มาวางที่ไหนก็ได้บนหน้านี้ เพื่อแสดงชื่อนักเรียน · ไฟล์ไม่ถูกส่งขึ้นเซิร์ฟเวอร์</span>
-      <button className="btn sm blue" onClick={onPick}>เลือกไฟล์…</button>
+    <div className="alert drop"><span>☁️</span>
+      <span className="grow"><b>เครื่องนี้ยังไม่มีรายชื่อห้องนี้</b> — ดึงจาก Google Drive ของคุณ หรือลากไฟล์สำรอง (.csv) มาวาง</span>
+      <button className="btn sm blue" disabled={busy} onClick={onPullDrive}>{busy ? 'กำลังดึง…' : '☁️ ดึงรายชื่อจาก Drive'}</button>
+      <button className="btn sm ghost" onClick={onPick}>📂 เลือกไฟล์…</button>
+      <button className="btn sm ghost" title="ห้องนี้ใส่แค่จำนวน ไม่มีรายชื่อ" onClick={() => onRoster(saveRoster(owner, classId, { names: {}, mode: 'count', backedUp: true }))}>ไม่มีรายชื่อ</button>
     </div>);
   return null;
 }

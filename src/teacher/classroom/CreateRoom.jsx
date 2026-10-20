@@ -5,7 +5,7 @@ import { downloadBackup, fmtCode, parseNames, saveRoster } from './localRoster';
 
 const STEPS = ['ตั้งชื่อห้อง', 'นักเรียน', 'รับรหัส'];
 
-export function CreateRoom({ api, owner, onCancel, onDone, onPrint, first }) {
+export function CreateRoom({ api, owner, drive, hint, onCancel, onDone, onPrint, first }) {
   const [step, setStep] = useState(1);
   const [name, setName] = useState('');
   const [mode, setMode] = useState('list');
@@ -13,7 +13,8 @@ export function CreateRoom({ api, owner, onCancel, onDone, onPrint, first }) {
   const [text, setText] = useState('');
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
-  const [made, setMade] = useState(null);           // { id, codes: [{ no, code }], names }
+  const [made, setMade] = useState(null);           // { id, codes: [{ no, code }], names, backedUp, drive }
+  const [driveErr, setDriveErr] = useState('');
   const names = parseNames(text);
   const n = mode === 'list' ? names.length : Math.max(0, Math.min(100, Number(count) || 0));
 
@@ -30,9 +31,20 @@ export function CreateRoom({ api, owner, onCancel, onDone, onPrint, first }) {
   }
   function backup() {
     downloadBackup(made.id, name.trim(), made.codes, made.names);
-    saveRoster(owner, made.id, { names: made.names, mode, backedUp: true });
+    saveRoster(owner, made.id, { names: made.names, mode, backedUp: true, drive: !!made.drive });
     setMade(m => ({ ...m, backedUp: true }));
   }
+  async function toDrive() {
+    setBusy(true); setDriveErr('');
+    try {
+      await drive.connectDrive(hint);
+      await drive.saveToDrive(made.id, name.trim(), made.codes, made.names);
+      saveRoster(owner, made.id, { names: made.names, mode, backedUp: true, drive: true });
+      setMade(m => ({ ...m, backedUp: true, drive: true }));
+    } catch (e) { setDriveErr(drive.describeDriveError(e)); }
+    setBusy(false);
+  }
+  const hasNames = made && Object.keys(made.names).length > 0;
 
   return (
     <section className="page wiz">
@@ -81,9 +93,13 @@ export function CreateRoom({ api, owner, onCancel, onDone, onPrint, first }) {
             <div className="hint">นักเรียนแต่ละคนได้รหัสของตัวเอง {made.codes[0]?.code.length} ตัว (ไม่มีตัว S B Z O I U และเลข 0 1 5 ที่อ่านสับสน) — กรอกรหัสอย่างเดียวก็เข้าเล่นได้</div>
             <div className="codes">{made.codes.map(c => <div key={c.no} className="c well">
               <span className="num no">{c.no}</span><span className="nm">{made.names[c.no] || 'เลขที่ ' + c.no}</span><span className="cd">{fmtCode(c.code)}</span></div>)}</div>
-            {!made.backedUp && <div className="alert"><span>💾</span><span className="grow"><b>ดาวน์โหลดไฟล์สำรองเก็บไว้ก่อน</b> — ใช้เปิดชื่อนักเรียนในเครื่องอื่น หรือถ้าเบราว์เซอร์ถูกล้าง (ไฟล์ .csv เปิดด้วย Excel ได้)</span></div>}
+            {hasNames && (made.drive
+              ? <div className="alert ok"><span>☁️</span><span className="grow"><b>บันทึกรายชื่อใน Google Drive ของคุณแล้ว</b> — โฟลเดอร์ "คีย์บอร์ดเควส · รายชื่อนักเรียน" · เปิดหน้าครูที่เครื่องไหน ชื่อก็ตามมา</span></div>
+              : <div className="alert"><span>☁️</span><span className="grow"><b>บันทึกรายชื่อลง Google Drive ของคุณ</b> — ไปเครื่องไหนก็ดึงชื่อกลับมาได้ (เซิร์ฟเวอร์ของเกมไม่เห็นชื่อ แอปเห็นเฉพาะไฟล์ที่สร้างเอง)</span></div>)}
+            {driveErr && <div className="err">{driveErr}</div>}
             <div className="wfoot">
-              <button className="btn gold" onClick={backup}>💾 {made.backedUp ? 'ดาวน์โหลดอีกครั้ง' : 'ดาวน์โหลดไฟล์สำรอง'}</button>
+              {hasNames && !made.drive && <button className="btn gold" disabled={busy} onClick={toDrive}>{busy ? 'กำลังบันทึก…' : '☁️ บันทึกลง Google Drive'}</button>}
+              {hasNames && <button className="btn ghost" onClick={backup}>⬇️ ดาวน์โหลด .csv</button>}
               <button className="btn blue" onClick={() => onPrint(made.id)}>🖨️ พิมพ์การ์ด</button>
               <span className="spacer"/>
               <button className="btn" onClick={() => onDone(made.id)}>ไปที่ห้องเรียน →</button>

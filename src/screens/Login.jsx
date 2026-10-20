@@ -264,7 +264,7 @@ export function GoogleSignInScreen({ onSignIn, onSolo, onCode, initialCode = '' 
         <h1 style={{ margin: 0, lineHeight: 0 }}>
           <img src={LOGO} alt="คีย์บอร์ดเควส · Keyboard Quest" draggable={false}
             style={{ display: 'block', height: 'auto', userSelect: 'none',
-              width: small ? `min(72vw, calc(30vh * ${LOGO_RATIO}))` : `min(88vw, calc(46vh * ${LOGO_RATIO}))`,
+              width: small ? `min(72vw, calc(${CODES ? 22 : 30}vh * ${LOGO_RATIO}))` : `min(88vw, calc(46vh * ${LOGO_RATIO}))`,
               filter: 'drop-shadow(0 8px 0 rgba(30,58,76,.35))' }}/>
         </h1>
 

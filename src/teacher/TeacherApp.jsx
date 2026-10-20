@@ -10,7 +10,7 @@ import { DEMO, demoClass } from './demo';
 
 // Demo (localhost only): made-up classes, nothing is sent anywhere.
 const api = DEMO ? {
-  teacherClasses: async () => ({ classes: ['Y603', 'Y604'] }),
+  teacherClasses: async () => ({ classes: ['Y503', 'Y505', 'Y601', 'Y603', 'Y604'] }),
   getUnlocks: async () => ({ unlocks: demoUnlocks }),
   classData: async c => ({ students: demoClass(c) }),
   setUnlock: async (classCode, studentName, stage) => {
@@ -24,6 +24,13 @@ let demoUnlocks = [{ classCode: 'Y603', studentName: '', stage: 3 }];
 
 // Y603 → Y6.3 (how rooms are written at school)
 export const roomLabel = c => { const m = /^Y(\d)(\d{2})$/.exec(c || ''); return m ? `Y${m[1]}.${parseInt(m[2], 10)}` : c; };
+
+// Rooms grouped by grade for the sidebar: Y601, Y602 → "Y6"; codes without a grade go in one unnamed group.
+function groups(classes) {
+  const m = new Map();
+  for (const c of classes) { const g = (/^Y(\d)\d{2}$/.exec(c) || [])[1]; const k = g ? 'Y' + g : ''; m.set(k, [...(m.get(k) || []), c]); }
+  return [...m];
+}
 
 const ERRORS = {
   Unauthorized: 'บัญชีนี้ไม่ได้อยู่ในรายชื่อครู (TEACHER_EMAILS)',
@@ -97,20 +104,47 @@ function StageCell({ r }) {
   </>;
 }
 
+// 🔓 dialog: pick a stage for the whole class or the students ticked in the table.
+function UnlockDialog({ code, ticked, current, busy, onSave, onClose, onWholeClass }) {
+  const [stage, setStage] = useState(current || 1);
+  useEffect(() => { const k = e => e.key === 'Escape' && onClose(); addEventListener('keydown', k); return () => removeEventListener('keydown', k); }, []);
+  return (
+    <div className="modal-bg" onClick={onClose}>
+      <div className="card modal" role="dialog" aria-modal="true" aria-label="ปลดล็อกด่าน" onClick={e => e.stopPropagation()}>
+        <h3>🔓 ปลดล็อกด่าน · ห้อง {roomLabel(code)}<button className="x" onClick={onClose} aria-label="ปิด">✕</button></h3>
+        <div className="hint">ปกตินักเรียนต้องผ่านบอสก่อนถึงไปด่านถัดไป — ปลดล็อกเมื่ออยากให้ข้ามไปเรียนด่านที่สอนอยู่ · มีผลเมื่อนักเรียนเข้าเกมครั้งถัดไป</div>
+        <div><b className="sm">ให้</b> <span className="seg">
+          <button className={ticked.length ? '' : 'on'} onClick={onWholeClass}>ทั้งห้อง</button>
+          <button className={ticked.length ? 'on' : ''} disabled={!ticked.length} title="ติ๊กช่องหน้าชื่อในตารางเพื่อเลือก">ที่ติ๊กไว้ในตาราง ({ticked.length})</button>
+        </span>
+        {ticked.length > 0 && ticked.length <= 3 && <span className="hint"> {ticked.map(r => r.name).join(', ')}</span>}</div>
+        <div><b className="sm">เล่นได้ถึง</b>
+          <div className="stagepick">{STAGES.map(s =>
+            <button key={s.id} className={stage === s.id ? 'on' : ''} onClick={() => setStage(s.id)}>ด่าน {s.id}<small>{s.title}</small></button>)}</div></div>
+        <div className="row6">
+          <button className="btn ghost sm" disabled={busy} onClick={() => onSave(0)}>ยกเลิกการปลดล็อก</button>
+          <span className="spacer"/>
+          <button className="btn ghost" onClick={onClose}>ปิด</button>
+          <button className="btn" disabled={busy} onClick={() => onSave(stage)}>{busy ? 'กำลังบันทึก…' : 'บันทึก'}</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function Room({ code, rows, loading, error, unlocks, onReload, onUnlocks }) {
   const [sort, setSort] = useState({ k: 'no', dir: 1 });
   const [sel, setSel] = useState(null);
   const [tick, setTick] = useState(() => new Set());
   const [filt, setFilt] = useState(0);
-  const [stage, setStage] = useState(1);
+  const [dlg, setDlg] = useState(false);
   const [busy, setBusy] = useState('');
   const [msg, setMsg] = useState(null);
   const [narrow, setNarrow] = useState(innerWidth < 1700);
   useEffect(() => { const f = () => setNarrow(innerWidth < 1700); addEventListener('resize', f); return () => removeEventListener('resize', f); }, []);
-  useEffect(() => { setSel(null); setTick(new Set()); setFilt(0); setMsg(null); }, [code]);
+  useEffect(() => { setSel(null); setTick(new Set()); setFilt(0); setMsg(null); setDlg(false); }, [code]);
 
   const classUnlock = (unlocks || []).find(u => u.classCode === code && !u.studentName);
-  useEffect(() => { setStage(classUnlock ? Number(classUnlock.stage) : 1); }, [code, classUnlock?.stage]);
 
   const list = useMemo(() => {
     let l = rows.slice();
@@ -129,17 +163,17 @@ function Room({ code, rows, loading, error, unlocks, onReload, onUnlocks }) {
   const sortBy = k => setSort(s => s.k === k ? { k, dir: -s.dir } : { k, dir: ASC_FIRST.has(k) ? 1 : -1 });
   const toggle = (no, on) => setTick(t => { const n = new Set(t); on ? n.add(no) : n.delete(no); return n; });
 
-  async function doUnlock() {
+  async function doUnlock(stage) {
     const who = ticked.length ? ticked.map(r => r.name) : [''];
     const what = stage ? `ปลดล็อกถึงด่าน ${stage}` : 'ยกเลิกการปลดล็อก';
     const target = ticked.length ? `นักเรียนที่ติ๊กไว้ ${ticked.length} คน` : `ทั้งห้อง ${roomLabel(code)}`;
-    if (!confirm(`${what} ให้${target}?`)) return;
     setBusy('unlock'); setMsg(null);
     try {
       let d = null;
       for (const name of who) d = await api.setUnlock(code, name, stage);
       if (d) onUnlocks(d.unlocks || []);
       setMsg(['ok', `${what} ให้${target}แล้ว — มีผลเมื่อนักเรียนเข้าเกมครั้งถัดไป`]);
+      setDlg(false);
     } catch (e) { setMsg(['err', 'บันทึกไม่ได้: ' + errText(e)]); }
     setBusy('');
   }
@@ -163,27 +197,11 @@ function Room({ code, rows, loading, error, unlocks, onReload, onUnlocks }) {
             <span>⚠️ ต้องดูแล</span><b className="num">{nCare}</b></button>
         </div>
         <div className="spacer"/>
-        <button className="btn ghost" onClick={onReload} disabled={loading} title="โหลดข้อมูลใหม่">↻ โหลดใหม่</button>
-        <a className="btn purple" href="index.html" target="_blank" rel="noopener">🏁 เปิดเกมเพื่อสร้างห้องแข่ง</a>
-      </div>
-
-      <div className="toolbar">
-        <div className="unlock well">🔓
-          <select value={stage} onChange={e => setStage(Number(e.target.value))} aria-label="ปลดล็อกถึงด่าน">
-            {STAGES.map(s => <option key={s.id} value={s.id}>ปลดล็อกถึงด่าน {s.id} · {s.title}</option>)}
-            <option value={0}>ยกเลิกการปลดล็อก (เล่นตามลำดับ)</option>
-          </select>
-          ให้
-          <span className="seg">
-            <button className={ticked.length ? '' : 'on'} onClick={() => setTick(new Set())}>ทั้งห้อง</button>
-            <button className={ticked.length ? 'on' : ''} disabled={!ticked.length} title="ติ๊กช่องหน้าชื่อเพื่อเลือก">ที่ติ๊กไว้ ({ticked.length})</button>
-          </span>
-          <button className="btn sm" onClick={doUnlock} disabled={!!busy}>{busy === 'unlock' ? 'กำลังบันทึก…' : 'บันทึก'}</button>
-          <span className="hint now">{classUnlock ? `ตอนนี้ทั้งห้องเล่นได้ถึงด่าน ${classUnlock.stage}` : 'ตอนนี้: เล่นตามลำดับ'}</span>
-        </div>
-        <div className="spacer"/>
-        <button className="btn gold" onClick={doTips} disabled={!!busy}>💡 ให้ดูคำแนะนำใหม่</button>
+        <button className="btn ghost" onClick={() => setDlg(true)} title={classUnlock ? `ตอนนี้ทั้งห้องเล่นได้ถึงด่าน ${classUnlock.stage}` : 'ตอนนี้เล่นตามลำดับ'}>
+          {classUnlock ? `🔓 ปลดล็อกถึงด่าน ${classUnlock.stage}…` : '🔓 ปลดล็อกด่าน…'}</button>
+        <button className="btn ghost" onClick={doTips} disabled={!!busy}>💡 ให้ดูคำแนะนำใหม่</button>
         {(EDITION.homework || EDITION.weekly) && <a className="btn ghost" href="teacher.html" title="การบ้านและแบบทดสอบประจำสัปดาห์ยังอยู่ที่หน้าครูเดิม">📚 การบ้าน / แบบทดสอบ ↗</a>}
+        <button className="btn ghost" onClick={onReload} disabled={loading} title="โหลดข้อมูลใหม่" aria-label="โหลดข้อมูลใหม่">↻</button>
       </div>
 
       {msg && <div className={'alert ' + msg[0]}><span className="grow">{msg[1]}</span><button className="x" onClick={() => setMsg(null)} aria-label="ปิด">✕</button></div>}
@@ -221,8 +239,11 @@ function Room({ code, rows, loading, error, unlocks, onReload, onUnlocks }) {
               <button key={i} className={filt === i ? 'on' : ''} onClick={() => setFilt(i)}>{t}</button>)}</span>
           </div>
         </div>
-        {selRow && <StudentPanel r={selRow} onClose={() => setSel(null)} onUnlock={() => setTick(new Set([selRow.no]))}/>}
+        {selRow && <StudentPanel r={selRow} onClose={() => setSel(null)} onUnlock={() => { setTick(new Set([selRow.no])); setDlg(true); }}/>}
       </div>
+      {dlg && <UnlockDialog code={code} ticked={ticked} busy={busy === 'unlock'}
+        current={ticked.length === 1 && ticked[0].unlockOwn ? ticked[0].unlock : classUnlock ? Number(classUnlock.stage) : 1}
+        onSave={doUnlock} onClose={() => setDlg(false)} onWholeClass={() => setTick(new Set())}/>}
     </section>
   );
 }
@@ -276,17 +297,24 @@ export function TeacherApp() {
     <div className="app">
       <div className="top">
         <div className="brand"><img src="assets/ui/logo.png" alt=""/><span>หน้าครู</span></div>
-        {classes && classes.length > 0 && <div className="crumb">›
-          <select value={code} onChange={e => setCode(e.target.value)} aria-label="เลือกห้อง">
-            {classes.map(c => <option key={c} value={c}>ห้อง {roomLabel(c)}</option>)}
-          </select></div>}
         <div className="spacer"/>
         <div className="who"><span>{email}</span><button className="btn ghost sm" onClick={() => signOut('')}>ออกจากระบบ</button></div>
       </div>
       {!classes ? <div className="empty">กำลังโหลดรายชื่อห้อง…</div>
         : !classes.length ? <div className="empty">ยังไม่มีห้องเรียน — เพิ่มนักเรียนในแท็บ Roster ของ Google Sheet ก่อน</div>
-        : <Room code={code} rows={rows} loading={!!cur.loading} error={cur.error} unlocks={unlocks}
-            onReload={() => load(code)} onUnlocks={setUnlocks}/>}
+        : <div className="layout">
+            <nav className="card sidebar" aria-label="เลือกห้อง">
+              <b className="side-title">ห้องของฉัน</b>
+              <div className="side-list">{groups(classes).map(([g, cs]) => <React.Fragment key={g}>
+                {g && <h4>{g}</h4>}
+                {cs.map(c => <button key={c} className={c === code ? 'on' : ''} aria-current={c === code ? 'page' : undefined}
+                  onClick={() => setCode(c)}>ห้อง {roomLabel(c)}</button>)}
+              </React.Fragment>)}</div>
+              <a className="side-link" title="สร้างห้องแข่งให้นักเรียนในหน้าเกม" href="index.html" target="_blank" rel="noopener">🏁 เปิดเกม ↗</a>
+            </nav>
+            <Room code={code} rows={rows} loading={!!cur.loading} error={cur.error} unlocks={unlocks}
+            onReload={() => load(code)} onUnlocks={setUnlocks}/>
+          </div>}
     </div>
   );
 }

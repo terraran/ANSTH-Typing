@@ -34,8 +34,6 @@ a{color:inherit}
 .top{display:flex;align-items:center;gap:12px;flex-shrink:0;background:#2E5E45;color:#FFF6D8;margin:0 -1.6vw;padding:.8vh 1.6vw}
 .brand{display:flex;align-items:center;gap:10px;font-weight:700;font-size:1.15em;white-space:nowrap}
 .brand img{height:4.4vh;min-height:28px;image-rendering:pixelated}
-.crumb{display:flex;align-items:center;gap:8px;font-weight:700}
-.crumb select{font-weight:700;padding:2px 6px;border-radius:6px;border:2px solid var(--ink);background:var(--paper);color:var(--ink)}
 .who{display:flex;align-items:center;gap:10px;font-size:.88em;white-space:nowrap}
 
 /* pieces */
@@ -79,13 +77,33 @@ a{color:inherit}
 .err{color:#9C2A1F;font-weight:700;font-size:.9em}
 
 /* class page */
-.roomhead,.toolbar{display:flex;align-items:center;gap:8px;flex-shrink:0;flex-wrap:wrap}
-.roomhead{margin-top:.2vh}
+.layout{flex:1;min-height:0;display:flex;gap:12px}
+.roomhead{display:flex;align-items:center;gap:8px;flex-shrink:0;flex-wrap:wrap}
 .roomhead h2{font-size:1.3em;white-space:nowrap;margin-right:4px}
 .stats{display:flex;gap:8px;flex-wrap:wrap}
-.unlock{display:flex;align-items:center;gap:6px;padding:3px 8px;white-space:nowrap;flex-wrap:wrap}
-.unlock select{font-weight:700;padding:2px 4px;border-radius:6px;border:2px solid #CDBB94;background:#fff;max-width:20em}
-.unlock .now{margin-left:4px}
+
+/* room list on the left */
+.sidebar{width:150px;flex-shrink:0;display:flex;flex-direction:column;gap:4px;padding:8px;min-height:0}
+.side-title{padding:0 4px}
+.side-list{flex:1;min-height:0;overflow:auto;display:flex;flex-direction:column;gap:3px;scrollbar-width:thin}
+.sidebar h4{font-size:.8em;opacity:.65;margin:6px 4px 2px}
+.sidebar button{text-align:left;border:0;background:none;padding:4px 10px;border-radius:6px;font-weight:700;cursor:pointer;flex-shrink:0}
+.sidebar button:hover{background:#FFF3CF}
+.sidebar button.on{background:var(--gold);box-shadow:0 2px 0 var(--ink)}
+.sidebar button:focus-visible,.stagepick button:focus-visible{outline:3px solid var(--gold);outline-offset:2px}
+.side-link{font-size:.78em;opacity:.8;padding:6px 4px 0;border-top:1px solid var(--line);text-decoration:none}
+.side-link:hover{opacity:1;text-decoration:underline}
+
+/* unlock dialog */
+.modal-bg{position:fixed;inset:0;background:rgba(30,20,10,.45);display:grid;place-items:center;z-index:10;padding:16px}
+.modal{width:min(560px,100%);display:flex;flex-direction:column;gap:12px;padding:18px 20px}
+.modal h3{font-size:1.15em;display:flex;align-items:center;gap:6px}
+.modal h3 .x{margin-left:auto}
+.stagepick{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-top:4px}
+.stagepick button{border:2px solid var(--ink);border-radius:7px;background:var(--paper);padding:4px 8px;font-weight:700;cursor:pointer;font-size:.85em;text-align:left}
+.stagepick button:hover{background:#FFF3CF}
+.stagepick button.on{background:var(--gold)}
+.stagepick button small{display:block;font-weight:400;opacity:.75;font-size:.85em}
 .tablewrap{flex:1;min-height:0;display:flex;gap:12px}
 .tbox{flex:1;min-height:0;min-width:0;display:flex;flex-direction:column;padding:8px 10px}
 .tscroll{flex:1;min-height:0;overflow:auto;scrollbar-width:thin}
@@ -114,7 +132,7 @@ table.grid.narrow td,table.grid.narrow th{padding-left:5px;padding-right:5px}
 .foot>span:first-child{opacity:.8}
 
 /* student panel */
-.side{width:min(380px,28vw);flex-shrink:0;display:flex;flex-direction:column;min-height:0;gap:7px;padding:10px 12px}
+.side{width:min(360px,26vw);flex-shrink:0;display:flex;flex-direction:column;min-height:0;gap:7px;padding:10px 12px}
 .side h3{display:flex;align-items:center;gap:8px;font-size:1.05em}
 .side h3 .x{margin-left:auto}
 .badge{background:var(--ink);color:#fff;padding:3px 6px;border-radius:3px}

@@ -12,7 +12,7 @@ const { useEffect, useRef, useState } = React;
 // Quiet text link for teachers — bottom corner, low contrast, so students are not drawn to it.
 function TeacherLink() {
   return (
-    <a href="teacher.html" style={{ position: 'fixed', right: 12, bottom: 8, zIndex: 2, fontSize: 12, fontWeight: 600,
+    <a href="teacher2.html" style={{ position: 'fixed', right: 12, bottom: 8, zIndex: 2, fontSize: 12, fontWeight: 600,
       color: 'rgba(255,255,255,.75)', textDecoration: 'none', fontFamily: TH_FONT, textShadow: '1px 1px 0 rgba(0,0,0,.35)' }}>
       สำหรับครู ›</a>
   );

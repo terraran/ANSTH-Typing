@@ -16,7 +16,7 @@
   // ramp = [darkest, lightest] target colours; null = keep the original art colours.
   // sheet = which body sheet in char.json (defaults to id); shirt = swatch colour for the picker.
   // socks/shoes = this outfit's default colours. Polo sheets come ready-coloured (no in-app shirt recolour).
-  const BODIES = [
+  const SCHOOL_BODIES = [
     { id: 'boy',         name: 'ชุดนักเรียนชาย',  socks: 'black', shoes: 'black' },
     { id: 'girl',        name: 'ชุดนักเรียนหญิง', socks: 'white', shoes: 'white' },
     { id: 'polo_red',    name: 'โปโลแดง',      sheet: 'polo_red', shirt: 'red',    socks: 'white', shoes: 'white' },
@@ -24,7 +24,28 @@
     { id: 'polo_green',  name: 'โปโลเขียว',     sheet: 'polo_green', shirt: 'green',  socks: 'white', shoes: 'white' },
     { id: 'polo_yellow', name: 'โปโลเหลือง',    sheet: 'polo_yellow', shirt: 'yellow', socks: 'white', shoes: 'white' },
   ];
-  const UNIFORMS = BODIES.slice(0, 2);   // name-based default characters stay in school uniform
+  // Government-school uniforms (public edition), painted at load time from the polo / girl sheets — see paintGov().
+  // gov = which painter; bottom = trouser/skirt ramp; tie + shape = bow or crossed tie on the V collar; belt = tucked in.
+  // swatch = the trouser/skirt colour for the picker.
+  const PANTS = { brown: [[70, 48, 30], [118, 84, 54]], black: [[18, 18, 22], [44, 44, 52]], navy: [[22, 30, 70], [44, 58, 118]] };
+  const SKIRT = { navy: [[16, 22, 54], [26, 36, 84], [48, 64, 128]], black: [[12, 12, 16], [22, 22, 28], [50, 50, 60]], red: [[104, 14, 24], [150, 26, 36], [222, 56, 62]] };
+  const TIE = { navy: [[22, 30, 72], [60, 80, 150]], red: [[150, 20, 30], [236, 70, 72]] };
+  const GOV_BODIES = [
+    { id: 'gov_boy_brown',      name: 'รัฐบาล กางเกงน้ำตาล', sheet: 'polo_blue', gov: 'boy', bottom: PANTS.brown, belt: true, swatch: '#76532f', socks: 'brown', shoes: 'brown' },
+    { id: 'gov_boy_black',      name: 'รัฐบาล กางเกงดำ',     sheet: 'polo_blue', gov: 'boy', bottom: PANTS.black, belt: true, swatch: '#26262c', socks: 'white', shoes: 'black' },
+    { id: 'gov_boy_navy',       name: 'รัฐบาล กางเกงน้ำเงิน', sheet: 'polo_blue', gov: 'boy', bottom: PANTS.navy,  belt: true, swatch: '#283a76', socks: 'white', shoes: 'black' },
+    { id: 'gov_girl_bow_navy',  name: 'รัฐบาล โบว์ กระโปรงน้ำเงิน',    sheet: 'girl', gov: 'girl', bottom: SKIRT.navy,  tie: TIE.navy, shape: 'bow',   swatch: '#1e2a66', socks: 'white', shoes: 'black' },
+    { id: 'gov_girl_tie_red',   name: 'รัฐบาล เนกไท กระโปรงแดง',      sheet: 'girl', gov: 'girl', bottom: SKIRT.red,   tie: TIE.red,  shape: 'cross', swatch: '#b8232f', socks: 'white', shoes: 'black' },
+    { id: 'gov_girl_bow_black', name: 'รัฐบาล โบว์ กระโปรงดำ',        sheet: 'girl', gov: 'girl', bottom: SKIRT.black, tie: TIE.navy, shape: 'bow',   swatch: '#1c1c22', socks: 'white', shoes: 'black' },
+    { id: 'gov_girl_navy',      name: 'รัฐบาล คอเชิ้ต กระโปรงน้ำเงิน', sheet: 'girl', gov: 'girl', bottom: SKIRT.navy,  belt: true, swatch: '#1e2a66', socks: 'white', shoes: 'black' },
+    { id: 'gov_girl_red',       name: 'รัฐบาล คอเชิ้ต กระโปรงแดง',    sheet: 'girl', gov: 'girl', bottom: SKIRT.red,   belt: true, swatch: '#b8232f', socks: 'white', shoes: 'black' },
+    { id: 'gov_girl_black',     name: 'รัฐบาล คอเชิ้ต กระโปรงดำ',     sheet: 'girl', gov: 'girl', bottom: SKIRT.black, belt: true, swatch: '#1c1c22', socks: 'white', shoes: 'black' },
+  ];
+  // The school edition shows its own uniforms + polos; the public edition swaps the school uniforms for the
+  // government ones (useOutfits). sanitize() only accepts the edition's own list.
+  const ALL_BODIES = [...SCHOOL_BODIES, ...GOV_BODIES];
+  let BODIES = SCHOOL_BODIES;
+  let UNIFORMS = BODIES.slice(0, 2);   // name-based default characters stay in school uniform
   // Polo colours for the picker swatch only: [shadow, main] = the sheets' own shirt tones.
   const SHIRT_COLORS = [
     { id: 'red',    ramp: [[132, 20, 32], [230, 52, 54]] },
@@ -73,6 +94,8 @@
     { id: 'blue',  name: 'ฟ้า',    ramp: null },
     { id: 'pink',  name: 'ชมพู',   ramp: [[188, 92, 136], [246, 166, 200]] },
   ];
+  const SCHOOL_SOCKS = SOCK_COLORS.slice();
+  const PUBLIC_SOCKS = [...SOCK_COLORS, { id: 'brown', name: 'น้ำตาล', ramp: [[70, 46, 30], [132, 96, 64]] }];   // goes with brown uniform trousers
   const SHOE_COLORS = [
     { id: 'black', name: 'ดำ',    ramp: [[20, 20, 26], [128, 128, 140]] },
     { id: 'white', name: 'ขาว',   ramp: [[150, 152, 164], [252, 252, 254]] },
@@ -81,12 +104,23 @@
     { id: 'blue',  name: 'น้ำเงิน', ramp: [[28, 48, 120], [150, 190, 250]] },
     { id: 'green', name: 'เขียว', ramp: null },
   ];
-  const OPTIONS = { body: BODIES, hair: HAIRSTYLES, hairColor: HAIR_COLORS, skin: SKIN_TONES, socks: SOCK_COLORS, shoes: SHOE_COLORS };
+  const OPTIONS = { body: BODIES, hair: HAIRSTYLES, hairColor: HAIR_COLORS, skin: SKIN_TONES, socks: SCHOOL_SOCKS, shoes: SHOE_COLORS };
   const byId = (list, id) => list.find(o => o.id === id);
+
+  // Which edition's outfits to offer: 'school' (default) or 'public'. Call once at start-up, before any character is drawn.
+  function useOutfits(edition) {
+    const pub = edition === 'public';
+    BODIES = pub ? [...GOV_BODIES, ...SCHOOL_BODIES.slice(2)] : SCHOOL_BODIES;
+    UNIFORMS = pub ? GOV_BODIES : SCHOOL_BODIES.slice(0, 2);
+    OPTIONS.body = BODIES;
+    OPTIONS.socks = pub ? PUBLIC_SOCKS : SCHOOL_SOCKS;
+    PICKERS[0].list = BODIES; PICKERS[4].list = OPTIONS.socks;
+    _cache.clear();
+  }
 
   function defaults(body) {
     const b = byId(BODIES, body) || BODIES[0];
-    return { body: b.id, hair: b.id === 'girl' ? 'f02_ponytail' : 'm01_neat', hairColor: 'black',
+    return { body: b.id, hair: b.id === 'girl' || b.gov === 'girl' ? 'f02_ponytail' : 'm01_neat', hairColor: 'black',
       skin: 'natural', socks: b.socks, shoes: b.shoes };
   }
   // Accepts anything (object or JSON string); returns a valid config or null.
@@ -101,7 +135,7 @@
   function randomize(body) {
     const pick = l => l[Math.floor(Math.random() * l.length)].id;
     return { body: body || pick(BODIES), hair: pick(HAIRSTYLES), hairColor: pick(HAIR_COLORS),
-      skin: pick(SKIN_TONES), socks: pick(SOCK_COLORS), shoes: pick(SHOE_COLORS) };
+      skin: pick(SKIN_TONES), socks: pick(OPTIONS.socks), shoes: pick(SHOE_COLORS) };
   }
   const keyOf = c => [c.body, c.hair, c.hairColor, c.skin, c.socks, c.shoes].join('|');
   function loadLocal(who) {
@@ -128,7 +162,7 @@
       return v.id;
     };
     return sanitize({ body: pick(UNIFORMS), hair: pick(HAIRSTYLES), hairColor: pick(HAIR_COLORS),
-      skin: pick(SKIN_TONES), socks: pick(SOCK_COLORS), shoes: pick(SHOE_COLORS) });
+      skin: pick(SKIN_TONES), socks: pick(OPTIONS.socks), shoes: pick(SHOE_COLORS) });
   }
   // A room player's look: their saved character, else the one from their name.
   function fromPlayer(p) { return sanitize(p && p.char) || fromName(p && p.name); }
@@ -194,6 +228,220 @@
     return cv;
   }
 
+  // ── Government-school uniforms (public edition) ─────────────
+  // Painted from existing sheets, no extra art: the boy's comes from the blue polo sheet (no tie, flat hem)
+  // turned into a white shirt; the girl's from the school girl sheet with its long necktie and pin taken off.
+  // Colours below are the sheets' own source shades (keys) → final colours.
+  const GOV = {
+    boy: {
+      bottom: [[46, 46, 52], [65, 68, 73]],           // shorts shades
+      mainKey: '66,160,240', upperShade: [104, 112, 138],
+      shirt: new Map([['66,160,240', [240, 242, 248]], ['46,128,214', [214, 218, 232]], ['38,108,190', [194, 200, 218]],
+        ['28,80,158', [150, 158, 182]], ['20,58,120', [104, 112, 138]],
+        ['226,226,218', [118, 140, 206]],             // polo logo → embroidered school initials
+        ['250,250,246', [112, 122, 154]]]),           // polo buttons → shirt buttons
+      logo: ['226,226,218', '250,250,246'],
+    },
+    girl: {
+      bottom: [[38, 38, 46], [46, 46, 52], [70, 74, 85]],   // skirt shades
+      mainKey: '198,201,208', blouse: [198, 201, 208],
+      upperShade: [146, 155, 178],                    // skirt shades found above the waist = blouse shading
+      torsoOnly: { '65,68,73': [146, 155, 178] },     // a shoe shade the old blouse also used: recoloured only between collar and waist
+      collarShade: [[118, 126, 158], [150, 158, 188]], // under / beside the old collar (shirt-collar style)
+      collarLine: [150, 158, 188],                    // seam where two collar flaps meet (running frames)
+      collarEdge: [80, 88, 124],                      // the V collar's edge lines (bow styles)
+      shirt: new Map([['198,201,208', [238, 240, 247]], ['177,184,187', [218, 222, 234]], ['168,174,178', [208, 213, 228]],
+        ['149,157,165', [190, 196, 214]], ['125,133,140', [160, 168, 190]], ['116,126,133', [146, 155, 178]],
+        ['101,109,116', [126, 134, 158]], ['206,208,220', [238, 240, 247]], ['155,153,166', [190, 196, 214]],
+        ['159,165,176', [214, 218, 232]], ['88,98,113', [146, 155, 178]], ['62,77,92', [160, 168, 190]], ['81,83,92', [160, 168, 190]]]),
+      // The school's long necktie + purple pin: these shades inside the tie box (dx0, dx1, dy0, dy1 from the head anchor) become blouse.
+      tieShades: ['149,157,165', '116,126,133', '101,109,116', '168,174,178', '125,133,140', '177,184,187', '88,98,113',
+        '104,79,135', '99,52,151', '114,54,160', '62,77,92', '81,83,92'],
+      pin: ['104,79,135', '99,52,151', '114,54,160'],
+      tieBox: { idle: [7, 16, 19, 29], cheer: [7, 16, 19, 29], sad: [7, 16, 19, 29], run: [1, 9, 18, 29] },
+    },
+  };
+  const GOV_BELT = [24, 22, 24];
+  const GOV_BELOW_HEAD = 24;   // trousers/skirt start this many rows under the head anchor (collar + eyebrows share their dark shades)
+  // T = tie cloth, K = knot (lighter); the middle column sits on the knot point.
+  const TIE_SHAPES = { cross: ['..K..', '.TKT.', '.T.T.', 'T...T'], bow: ['T...T', 'TTKTT', 'T...T'], bowSide: ['T.T', 'TKT', 'T.T'] };
+
+  function paintGov(img, outfit, bodyMap, D) {
+    const G = GOV[outfit.gov], S = D.frameSize, P = D.palette;
+    const cv = document.createElement('canvas');
+    cv.width = img.width; cv.height = img.height;
+    const ctx = cv.getContext('2d');
+    ctx.drawImage(img, 0, 0);
+    const id = ctx.getImageData(0, 0, cv.width, cv.height), d = id.data, W = cv.width;
+    const key = (X, y) => { const p = (y * W + X) * 4; return d[p + 3] ? d[p] + ',' + d[p + 1] + ',' + d[p + 2] : ''; };
+    const set = (X, y, c, a = 255) => { const p = (y * W + X) * 4; d[p] = c[0]; d[p + 1] = c[1]; d[p + 2] = c[2]; d[p + 3] = a; };
+    // Pixels painted with alpha 254 are final colours: the recolour pass below leaves them alone.
+    const isBottom = new Set(G.bottom.map(ck)), skin = new Set(P.skin.map(ck));
+    const low = rampMap(G.bottom, outfit.bottom, new Map());
+    const top = new Map(bodyMap); G.shirt.forEach((c, k) => top.set(k, c));
+    const ROWANIM = {}; Object.entries(D.animations).forEach(([n, a]) => { ROWANIM[a.row] = n; });
+    // First sheet row (absolute) of the trouser/skirt zone for the frame holding column X, in the band starting at fy.
+    const lowY = (X, fy) => { const an = (D.headAnchor[ROWANIM[fy / S]] || [])[Math.floor(X / S)]; return fy + (an ? an.y + GOV_BELOW_HEAD : 30); };
+    const frames = []; Object.entries(D.animations).forEach(([n, a]) => (D.headAnchor[n] || []).forEach((an, i) => frames.push({ n, i, an, fx: i * S, fy: a.row * S })));
+    const clothRows = (fx, fy, from) => { for (let y = from; y < fy + S; y++) { let c = 0; for (let X = fx; X < fx + S; X++) if (isBottom.has(key(X, y))) c++; if (c >= 5) return y; } return -1; };
+
+    // Waist (first row with ≥5 cloth pixels) and hem (last cloth row) per frame, measured on the source art.
+    const WAIST = {}, HEMY = {};
+    frames.forEach(({ fx, fy }) => {
+      const wy = clothRows(fx, fy, lowY(fx, fy)); if (wy < 0) return;
+      let y = wy; for (; y < fy + S; y++) { let c = 0; for (let X = fx; X < fx + S; X++) if (isBottom.has(key(X, y))) c++; if (c < 2) break; }
+      WAIST[fx + ',' + fy] = wy; HEMY[fx + ',' + fy] = y - 1;
+    });
+
+    // Girl: take off the old necktie, then draw the V collar + bow / crossed tie.
+    if (G.tieBox) {
+      const ts = new Set(G.tieShades), pin = new Set(G.pin);
+      frames.forEach(({ n, an, fx, fy }) => {
+        const box = G.tieBox[n]; if (!box) return;
+        const ox = fx + an.x, oy = fy + an.y, pts = [];
+        const K = (dx, dy) => key(ox + dx, oy + dy), put = (dx, dy, c, a = 254) => set(ox + dx, oy + dy, c, a);
+        const blk = (dx, dy) => { const p = ((oy + dy) * W + ox + dx) * 4; return d[p + 3] && d[p] + d[p + 1] + d[p + 2] < 8; };
+        for (let dy = box[2]; dy <= box[3]; dy++) for (let dx = box[0]; dx <= box[1]; dx++) {
+          const k = K(dx, dy); if (ts.has(k)) { pts.push([dx, dy, k]); put(dx, dy, G.blouse, 255); }
+        }
+        if (!outfit.tie) return;   // no tie: plain open shirt collar
+        // The tie's column is where the artist tied the old necktie in this frame (top of its main column, pin left out),
+        // so it moves with the body.
+        const tp = pts.filter(q => !pin.has(q[2])); if (!tp.length) return;
+        const xs = tp.map(q => q[0]).sort((a, b) => a - b), kx = xs[xs.length >> 1];
+        const ky = Math.min(...tp.filter(q => Math.abs(q[0] - kx) <= 1).map(q => q[1]));
+        const [dk, lt] = outfit.tie, CW = '255,255,255';
+        const light = k => { if (!k || skin.has(k)) return false; const c = k.split(',').map(Number); return c[0] > 110 && c[1] > 110 && c[2] > 110; };
+        // The bare-neck V just above the knot (face rows are wider and edged by outline/skin) is closed with collar.
+        let vc = null;
+        for (let dy = ky - 5; dy < ky; dy++) {
+          const row = []; for (let dx = kx - 5; dx <= kx + 3; dx++) if (skin.has(K(dx, dy))) row.push(dx);
+          if (!row.length) continue;
+          const L = Math.min(...row), R = Math.max(...row);
+          if (R - L > 4 || !light(K(L - 1, dy)) || !light(K(R + 1, dy))) continue;
+          row.forEach(dx => put(dx, dy, [255, 255, 255], 255)); vc = (L + R) / 2;
+        }
+        const draw = (rows, x, y) => { const kc = rows[0].length >> 1; rows.forEach((r, ry) => [...r].forEach((ch, rx) => { if (ch !== '.') put(x - kc + rx, y + ry, ch === 'K' ? lt : dk); })); };
+        if (n !== 'run') {
+          // Facing frames: the pointed lapels are redrawn as a V collar — two edges from the neck corners down to a point
+          // on the chest, the near (left-on-screen) edge longer because the body is turned — with the knot on that point.
+          let c0 = vc === null ? null : Math.round(vc), r0 = -1;
+          if (c0 !== null) { for (let dy = 14; dy <= 21 && r0 < 0; dy++) if (blk(c0, dy) && skin.has(K(c0, dy - 1))) r0 = dy; }   // chin outline over the neck
+          else for (let dy = 15; dy <= 21 && r0 < 0; dy++) {   // head bowed, no neck showing: centre on the chin's outline
+            let run = []; for (let dx = kx - 6; dx <= kx + 4; dx++) { if (blk(dx, dy) && skin.has(K(dx, dy - 1))) run.push(dx); else if (run.length >= 3) break; else run = []; }
+            if (run.length >= 3) { r0 = dy; c0 = Math.round((run[0] + run[run.length - 1]) / 2); }
+          }
+          let L = 99, R = -99;
+          if (r0 >= 0) for (let dy = r0 + 1; dy <= r0 + 2; dy++) for (let dx = c0 - 8; dx <= c0 + 8; dx++) if (K(dx, dy) === CW) { L = Math.min(L, dx); R = Math.max(R, dx); }
+          if (R - L >= 6) {
+            for (let dy = r0; dy <= r0 + 8; dy++) for (let dx = L - 1; dx <= R + 1; dx++) if (K(dx, dy) === CW) put(dx, dy, G.blouse, 255);   // old collar → blouse
+            const T = ['OO.......OO', '..OO....O..', '....OO.O...'], x0 = Math.round((L + R) / 2) - 5;   // point = column 6, row 3
+            T.forEach((r, ry) => [...r].forEach((ch, rx) => { if (ch === 'O' && !blk(x0 + rx, r0 + 1 + ry)) put(x0 + rx, r0 + 1 + ry, G.collarEdge); }));
+            T.forEach((r, ry) => { for (let rx = r.indexOf('O') + 1; rx < r.lastIndexOf('O'); rx++) if (skin.has(K(x0 + rx, r0 + 1 + ry))) put(x0 + rx, r0 + 1 + ry, G.blouse, 255); });   // inside the V is shirt
+            const rows = TIE_SHAPES[outfit.shape], kc = rows[0].length >> 1, kr = rows.findIndex(r => r[kc] === 'K');
+            draw(rows, x0 + 6, r0 + 4 - kr);
+            return;
+          }
+        }
+        // Running frames (side view) keep the art's collar: seam on it, tie just under it.
+        const bx = vc === null ? kx : Math.round(vc) + 1;   // the chest's centre sits 1px towards the character's left arm
+        let tc = -1, cb = -1;
+        for (let dy = ky - 6; dy <= ky + 1; dy++) if (K(bx, dy) === CW) { if (tc < 0) tc = dy; cb = dy; }
+        if (cb < 0) cb = ky - 1;
+        if (tc >= 0) for (let dy = tc + 1; dy <= cb; dy++) put(bx, dy, G.collarLine);
+        let by = cb + 1; for (let t = 0; t < 3 && [-2, -1, 0, 1, 2].some(o => blk(bx + o, by)); t++) by++;   // never over the chin's outline
+        if (n !== 'run') { draw(TIE_SHAPES[outfit.shape], bx, by); return; }   // a facing frame whose collar couldn't be redrawn
+        // A narrower bow seen from the side, pushed towards the chest's front until it is 1px inside the outline;
+        // every pixel stays on the shirt (not arm, hand or outline).
+        const rr = outfit.shape === 'bow' ? TIE_SHAPES.bowSide : TIE_SHAPES[outfit.shape], rc = rr[0].length >> 1;
+        const onShirt = (dx, dy) => { const k = K(dx, dy); if (!k || skin.has(k)) return false; const c = k.split(',').map(Number); return c[0] > 100 && c[1] > 100 && c[2] > 100; };
+        const fits = x => rr.every((r, ry) => [...r].every((ch, rx) => ch === '.' || onShirt(x - rc + rx, by + ry)));
+        const gapOk = x => rr.every((r, ry) => onShirt(x - rc + r.length, by + ry));
+        let x = bx; for (let t = 0; t < 6 && fits(x + 1) && gapOk(x + 1); t++) x++;
+        draw(rr, x, by);
+      });
+      // Shirt-collar style: shade the blouse right under / beside the white collar so the collar reads.
+      const B = G.blouse.join(',');
+      frames.forEach(({ n, an, fx, fy }) => {
+        const box = G.tieBox[n]; if (!box) return;
+        const ox = fx + an.x, oy = fy + an.y, hits = [];
+        for (let dy = 14; dy <= 26; dy++) for (let dx = box[0] - 7; dx <= box[1] + 3; dx++) {
+          const p = ((oy + dy) * W + ox + dx) * 4;
+          if (d[p + 3] !== 255 || key(ox + dx, oy + dy) !== '255,255,255') continue;
+          [[0, 1, G.collarShade[0]], [-1, 0, G.collarShade[1]], [1, 0, G.collarShade[1]]].forEach(([ex, ey, c]) => {
+            const q = ((oy + dy + ey) * W + ox + dx + ex) * 4;
+            if (d[q + 3] === 255 && key(ox + dx + ex, oy + dy + ey) === B) hits.push([ox + dx + ex, oy + dy + ey, c]);
+          });
+        }
+        hits.forEach(([X, y, c]) => set(X, y, c, 254));
+      });
+    }
+
+    // Tucked in: the hem hanging below the waist becomes trouser/skirt cloth; the boy also gets buttons + placket.
+    if (outfit.belt) {
+      const shirt = new Set([...G.shirt.keys()].filter(k => !(G.logo || []).includes(k))), mid = G.bottom[0];
+      frames.forEach(({ fx, fy }) => {
+        const wy = clothRows(fx, fy, lowY(fx, fy)); if (wy < 0) return;
+        const btn = []; for (let y = fy; y < fy + S; y++) for (let X = fx; X < fx + S; X++) if (key(X, y) === '250,250,246') btn.push([X, y]);
+        if (btn.length) {
+          const bx = btn[0][0], by = Math.max(...btn.map(b => b[1]));
+          for (let y = Math.min(...btn.map(b => b[1])); y < wy; y++) if (shirt.has(key(bx + 1, y))) set(bx + 1, y, [38, 108, 190]);   // placket (a shirt shade)
+          for (let y = by + 3; y < wy; y += 3) if (shirt.has(key(bx, y))) set(bx, y, [250, 250, 246]);                          // a button every 3 rows
+        }
+        const moved = new Set(), hem = Math.min(wy + 4, fy + S);
+        for (let y = wy + 1; y < hem; y++) for (let X = fx; X < fx + S; X++) if (shirt.has(key(X, y))) { set(X, y, mid); moved.add(X + ',' + y); }
+        for (let y = wy + 1; y < hem; y++) for (let X = fx + 1; X < fx + S - 1; X++) {
+          if (key(X, y) !== '0,0,0') continue;
+          const nb = [[X - 1, y], [X + 1, y], [X, y - 1], [X, y + 1]];
+          if (nb.some(([a, b]) => moved.has(a + ',' + b)) && nb.filter(([a, b]) => isBottom.has(key(a, b))).length >= 2) set(X, y, mid);
+        }
+      });
+      // Belt: in each column the top cloth pixel on the waist line (columns where an arm hides the waist are skipped).
+      frames.forEach(({ fx, fy }) => {
+        const wy = clothRows(fx, fy, lowY(fx, fy)); if (wy < 0) return;
+        for (let X = fx; X < fx + S; X++) for (let y = wy - 1; y < fy + S; y++) {
+          if (!isBottom.has(key(X, y))) continue;
+          if (y <= wy + 2) set(X, y, GOV_BELT, 254);
+          break;
+        }
+      });
+    }
+
+    // Recolour: cloth shades between waist and hem → trouser/skirt; above the waist (below the collar) they are shirt shading;
+    // everything else through the body map (skin, socks, shoes, buzz cut) + the shirt map.
+    for (let p = 0; p < d.length; p += 4) {
+      if (!d[p + 3]) continue;
+      if (d[p + 3] === 254) { d[p + 3] = 255; continue; }
+      const Y = Math.floor(p / 4 / W), X = (p / 4) % W, fy = Y - Y % S, fk = (X - X % S) + ',' + fy, k = d[p] + ',' + d[p + 1] + ',' + d[p + 2];
+      const wy = WAIST[fk] ?? lowY(X, fy), hy = HEMY[fk] ?? fy + S;
+      const torso = Y >= lowY(X, fy) - GOV_BELOW_HEAD + 16 && Y < wy;
+      const t = (Y >= wy && Y <= hy ? low.get(k) : (torso && isBottom.has(k) ? G.upperShade : null))
+        || (torso && G.torsoOnly && G.torsoOnly[k]) || top.get(k);
+      if (t) { d[p] = t[0]; d[p + 1] = t[1]; d[p + 2] = t[2]; }
+    }
+
+    // Despeckle: on the shirt, a lone shade pixel (≥3 of its 4 neighbours plain shirt) becomes plain shirt — leftovers
+    // of the old uniform's badge/pocket marks. Edge shading, collar shading, buttons and the badge are kept.
+    const main = G.shirt.get(G.mainKey), plain = new Set([main.join(','), '255,255,255']);
+    const shade = new Set([...G.shirt.entries()].filter(([k]) => !(G.logo || []).includes(k)).map(([, c]) => c.join(',')).filter(k => !plain.has(k)));
+    shade.add(G.upperShade.join(','));
+    for (let pass = 0; pass < 2; pass++) {
+      const fix = [];
+      frames.forEach(({ an, fx, fy }) => {
+        const wy = WAIST[fx + ',' + fy] ?? fy + S;
+        for (let Y = fy + an.y + 16; Y < wy; Y++) for (let X = fx + 1; X < fx + S - 1; X++) {
+          if (!shade.has(key(X, Y))) continue;
+          const nb = [key(X - 1, Y), key(X + 1, Y), key(X, Y - 1), key(X, Y + 1)];
+          if (nb.includes('255,255,255')) continue;
+          if (nb.filter(k => plain.has(k)).length >= 3) fix.push([X, Y]);
+        }
+      });
+      fix.forEach(([X, Y]) => set(X, Y, main));
+    }
+    ctx.putImageData(id, 0, 0);
+    return cv;
+  }
+
   // Tail swing per frame (px, + = towards the face). Animations not listed keep the tail still
   // apart from the one-frame lag behind the head's bob.
   const TAIL_SWAY = { run: [0, -1, -1, 0, -1, -1], cheer: [0, 0, -1, -1] };
@@ -210,11 +458,12 @@
       const hairRamp = byId(HAIR_COLORS, cfg.hairColor).ramp;
       const skinMap = rampMap(P.skin, byId(SKIN_TONES, cfg.skin).ramp, new Map());
       const bodyMap = new Map(skinMap);
-      rampMap(P.socks, byId(SOCK_COLORS, cfg.socks).ramp, bodyMap);
+      rampMap(P.socks, byId(PUBLIC_SOCKS, cfg.socks).ramp, bodyMap);
       rampMap(P.shoes, byId(SHOE_COLORS, cfg.shoes).ramp, bodyMap);
       rampMap(P.baseHair, hairRamp, bodyMap);   // the buzz cut is the body's own hair
-      const outfit = byId(BODIES, cfg.body);
-      const sheet = recolorCanvas(D.imgs['body_' + (outfit.sheet || outfit.id)], bodyMap);
+      const outfit = byId(ALL_BODIES, cfg.body);
+      const src = D.imgs['body_' + (outfit.sheet || outfit.id)];
+      const sheet = outfit.gov ? paintGov(src, outfit, bodyMap, D) : recolorCanvas(src, bodyMap);
       const style = D.hair[cfg.hair];
       if (style) {
         const hairMap = rampMap(style.hairColours, hairRamp, new Map(skinMap));
@@ -781,7 +1030,7 @@
     { key: 'hair',      title: 'ทรงผม',   list: HAIRSTYLES },
     { key: 'hairColor', title: 'สีผม',    list: HAIR_COLORS },
     { key: 'skin',      title: 'สีผิว',    list: SKIN_TONES },
-    { key: 'socks',     title: 'ถุงเท้า',  list: SOCK_COLORS },
+    { key: 'socks',     title: 'ถุงเท้า',  list: SCHOOL_SOCKS },
     { key: 'shoes',     title: 'รองเท้า', list: SHOE_COLORS },
   ];
   const SHORT_Q = '(max-height: 820px)';     // same breakpoint as pixel.css
@@ -799,6 +1048,8 @@
     const list = p.list, i = Math.max(0, list.findIndex(o => o.id === cfg[p.key])), o = list[i];
     let thumb;
     if (p.key === 'hair') thumb = h(CharCanvas, { config: cfg, crop: HEAD, scale: 1.5, still: true, style: { width: 51, height: 45 } });
+    else if (p.key === 'body' && o.swatch) thumb = h('span', { style: { width: 34, height: 34, flex: 'none',   // white shirt over the trouser/skirt colour
+      background: 'linear-gradient(#F4F5FA 0 50%,' + o.swatch + ' 50% 100%)', border: '3px solid #3B2416' } });
     else if (p.key === 'body' && o.shirt) thumb = h('span', { style: { width: 34, height: 34, flex: 'none',
       background: rampSwatch(byId(SHIRT_COLORS, o.shirt)), border: '3px solid #3B2416' } });
     else if (p.key === 'body') thumb = h('span', { style: { fontSize: 30, lineHeight: 1 } }, o.id === 'boy' ? '👦' : '👧');
@@ -913,7 +1164,7 @@
   }
 
   window.CharKit = {
-    OPTIONS, defaults, sanitize, randomize, loadLocal, saveLocal,
+    OPTIONS, useOutfits, defaults, sanitize, randomize, loadLocal, saveLocal,
     load, buildSprite, drawFrame, CharCanvas, Avatar, CreatorScreen,
     fromName, fromPlayer, toWire, grayOf, RaceTrack, ResultStage,
     CROP: { FULL, HEAD },

@@ -12,6 +12,7 @@ const SCHOOL = {
   homework: true,      // การบ้าน button + list
   weekly: true,        // ภารกิจประจำสัปดาห์ (weekly test board)
   saveMatch: true,     // 1v1 / Battle Royale results → Matches sheet
+  outfits: 'school',   // character outfits: 'school' = school uniforms + polos, 'public' = government-school uniforms + polos
   // Wording that differs
   text: {
     pickerTitle: 'เข้าเล่นด้วยบัญชีโรงเรียน',
@@ -21,6 +22,10 @@ const SCHOOL = {
 };
 
 export const EDITION = { ...SCHOOL, ...overrides, text: { ...SCHOOL.text, ...(overrides.text || {}) } };
+
+// char.js (loaded before this bundle) picks this edition's outfit list before any character is drawn.
+// The teacher page has no char.js, hence the check.
+window.CharKit?.useOutfits(EDITION.outfits);
 
 // One set of calls the screens use for saving/loading, whichever backend is behind it:
 // edition.json "backend": "public" → Firebase (backend/public.js), otherwise Apps Script (backend/school.js).

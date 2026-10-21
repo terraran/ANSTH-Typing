@@ -1,0 +1,3 @@
+# npm run build regenerates this file with LF line endings; keep it LF in the working copy too,
+# so a build doesn't leave it showing as modified on Windows (core.autocrlf=true).
+src/data/curriculum.gen.js text eol=lf

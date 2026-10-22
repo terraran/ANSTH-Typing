@@ -34,7 +34,9 @@ export const submitHomework = apiSubmitHomework;
 export const titleRunners = apiTitleRunners;
 
 // ── Teacher page (teacher2.html) — the same Apps Script actions teacher.html uses ──
-// → { classes: ['Y603', …] }  (throws 'Unauthorized' for accounts not in TEACHER_EMAILS)
+// → { classes: ['Y603', …], limited? }  Admins (TEACHER_EMAILS) get every room; teachers in the
+// Sheet's Teachers tab get only their rooms (limited: true) — Apps Script refuses the other rooms
+// in every teacher action. Throws 'Unauthorized' for anyone else.
 export const teacherClasses = () => apiRequest('getClasses');
 // → { students: [{ name, totalSessions, avgCpm, avgAcc, bestCpm, lastActive,
 //                  sessions: [{ date, exercise, cpm, wpm, accuracy, errors, chars, duration }] }] }

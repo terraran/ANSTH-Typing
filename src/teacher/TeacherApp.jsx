@@ -27,7 +27,7 @@ const roomName = c => api.label ? api.label(c) : 'ห้อง ' + roomLabel(c);
 const drive = PUBLIC ? (DEMO ? demoDrive() : realDrive) : null;
 
 const ERRORS = {
-  Unauthorized: 'บัญชีนี้ไม่ได้อยู่ในรายชื่อครู (TEACHER_EMAILS)',
+  Unauthorized: 'บัญชีนี้ไม่มีสิทธิ์ (ไม่อยู่ในรายชื่อครู หรือไม่ใช่ห้องที่รับผิดชอบ)',
   CONFIG_CLIENT_ID: 'GOOGLE_CLIENT_ID ใน Script Properties ไม่ตรงกับหน้าเว็บ',
   CONFIG_SPREADSHEET: 'เปิด Google Sheet ไม่ได้ — ตรวจ SPREADSHEET_ID',
   CONFIG_SCRIPT_PERMISSION: 'Apps Script ยังไม่ได้ Authorize สิทธิ์ใหม่',
@@ -298,6 +298,7 @@ export function TeacherApp() {
   const [token, setToken] = useState(() => DEMO ? 'demo' : savedToken());
   const [loginErr, setLoginErr] = useState('');
   const [classes, setClasses] = useState(null);
+  const [limited, setLimited] = useState(false);  // school: teacher sees only the rooms in the Teachers tab
   const [code, setCode] = useState('');
   const [data, setData] = useState({});          // code → { students, error, loading }
   const [unlocks, setUnlocks] = useState([]);
@@ -328,6 +329,7 @@ export function TeacherApp() {
       try { sessionStorage.setItem(TOKEN_KEY, token); } catch {}
       const cs = PUBLIC ? d.classes || [] : (d.classes || []).slice().sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
       setClasses(cs);
+      setLimited(!!d.limited);
       let last = ''; try { last = localStorage.getItem('teacherClass') || ''; } catch {}
       setCode(cs.includes(last) ? last : cs[0] || '');
     }).catch(e => signOut(errText(e)));
@@ -462,7 +464,9 @@ export function TeacherApp() {
             onCancel={classes.length ? () => setView('room') : null}
             onPrint={id => { reloadClasses(id).then(() => { setPrintNos([]); setView('cards'); }); }}
             onDone={id => { setView('room'); reloadClasses(id); }}/>
-        : !classes.length ? <div className="empty">ยังไม่มีห้องเรียน — เพิ่มนักเรียนในแท็บ Roster ของ Google Sheet ก่อน</div>
+        : !classes.length ? <div className="empty">{limited
+            ? 'บัญชีนี้ยังไม่มีห้องที่รับผิดชอบ — แจ้งผู้ดูแลระบบให้ใส่ห้องให้ในแท็บ Teachers ของ Google Sheet'
+            : 'ยังไม่มีห้องเรียน — เพิ่มนักเรียนในแท็บ Roster ของ Google Sheet ก่อน'}</div>
         : <div className="layout">
             <nav className="card sidebar" aria-label="เลือกห้อง">
               <b className="side-title">ห้องของฉัน</b>

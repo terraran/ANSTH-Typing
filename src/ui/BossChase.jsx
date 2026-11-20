@@ -62,7 +62,8 @@ const CSS = `
 .bc-dlg{position:fixed;inset:0;z-index:60;background:rgba(24,14,8,.45);cursor:pointer}
 .bc-box{position:absolute;box-sizing:border-box;display:flex;animation:bcUp .22s ease-out}
 @keyframes bcUp{from{transform:translateY(30px);opacity:0}}
-.bc-face{position:absolute;bottom:-6px;image-rendering:pixelated;z-index:2;transform:scaleX(-1);filter:drop-shadow(0 6px 0 rgba(24,14,8,.35))}
+.bc-face{position:absolute;image-rendering:pixelated;z-index:2;transform:scaleX(-1);filter:drop-shadow(0 6px 0 rgba(24,14,8,.35));animation:bcFade .22s ease-out}
+@keyframes bcFade{from{opacity:0}}   /* fade only: a transform animation would undo the mirror while it plays */
 .bc-name{position:absolute;top:-30px;background:#FFC23D;border:3px solid ${INK};color:${INK};font-weight:700;font-size:16px;
   padding:1px 12px;box-shadow:0 3px 0 rgba(59,36,22,.35)}
 .bc-text{flex:1;min-width:0;background:#F8EED2;border:3px solid ${INK};padding:10px 16px 6px;display:flex;flex-direction:column}
@@ -78,24 +79,30 @@ if (typeof document !== 'undefined' && !document.getElementById('boss-chase-css'
 // ── Dialogue box: the boss's half-body portrait stands on the right, much bigger than the box ──
 // Drawn on document.body (fixed), lined up with the typing area `rect` — the typing area sits in a scrolling panel
 // that would clip the portrait (or grow a scrollbar).
+// Layout = what the teacher placed by hand in the mock (?layout, Nov 2026; typing area 864×568, portrait ×4):
+//   box from the left edge, flush with the bottom, leaving 2/3 of the portrait's width free on the right;
+//   portrait in front, sticking out past the right edge by 0.107 of its width and below the bottom by 0.117
+//   (the cut at its waist goes off the bottom); name tag 39 px in from the box's right end, 22 px above its top.
 function BossTalk({ boss, talk, big, rect }) {
-  const pf = big ? 384 : 288;                     // 96×128 art at ×4 / ×3
-  const bh = big ? 210 : 150;
+  const pf = 4 * 96, ph = pf * 4 / 3;               // 96×128 art at ×4 on every screen (×5 left the text box too narrow on 1080p)
+  const bh = big ? 190 : 162;
   const line = talk.lines[talk.i];
   const done = talk.shown >= talk.g.length;
   const r = rect || { left: 12, width: Math.min(880, innerWidth - 24), bottom: innerHeight - 12 };
+  const right = r.left + r.width, bw = r.width - pf * 2 / 3;
   return (
     <div className="bc-dlg" role="dialog" aria-modal="true" aria-label={boss.name + 'พูด'} onClick={talk.next}>
-      <div className="px-wood bc-box" style={{ left: r.left, width: r.width, top: r.bottom - bh, height: bh, paddingRight: pf * .68 }}>
-        <img className="bc-face" src={boss.dir + boss.faces[line.face]} alt=""
-          style={{ right: -pf * .24, width: pf, height: pf * 4 / 3 }}/>
-        <div className="bc-name" style={{ right: pf * .68, fontFamily: TH_FONT }}>{boss.name}</div>
+      <div className="px-wood bc-box" style={{ left: r.left, width: bw, top: r.bottom - bh, height: bh }}>
         <div className="bc-text" style={{ fontFamily: TH_FONT }}>
           <p style={{ fontSize: big ? 26 : 21 }}>{talk.g.slice(0, Math.floor(talk.shown)).join('')}</p>
           <div className="bc-foot"><small>กด Enter หรือคลิกเพื่อไปต่อ</small>
             <span className="bc-next" style={{ visibility: done ? 'visible' : 'hidden' }}>▼</span></div>
         </div>
       </div>
+      {/* measured from the box's outer edge (not inside its wooden border) */}
+      <div className="bc-name" style={{ right: innerWidth - (r.left + bw) + 39, top: r.bottom - bh - 22, fontFamily: TH_FONT, zIndex: 1, animation: 'bcFade .22s ease-out' }}>{boss.name}</div>
+      <img className="bc-face" src={boss.dir + boss.faces[line.face]} alt=""
+        style={{ left: right + pf * .107 - pf, top: r.bottom + pf * .117 - ph, width: pf, height: ph }}/>
     </div>
   );
 }

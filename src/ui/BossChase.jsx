@@ -82,11 +82,12 @@ if (typeof document !== 'undefined' && !document.getElementById('boss-chase-css'
 // Layout = what the teacher placed by hand in the mock (?layout, 2nd round, Nov 2026; typing area 864×568):
 //   it spills OUT of the game's frame — the box starts 189 px left of the typing area, ends 83 px in from its right
 //   and 52 px below its bottom (970×204 there); the portrait ×5 sticks out 270 px past the right and 125 px below the
-//   bottom (73 px below the box; its waist cut goes off the screen); name tag 43 px in from the box's right end, 27 px above it.
+//   bottom; later: its lowest painted row pinned to the screen's bottom edge (no floating), the name tag big and right up
+//   against the boss's painting (otherwise 43 px in from the box's right end), above the box.
 //   The lab screens have little room under the game, so the box is held above the screen's bottom edge and the
 //   portrait inside its width (the portrait keeps its place against the box).
 function BossTalk({ boss, talk, big, rect }) {
-  const pf = 5 * 96, ph = pf * 4 / 3;                // 96×128 art at ×5
+  const sc = 5, pf = sc * 96, ph = sc * 128;         // 96×128 art at ×5
   const bh = 204;
   const line = talk.lines[talk.i];
   const done = talk.shown >= talk.g.length;
@@ -94,8 +95,11 @@ function BossTalk({ boss, talk, big, rect }) {
   const right = r.left + r.width;
   const bx = Math.max(8, r.left - 189), bRight = right - 83, bw = bRight - bx;
   const bBottom = Math.min(r.bottom + 52, innerHeight - 6), by = bBottom - bh;
-  const fRight = Math.min(right + 270, innerWidth - 4), fx = fRight - pf, fy = bBottom + 73 - ph;
-  const under = Math.max(0, bRight - fx - 60);       // keep the text out from under the portrait (its left edge is mostly empty)
+  // the boss's lowest painted row sits exactly on the screen's bottom edge (never floating above it)
+  const art = boss.faceArt || { right: 95, bottom: 127 };
+  const fRight = Math.min(right + 270, innerWidth - 4), fx = fRight - pf, fy = innerHeight - (art.bottom + 1) * sc;
+  const artLeft = fx + (95 - art.right) * sc;        // where the (mirrored) painting starts on screen
+  const under = Math.max(0, bRight - artLeft);       // keep the text out from under the boss
   return (
     <div className="bc-dlg" role="dialog" aria-modal="true" aria-label={boss.name + 'พูด'} onClick={talk.next}>
       <div className="px-wood bc-box" style={{ left: bx, width: bw, top: by, height: bh }}>
@@ -106,8 +110,8 @@ function BossTalk({ boss, talk, big, rect }) {
         </div>
       </div>
       {/* measured from the box's outer edge (not inside its wooden border) */}
-      {/* name tag: big, and always left of the portrait (never under it) */}
-      <div className="bc-name" style={{ right: innerWidth - Math.min(bRight - 43, fx - 10), top: by - (big ? 40 : 34),
+      {/* name tag: big, right up against the boss's painting but never under it */}
+      <div className="bc-name" style={{ right: innerWidth - Math.min(bRight - 43, artLeft - 6), top: by - (big ? 40 : 34),
         fontFamily: TH_FONT, fontSize: big ? 26 : 22, padding: big ? '3px 20px' : '2px 16px', zIndex: 3, animation: 'bcFade .22s ease-out' }}>{boss.name}</div>
       <img className="bc-face" src={boss.dir + boss.faces[line.face]} alt=""
         style={{ left: fx, top: fy, width: pf, height: ph }}/>

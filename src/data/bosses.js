@@ -6,7 +6,8 @@
 //   Art (PixelLab, assets/boss/stageN/), all drawn at its own size — never scaled by a fraction:
 //   • run / runChest: 8-frame run facing right, one horizontal strip, every frame `w`×`h`
 //     (both strips cropped to one shared box, so the feet stay on the same line)
-//   • chest: the loose chest (falls off / flies back), faces: half-body dialogue portraits (96×128)
+//   • chest: the loose chest (falls off / flies back), faces: half-body dialogue portraits (96×128);
+//     faceArt = where the painting ends inside them, so the boss stands right on the screen's bottom edge
 //   • obstacle: what the boss throws back — 'rock' is drawn in code
 // ═══════════════════════════════════════════════════════════════
 
@@ -17,6 +18,7 @@ const BOSSES = {
     run: 'run.png', runChest: 'run-chest.png', frames: 8, w: 87, h: 60, fps: 11,
     chest: 'chest.png',
     faces: { smug: 'half-smug.png', shock: 'half-shock.png' },
+    faceArt: { right: 83, bottom: 116 },   // last painted column / row inside the 96×128 portraits (as stored, before mirroring)
     obstacle: 'rock',
     lines: {
       intro: [

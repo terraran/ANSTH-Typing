@@ -143,6 +143,12 @@ const SFX = {
   tip: () => { T(N(7), 0.06, { type: 'sine', v: 0.18 }); T(N(14), 0.08, { type: 'sine', v: 0.15 }, 0.06); },
   blip: (p) => { const s = p == null ? 5 + Math.floor(Math.random() * 6) : p; T(N(s), 0.05, { v: 0.05, f1: N(s - 0.7) }); },
   rage: () => { T(180, 0.5, { type: 'sawtooth', v: 0.08, f1: 1400 }); Z(0.45, { v: 0.06, hp: 2000 }); },
+  // boss chase (src/ui/BossChase.jsx)
+  jump: () => T(N(0), 0.16, { type: 'square', v: 0.07, f1: N(12) }),
+  trip: () => { T(220, 0.18, { type: 'triangle', v: 0.16, f1: 110 }); Z(0.1, { v: 0.1, hp: 200, lp: 1200 }); },
+  laugh: () => [0, 0.13, 0.26].forEach((at, i) => { T(N(-3 - i), 0.09, { type: 'square', v: 0.06, f1: N(-6 - i) }, at); Z(0.05, { v: 0.05, hp: 900, lp: 2500 }, at); }),
+  stomp: () => { T(140, 0.22, { type: 'square', v: 0.12, f1: 50 }); Z(0.3, { v: 0.14, hp: 300, lp: 3000 }); notes([12, 16, 19], 0.05, { v: 0.06 }); },
+  chest: () => notes([7, 12, 16, 19, 24], 0.06, { type: 'triangle', v: 0.16 }),
 };
 export function sfx(name, arg) {
   if (!ready() || settings.sfx === 0 || !SFX[name]) return;

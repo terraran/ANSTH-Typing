@@ -10,6 +10,8 @@ import { auth } from './auth';
 import { LESSONS, findLesson } from './data/lessons';
 import { stageOf } from './data/curriculum.js';
 import { laneWorld, stillWorld } from './data/lanes';
+import { bossFor } from './data/bosses';
+import { BossChase } from './ui/BossChase';
 import { curriculumText, stageTestText } from './engine/curriculumText.js';
 import { RUSH_STARS, emptyProgress, readLocalProgress, stepKey, stepState, writeLocalProgress } from './engine/progress.js';
 import { PenaltyScreen, TestTimer, TextDisplay, TextPager, TimeUpOverlay } from './ui/common';
@@ -105,6 +107,7 @@ export function ThaiTypingApp() {
   const [weeklyStatus, setWeeklyStatus] = useState('idle'); // idle|loading|ok|error
   const [testBoard,    setTestBoard]    = useState(null);   // board returned right after submitting
   const [timeUp,       setTimeUp]       = useState(false);  // "⏰ หมดเวลา!" overlay
+  const [runId,        setRunId]        = useState(0);      // +1 per started run (remounts the boss chase)
   // BR Zone & spectator
   const [zoneWpm,       setZoneWpm]       = useState(0);
   const [zoneTs,        setZoneTs]        = useState(0);   // timestamp of last zone update
@@ -245,7 +248,14 @@ export function ThaiTypingApp() {
     : screen==='results' ? null
     : 'home';
   useEffect(() => { music(musicId); },[musicId]);
-  const bossRage = screen==='practice' && !roomCode && isBossLesson && totalChars>0 && pos/totalChars>=0.8 && !endTime;
+  // Boss chase (src/ui/BossChase.jsx): the timed step of a boss lesson, solo only, for stages that have a boss (src/data/bosses.js).
+  // Its rage follows the chase itself (past the ⭐⭐ mark or the last 30 s); other boss steps keep the 80 %-of-text rule.
+  const chaseBoss = screen==='practice' && !roomCode && !activeTest && !activeHw && isBossLesson && timeLimit>0 ? bossFor(lesson.stage) : null;
+  const chaseRef = useRef(null); chaseRef.current = chaseBoss;
+  const bossTalkRef = useRef(false);          // the boss's dialogue box is open → typing waits
+  const [chaseRage, setChaseRage] = useState(false);
+  const bossRage = chaseBoss ? chaseRage
+    : screen==='practice' && !roomCode && isBossLesson && totalChars>0 && pos/totalChars>=0.8 && !endTime;
   useEffect(() => { setRage(bossRage); },[bossRage]);
   useEffect(() => { if (penaltySecs===SPAM_PENALTY) sfx('freeze'); },[penaltySecs]);
   useEffect(() => { if (pressureSecs>0) sfx('pressure'); },[pressureSecs]);
@@ -330,6 +340,7 @@ export function ThaiTypingApp() {
     if (now-startTime < timeLimit*1000) return;
     setEndTime(startTime+timeLimit*1000);
     frozenRef.current=false; setPenaltySecs(0);
+    if (chaseRef.current) return;   // boss chase: its ending (and the boss's last words) plays first, then onDone → results
     setTimeUp(true);
     setTimeout(()=>{ setTimeUp(false); setScreen(s=>s==='practice'?'results':s); },1400);
   },[now,screen,timeLimit,startTime,endTime]);
@@ -866,7 +877,7 @@ export function ThaiTypingApp() {
     scoredIdx.current=new Set(); missedIdx.current=new Set();
     speedBuf.current=[]; lastScoreTime.current=null; lessonIdRef.current=les.id;
     hsDone.current=false; setPrevBest(0); setCurResult(null);
-    setPos(0); setErrors(0); setStartTime(null); setEndTime(null);
+    setPos(0); setErrors(0); setStartTime(null); setEndTime(null); setRunId(n=>n+1);
     setHint(null); setFlashCode(null); setShiftHeld(false); setNow(Date.now());
     keystrokeTimes.current=[]; errorTimes.current=[];
     currentTimings.current=[]; lastCorrectTime.current=null;
@@ -1287,6 +1298,7 @@ export function ThaiTypingApp() {
         else setScreen(testRef.current?'weekly':'lessons');
         return;
       }
+      if (bossTalkRef.current) return;  // the boss is talking (Enter / Space / click moves its dialogue on)
       const { pos,target,targetChars,startTime,endTime } = stateRef.current;
       if (endTime) return;             // finished, or the weekly test time is up
       if (e.code==='Backspace') {
@@ -1370,7 +1382,7 @@ export function ThaiTypingApp() {
                  ...(rtRef.current==='1v1'?{score:scoreRef.current}:{})});
             }
             if (rcRef.current) { raceEndedRef.current=true; finishPresence(); }
-            setTimeout(()=>setScreen('results'),600);
+            if (!chaseRef.current) setTimeout(()=>setScreen('results'),600);   // boss chase goes on with its ending
           }
           return next;
         });
@@ -1681,11 +1693,11 @@ export function ThaiTypingApp() {
             )}
             {!roomCode&&(
               <div className="px-wood" style={{display:'flex',alignItems:'center',gap:14,padding:'0 4px',color:'#F5E6BE',flex:'none',
-                boxSizing:'border-box',height:timeLimit>0?'var(--hud-t)':'var(--hud)'}}>
+                boxSizing:'border-box',height:timeLimit>0&&!chaseBoss?'var(--hud-t)':'var(--hud)'}}>
                 <PxButton onClick={()=>setScreen('lessons')} style={{minHeight:'var(--hb)',fontSize:14,flex:'none'}}>← กลับ</PxButton>
                 <HelpButton page={helpPage} disabled={timeLimit>0 && !!startTime && !endTime}/>
                 <SoundButton/>
-                {timeLimit>0&&<div style={{flex:'none',whiteSpace:'nowrap'}}><TestTimer startTime={startTime} now={now} endTime={endTime} total={timeLimit}/></div>}
+                {timeLimit>0&&!chaseBoss&&<div style={{flex:'none',whiteSpace:'nowrap'}}><TestTimer startTime={startTime} now={now} endTime={endTime} total={timeLimit}/></div>}
                 <div style={{display:'flex',flexDirection:'column',lineHeight:1.35,minWidth:0,flex:'1 1 0'}}>
                   {activeTest&&<><span style={{fontSize:13,fontWeight:600,color:'#E8CF95',...oneLine}}>ภารกิจประจำสัปดาห์</span>
                     <span style={{fontSize:18,fontWeight:700,...oneLine}} title={activeTest.exerciseTitle}>{activeTest.exerciseTitle}</span></>}
@@ -1714,6 +1726,18 @@ export function ThaiTypingApp() {
                     COMBO x{Math.max(1,comboMultiplier(scoreStreak)).toFixed(1)}</span>
                 </div>
               </div>
+            )}
+            {/* Boss chase: the timed step of a boss lesson. Under the HUD (not above it like the practice lane) because
+                jumps, the stomp and the flying chest rise above the scene, and the typing area clips at its own top.
+                Its clock lives in the scene, so the HUD stays short. */}
+            {chaseBoss&&window.CharKit&&(
+              <BossChase key={runId} boss={chaseBoss} world={laneWorld(lesson.stage)} cfg={myCfg} height={laneH} big={viewH>820}
+                total={timeLimit} target={stageTarget(lesson.stage)} net={exercise?.kind==='longtimed'}
+                startTime={startTime} endTime={endTime} keys={pressCountRef.current} pos={pos} errors={errors}
+                overlay={practiceRef}
+                onTalking={v=>{ bossTalkRef.current=v; }}
+                onRage={setChaseRage}
+                onDone={()=>setScreen(s=>s==='practice'?'results':s)}/>
             )}
             {/* in a race the next-key box sits inside the race HUD's top bar */}
             {/* In a race the text box never shrinks below its 3 lines — the race lane gives way instead */}

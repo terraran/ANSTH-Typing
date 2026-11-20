@@ -79,30 +79,36 @@ if (typeof document !== 'undefined' && !document.getElementById('boss-chase-css'
 // ── Dialogue box: the boss's half-body portrait stands on the right, much bigger than the box ──
 // Drawn on document.body (fixed), lined up with the typing area `rect` — the typing area sits in a scrolling panel
 // that would clip the portrait (or grow a scrollbar).
-// Layout = what the teacher placed by hand in the mock (?layout, Nov 2026; typing area 864×568, portrait ×4):
-//   box from the left edge, flush with the bottom, leaving 2/3 of the portrait's width free on the right;
-//   portrait in front, sticking out past the right edge by 0.107 of its width and below the bottom by 0.117
-//   (the cut at its waist goes off the bottom); name tag 39 px in from the box's right end, 22 px above its top.
+// Layout = what the teacher placed by hand in the mock (?layout, 2nd round, Nov 2026; typing area 864×568):
+//   it spills OUT of the game's frame — the box starts 189 px left of the typing area, ends 83 px in from its right
+//   and 52 px below its bottom (970×204 there); the portrait ×5 sticks out 270 px past the right and 125 px below the
+//   bottom (73 px below the box; its waist cut goes off the screen); name tag 43 px in from the box's right end, 27 px above it.
+//   The lab screens have little room under the game, so the box is held above the screen's bottom edge and the
+//   portrait inside its width (the portrait keeps its place against the box).
 function BossTalk({ boss, talk, big, rect }) {
-  const pf = 4 * 96, ph = pf * 4 / 3;               // 96×128 art at ×4 on every screen (×5 left the text box too narrow on 1080p)
-  const bh = big ? 190 : 162;
+  const pf = 5 * 96, ph = pf * 4 / 3;                // 96×128 art at ×5
+  const bh = 204;
   const line = talk.lines[talk.i];
   const done = talk.shown >= talk.g.length;
   const r = rect || { left: 12, width: Math.min(880, innerWidth - 24), bottom: innerHeight - 12 };
-  const right = r.left + r.width, bw = r.width - pf * 2 / 3;
+  const right = r.left + r.width;
+  const bx = Math.max(8, r.left - 189), bRight = right - 83, bw = bRight - bx;
+  const bBottom = Math.min(r.bottom + 52, innerHeight - 6), by = bBottom - bh;
+  const fRight = Math.min(right + 270, innerWidth - 4), fx = fRight - pf, fy = bBottom + 73 - ph;
+  const under = Math.max(0, bRight - fx - 60);       // keep the text out from under the portrait (its left edge is mostly empty)
   return (
     <div className="bc-dlg" role="dialog" aria-modal="true" aria-label={boss.name + 'พูด'} onClick={talk.next}>
-      <div className="px-wood bc-box" style={{ left: r.left, width: bw, top: r.bottom - bh, height: bh }}>
-        <div className="bc-text" style={{ fontFamily: TH_FONT }}>
-          <p style={{ fontSize: big ? 26 : 21 }}>{talk.g.slice(0, Math.floor(talk.shown)).join('')}</p>
+      <div className="px-wood bc-box" style={{ left: bx, width: bw, top: by, height: bh }}>
+        <div className="bc-text" style={{ fontFamily: TH_FONT, paddingRight: 16 + under }}>
+          <p style={{ fontSize: big ? 28 : 24 }}>{talk.g.slice(0, Math.floor(talk.shown)).join('')}</p>
           <div className="bc-foot"><small>กด Enter หรือคลิกเพื่อไปต่อ</small>
             <span className="bc-next" style={{ visibility: done ? 'visible' : 'hidden' }}>▼</span></div>
         </div>
       </div>
       {/* measured from the box's outer edge (not inside its wooden border) */}
-      <div className="bc-name" style={{ right: innerWidth - (r.left + bw) + 39, top: r.bottom - bh - 22, fontFamily: TH_FONT, zIndex: 1, animation: 'bcFade .22s ease-out' }}>{boss.name}</div>
+      <div className="bc-name" style={{ right: innerWidth - bRight + 43, top: by - 27, fontFamily: TH_FONT, zIndex: 1, animation: 'bcFade .22s ease-out' }}>{boss.name}</div>
       <img className="bc-face" src={boss.dir + boss.faces[line.face]} alt=""
-        style={{ left: right + pf * .107 - pf, top: r.bottom + pf * .117 - ph, width: pf, height: ph }}/>
+        style={{ left: fx, top: fy, width: pf, height: ph }}/>
     </div>
   );
 }

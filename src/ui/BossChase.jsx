@@ -106,7 +106,9 @@ function BossTalk({ boss, talk, big, rect }) {
         </div>
       </div>
       {/* measured from the box's outer edge (not inside its wooden border) */}
-      <div className="bc-name" style={{ right: innerWidth - bRight + 43, top: by - 27, fontFamily: TH_FONT, zIndex: 1, animation: 'bcFade .22s ease-out' }}>{boss.name}</div>
+      {/* name tag: big, and always left of the portrait (never under it) */}
+      <div className="bc-name" style={{ right: innerWidth - Math.min(bRight - 43, fx - 10), top: by - (big ? 40 : 34),
+        fontFamily: TH_FONT, fontSize: big ? 26 : 22, padding: big ? '3px 20px' : '2px 16px', zIndex: 3, animation: 'bcFade .22s ease-out' }}>{boss.name}</div>
       <img className="bc-face" src={boss.dir + boss.faces[line.face]} alt=""
         style={{ left: fx, top: fy, width: pf, height: ph }}/>
     </div>

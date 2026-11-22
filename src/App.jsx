@@ -253,6 +253,7 @@ export function ThaiTypingApp() {
   const chaseBoss = screen==='practice' && !roomCode && !activeTest && !activeHw && isBossLesson && timeLimit>0 ? bossFor(lesson.stage) : null;
   const chaseRef = useRef(null); chaseRef.current = chaseBoss;
   const bossTalkRef = useRef(false);          // the boss's dialogue box is open → typing waits
+  const boostRef = useRef(1);                 // boss chase: short score multiplier after a stomp (×2…×5, else 1)
   const [chaseRage, setChaseRage] = useState(false);
   const bossRage = chaseBoss ? chaseRage
     : screen==='practice' && !roomCode && isBossLesson && totalChars>0 && pos/totalChars>=0.8 && !endTime;
@@ -1349,7 +1350,8 @@ export function ThaiTypingApp() {
           const gain = missedIdx.current.has(pos) ? 0 : Math.round(
             charBasePoints(targetChars[pos]) *
             speedMultiplier(speedBuf.current, lessonIdRef.current) *
-            comboMultiplier(streakRef.current));
+            comboMultiplier(streakRef.current) *
+            (chaseRef.current ? boostRef.current : 1));   // boss chase stomp bonus (score only — stars are untouched)
           const multBefore = comboMultiplier(streakRef.current);
           streakRef.current += 1; setScoreStreak(streakRef.current);
           // Sound: the key sound the player picked (also in races — each student picks, or turns it off)
@@ -1737,6 +1739,7 @@ export function ThaiTypingApp() {
                 overlay={practiceRef}
                 onTalking={v=>{ bossTalkRef.current=v; }}
                 onPause={ms=>setStartTime(t=>t?t+ms:t)}
+                onBoost={m=>{ boostRef.current=m; }}
                 onRage={setChaseRage}
                 onDone={()=>setScreen(s=>s==='practice'?'results':s)}/>
             )}

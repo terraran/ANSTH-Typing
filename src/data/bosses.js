@@ -17,6 +17,7 @@ const BOSSES = {
     dir: 'assets/boss/stage1/',
     run: 'run.png', runChest: 'run-chest.png', frames: 8, w: 87, h: 60, fps: 11,
     chest: 'chest.png',
+    head: 'head.png',                        // 24×24 head icon: the stomp counter + the end of the distance bar
     faces: { smug: 'half-smug.png', shock: 'half-shock.png' },
     faceArt: { right: 83, bottom: 116 },   // last painted column / row inside the 96×128 portraits (as stored, before mirroring)
     obstacle: 'rock',
@@ -39,7 +40,7 @@ const BOSSES = {
         { face: 'smug', text: 'ไปฝึกพิมพ์มาใหม่ แล้วค่อยมาไล่ข้าอีกทีนะ!' },
       ],
     },
-    taunts: { start: 'อู๊ดๆ ไล่ให้ทันสิ!', throw: 'ฮึ่ย!', throwRage: 'รับไปเลย!!', laugh: 'ฮ่าๆๆ!' },
+    taunts: { start: 'อู๊ดๆ ไล่ให้ทันสิ!', throw: 'ฮึ่ย!', throwRage: 'รับไปเลย!!', laugh: 'ฮ่าๆๆ!', stomped: 'อ๊าก!! จำไว้นะ!' },
   },
 };
 

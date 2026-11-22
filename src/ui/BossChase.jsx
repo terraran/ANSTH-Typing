@@ -7,6 +7,9 @@
 //   • Start: the boss talks (off screen), dashes in from behind and overtakes to the far end, "พร้อม… เริ่ม!", then typing opens.
 //   • The boss throws a rock now and then: a big Space QTE pops up (the scene slows, typing and the clock pause);
 //     Space in time = jump, too late = trip (only a look — nothing is taken off).
+//   • Caught before time's up: one stomp, the boss runs back to the start, and the score gets a short multiplier
+//     (×2 for 15 s, +1 per stomp while it lasts, up to ×5); each next lap is longer the higher the multiplier.
+//     The top strip keeps fixed chips (boss-head stomp count · ×multiplier · accuracy) so nothing shifts.
 //   • Rage (red, rocks come faster, music speeds up): past the ⭐⭐ mark or in the last 30 seconds.
 //   • Endings follow the stars the step really gets (lessonStars): ⭐⭐⭐ boss panics in a dialogue, then gets stomped
 //     and bursts into pixels, the chest flies back · ⭐–⭐⭐ drops the chest and escapes · 0 runs off with it.
@@ -47,6 +50,19 @@ const CSS = `
 .bc-tick{position:absolute;top:-4px;bottom:-4px;width:3px;background:${INK}}
 .bc-tick span{position:absolute;top:-1px;left:5px;font-size:10px;white-space:nowrap;color:#fff;
   text-shadow:0 1px 0 ${INK},1px 0 0 ${INK},-1px 0 0 ${INK},0 -1px 0 ${INK}}
+.bc-stat{text-align:center;transition:opacity .2s}
+.bc-stat.off{opacity:.45}
+.bc-stomps{color:#9BE39A;display:inline-flex;align-items:center;gap:4px;padding:0 6px 0 2px;height:28px;box-sizing:border-box;min-width:54px}
+.bc-stomps b{font-weight:400;font-size:11px}
+.bc-head{width:24px;height:24px;image-rendering:pixelated;display:block}
+.bc-head.end{display:inline-block;vertical-align:middle;margin:-8px 0 -6px}
+.bc-mult{position:relative;min-width:46px;color:#FFD25A;font-size:11px;padding:4px 6px 6px}
+.bc-mult b{font-weight:400}
+.bc-mult i{position:absolute;left:3px;bottom:2px;height:3px;width:0;background:#FFD25A;transition:width .2s linear}
+.bc-mult.pop{animation:bcMultPop .35s ease-out}
+@keyframes bcMultPop{40%{transform:scale(1.35)}}
+.bc-tick.dim{opacity:.3}
+.bc-acc{min-width:78px;text-align:center}
 .bc-acc.ok{color:#9BE39A}.bc-acc.mid{color:#FFD25A}.bc-acc.bad{color:#FF6B5A}
 .bc-rage{position:absolute;inset:0;pointer-events:none;opacity:0;transition:opacity .4s;
   background:radial-gradient(ellipse at 70% 60%,rgba(255,60,20,0),rgba(220,30,10,.38));mix-blend-mode:multiply}
@@ -142,7 +158,7 @@ function BossTalk({ boss, talk, big, rect }) {
 // props: boss (bosses.js), world (lanes.js), cfg (character), height (lane px), big (tall screen),
 //   total (secs), target (stage wpm), net (stage 9 net words), startTime, endTime, keys (correct keypresses),
 //   pos, errors, overlay (element the dialogue covers), onTalking(bool: typing must wait), onRage(bool),
-//   onPause(ms: a QTE window to take off the clock), onDone()
+//   onPause(ms: a QTE window to take off the clock), onBoost(score multiplier: 1 / 2…5), onDone()
 export function BossChase(props) {
   const { boss, world, cfg, height, big } = props;
   const live = useRef(props); live.current = props;
@@ -154,6 +170,7 @@ export function BossChase(props) {
   const [qteView, setQteView] = useState(null);        // null | 'on' | 'ok' | 'miss'
   const [cue, setCue] = useState(null);                // { text, go } — "พร้อม…" / "เริ่ม!"
   const qteBarRef = useRef(null);
+  const stompRef = useRef(null), stompNRef = useRef(null), multRef = useRef(null), multTxtRef = useRef(null), multBarRef = useRef(null), tick2Ref = useRef(null);
   const [host, setHost] = useState(null);
   const talkRef = useRef(null);
   const S = useRef(null);
@@ -219,6 +236,7 @@ export function BossChase(props) {
       phase: 'intro', heroX: 70, heroY: 0, bossX: -boss.w, bossFlip: false, bossHide: false, squash: 1,
       chest: 'carried', chestX: 0, chestY: 0, chestVX: 0, chestVY: 0, obs: [], nextObs: 8, trip: 0, jump: null,
       qte: null, owe: 0, oweStart: 0, block: null, taunted: false,
+      laps: 0, lapBase: 0, lapNeed: 0, newLap: false, mult: 1, boostUntil: 0, boosted: false, stomp: null, flash: 0,
       end: null, endAt: 0, hold: false, talked: false, boom: false, finished: false, parts: [], bubbles: [],
       lastOk: -9e9, lastErr: -9e9, hist: [], cam: 0, vel: 0, legT: 0, now: 0, rage: false,
     };
@@ -264,6 +282,8 @@ export function BossChase(props) {
       const stars = p.startTime ? lessonStars(wpm, acc, p.target) : 0;
       st.phase = 'end'; st.end = stars; st.endAt = st.now; st.obs = []; st.vel = 0;
       if (st.qte) { st.qte = null; setQteView(null); }
+      if (st.stomp) { st.stomp = null; st.squash = 1; st.heroY = 0; setCue(null); }
+      if (st.boosted) { st.boosted = false; st.boostUntil = 0; p.onBoost && p.onBoost(1); }
       const W = wrapRef.current.clientWidth;
       if (stars === 3) {
         st.bossX = Math.min(st.bossX, W * .62); st.hold = true;
@@ -274,6 +294,9 @@ export function BossChase(props) {
 
     // ── rock QTE: Space within the window = jump; the clock stands still for the whole window ──
     const QTE_AT = 230, QTE_SECS = 1.3;               // px from the hero when it starts · window length
+    // stomp reward: ×2 score for 15 s; another stomp while it lasts adds +1 (up to ×5). 15 s lets a very fast typist
+    // (~6× the stage pace, ~12 s a lap at ×2) stack it; each higher step needs more speed.
+    const BOOST_SECS = 15;
     let qteTimer = 0;
     function endQte(result) {
       const q = st.qte; if (!q) return;
@@ -299,7 +322,11 @@ export function BossChase(props) {
       const eff = p.net ? Math.max(0, p.keys - 4 * p.errors) : p.keys;
       const prog = K3 > 0 ? eff / K3 : 0;
       const acc = (p.pos + p.errors) > 0 ? Math.round(p.pos / (p.pos + p.errors) * 100) : 100;
-      const pEff = acc < 90 ? Math.min(prog, .35) : acc < 95 ? Math.min(prog, .9) : Math.min(prog, 1);
+      // laps: the 1st catch = the ⭐⭐⭐ amount; after a stomp the boar runs back to the start and the next catch needs
+      // ½ / ¾ / 1 / 1¼ of it, by the multiplier still running (×≤2 / ×3 / ×4 / ×5) — fixed per lap so the bar never jumps
+      const need = st.laps ? st.lapNeed : K3;
+      const lapRaw = need > 0 ? (eff - st.lapBase) / need : 0;
+      const pEff = acc < 90 ? Math.min(lapRaw, .35) : acc < 95 ? Math.min(lapRaw, .9) : Math.min(lapRaw, 1);
       // QTE time owed to the clock: the open window, plus a finished one App hasn't moved startTime for yet
       if (p.startTime !== st.oweStart) st.owe = 0;
       const pending = st.owe + (st.qte ? Date.now() - st.qte.wall0 : 0);
@@ -327,7 +354,28 @@ export function BossChase(props) {
       clockRef.current.classList.toggle('hot', st.phase === 'chase' && timeLeft <= 30);
       rageRef.current.style.opacity = rage ? 1 : 0; linesRef.current.style.opacity = rage ? .8 : 0;
       fillRef.current.style.width = (100 * Math.min(1, pEff)) + '%';
-      fillRef.current.classList.toggle('cap', acc < 95 && prog > pEff);
+      fillRef.current.classList.toggle('cap', acc < 95 && lapRaw > pEff);
+
+      // ── caught before time's up → one stomp (the boar runs back to the start) + a short score multiplier ──
+      if (st.phase === 'chase' && !st.stomp && !st.qte && pEff >= 1) {
+        const boosting = st.boostUntil > st.now;
+        st.stomp = { t: 0 }; st.laps++; st.lapBase = eff; st.lapNeed = K3; st.newLap = true;
+        st.mult = boosting ? Math.min(5, st.mult + 1) : 2; st.boostUntil = st.now + BOOST_SECS; st.boosted = true;
+        p.onBoost && p.onBoost(st.mult);
+        multRef.current.classList.remove('pop'); void multRef.current.offsetWidth; multRef.current.classList.add('pop');
+        if (st.laps === 1) tick2Ref.current.classList.add('dim');
+      }
+      if (st.laps && st.newLap && !st.stomp) {         // the boar is back at the start: fix this lap's length
+        const m = st.boostUntil > st.now ? st.mult : 1;
+        st.lapNeed = K3 * Math.max(.5, .25 * m); st.lapBase = eff; st.newLap = false;
+      }
+      if (st.boosted && st.boostUntil <= st.now) { st.boosted = false; p.onBoost && p.onBoost(1); }
+      // same chips in the same places all the time — only numbers / brightness change
+      const boostOn = st.boostUntil > st.now;
+      multRef.current.classList.toggle('off', !boostOn);
+      multTxtRef.current.textContent = '×' + (boostOn ? st.mult : 1);
+      multBarRef.current.style.width = boostOn ? 'calc(' + (100 * (st.boostUntil - st.now) / BOOST_SECS).toFixed(1) + '% - 6px)' : '0';
+      stompRef.current.classList.toggle('off', !st.laps); stompNRef.current.textContent = String(st.laps);
       accRef.current.textContent = (acc < 90 ? '⚠ ' : '') + 'แม่น ' + acc + '%';
       accRef.current.className = 'bc-chip bc-acc ' + (acc >= 95 ? 'ok' : acc >= 90 ? 'mid' : 'bad');
 
@@ -349,8 +397,9 @@ export function BossChase(props) {
       if (st.phase !== 'end') {
         const far = W - bw / 2 - 12, near = st.heroX + 40 + bw / 2;
         let want = st.phase === 'chase' ? far + (near - far) * pEff : st.phase === 'intro' ? -bw : far;
-        if (st.phase === 'chase' && acc < 95 && prog > pEff) want += Math.sin(st.now * 6) * 6;
-        if (st.phase === 'dash') {                     // runs in from behind the hero, overtakes, stops at the far end
+        if (st.phase === 'chase' && acc < 95 && lapRaw > pEff) want += Math.sin(st.now * 6) * 6;
+        if (st.stomp) {                                // the stomp drives the boar itself (below)
+        } else if (st.phase === 'dash') {                     // runs in from behind the hero, overtakes, stops at the far end
           st.bossX = Math.min(far, st.bossX + 620 * dt);
           if (st.bossX > st.heroX + 60 && !st.taunted) { st.taunted = true; bubble(boss.taunts.start, 1600); }
           if (st.bossX >= far) { st.phase = 'go'; st.goAt = st.now; showCue('พร้อม…', false); }
@@ -360,7 +409,7 @@ export function BossChase(props) {
       // rocks: one at a time — first ~8 s in, then every 15–20 s (≈10 s in rage); none in the last 5 s
       // (thrown even when the boss is close, so a fast typist still gets the QTE)
       const chaseSecs = ran;
-      if (st.phase === 'chase' && p.startTime && chaseSecs > st.nextObs && timeLeft > 5 && st.bossX - st.heroX > 70
+      if (st.phase === 'chase' && !st.stomp && p.startTime && chaseSecs > st.nextObs && timeLeft > 5 && st.bossX - st.heroX > 70
           && !st.obs.some(o => o.state === 'roll')) {
         st.obs.push({ x: st.bossX - bw / 2, rot: 0, state: 'roll', vy: 0, y: 0 });
         st.nextObs = chaseSecs + (rage ? 9 + Math.random() * 2 : 15 + Math.random() * 5);
@@ -372,6 +421,7 @@ export function BossChase(props) {
           o.x -= (st.vel + 110) * dt; o.rot -= (st.vel + 110) * dt / 8;
           // close: QTE — the scene slows down and the rock reaches the hero exactly as the window closes
           if (o.x - st.heroX < QTE_AT && !st.trip && st.phase === 'chase') {
+            o.x = Math.max(o.x, st.heroX + 120);       // a long frame must never carry it past the hero first
             o.qte = true; st.qte = { o, t: 0, len: QTE_SECS, from: o.x, wall0: Date.now() }; setQteView('on'); sfx('qte');
           }
         } else if (o.state === 'roll') {
@@ -385,9 +435,32 @@ export function BossChase(props) {
         else o.x -= (st.vel + 110) * dt;
       });
       if (st.qte && qteBarRef.current) qteBarRef.current.style.width = (100 * (1 - st.qte.t / st.qte.len)) + '%';
-      st.obs = st.obs.filter(o => o.x > -40);
+      st.obs = st.obs.filter(o => o.x > -40 || (st.qte && st.qte.o === o));   // never drop the rock of an open QTE
       if (st.jump) { st.jump.t += dt; const k = st.jump.t / st.jump.len; st.heroY = k >= 1 ? 0 : 4 * st.jump.hgt * k * (1 - k); if (k >= 1) st.jump = null; }
       if (st.trip > 0) st.trip = Math.max(0, st.trip - dt);
+
+      // stomp: run up → jump on its head → THUMP ("เหยียบ! ×2") → bounce back home while the boar runs back to the start
+      if (st.stomp && st.phase === 'chase') {
+        const s = st.stomp, far = W - bw / 2 - 12, jumpH = height < 90 ? 30 : 34; s.t += dt;
+        if (s.t < .4) { st.heroX += ((st.bossX - bw * .55) - st.heroX) * Math.min(1, dt * 9); st.heroY = 0; }
+        else if (s.t < .8) { const k = (s.t - .4) / .4; st.heroX += (st.bossX - st.heroX) * Math.min(1, dt * 10);
+          st.heroY = (bh * .75 + jumpH) * Math.sin(k * Math.PI * .5) * (k < .7 ? 1 : 1 - (k - .7) * 1.3); }
+        else if (!s.hit) {
+          s.hit = true; s.x1 = st.heroX; st.flash = .15; st.squash = .6;
+          showCue('เหยียบ! ×' + st.mult, true); sfx('stomp'); setTimeout(() => sfx('combo', 2), 120);
+          bubble(boss.taunts.stomped || 'อ๊าก!!', 900);
+          for (let i = 0; i < 14; i++) st.parts.push({ x: st.bossX, y: ground - bh * .9, vx: (Math.random() - .5) * 260,
+            vy: -120 - Math.random() * 200, s: 3, c: Math.random() < .5 ? '#FFFFFF' : '#FFE08A', life: .4 + Math.random() * .3 });
+        } else {
+          const k = Math.min(1, (s.t - .8) / .7);
+          st.heroX = s.x1 + (70 - s.x1) * k; st.heroY = Math.max(0, 50 * Math.sin(k * Math.PI) * (1 - k));   // bounces back home
+          if (s.t > 1) st.squash = 1;
+          if (s.t > 1.05) st.bossX = Math.min(far, st.bossX + 700 * dt);                                 // runs back to the start
+          if (s.t > 1.15 && s.t < 1.2) setCue(null);
+          if (k >= 1 && st.bossX >= far) { st.stomp = null; st.heroX = 70; st.heroY = 0; st.squash = 1; }
+        }
+      }
+      if (st.flash > 0) st.flash = Math.max(0, st.flash - dt);
 
       // endings
       if (st.phase === 'end' && st.hold) { st.endAt = st.now; setHero('idle'); }
@@ -423,7 +496,7 @@ export function BossChase(props) {
 
       // ── draw ──
       if (['intro', 'dash', 'go', 'ready'].includes(st.phase)) setHero('idle');
-      else if (st.phase === 'chase') setHero(st.trip ? 'sad' : st.vel > 25 ? 'run' : 'idle');
+      else if (st.phase === 'chase') setHero(st.stomp ? (st.stomp.hit ? 'cheer' : 'run') : st.trip ? 'sad' : st.vel > 25 ? 'run' : 'idle');
       const hc = heroRef.current.firstChild, hw = hc ? hc.width : 52, hh = hc ? hc.height : 62;
       const shake = st.trip ? Math.sin(st.now * 50) * 2 : 0;
       heroRef.current.style.transform = 'translate(' + (st.heroX - hw / 2 + shake).toFixed(1) + 'px,' + (ground - hh - st.heroY).toFixed(1) + 'px)';
@@ -436,8 +509,12 @@ export function BossChase(props) {
       if (strip) bg.drawImage(strip, (Math.floor(st.legT) % boss.frames) * boss.w, 0, boss.w, boss.h, 0, 0, boss.w, boss.h);
       const laughing = st.bubbles.some(b => /ฮ่า/.test(b.el.textContent)) ? Math.abs(Math.sin(st.now * 18)) * 6 : 0;
       bossRef.current.style.display = st.bossHide ? 'none' : '';
-      bossRef.current.style.transform = 'translate(' + (st.bossX - bw / 2).toFixed(1) + 'px,' + (ground - bh - laughing).toFixed(1) + 'px)' + (st.bossFlip ? ' scaleX(-1)' : '');
-      bossRef.current.style.filter = rage ? 'saturate(1.5) drop-shadow(0 0 ' + (2 + Math.round(Math.abs(Math.sin(st.now * 8)) * 3)) + 'px #FF2A1A)' : '';
+      const sq = st.squash || 1;                       // squashed for a moment when stomped (feet stay on the ground)
+      bossRef.current.style.transform = 'translate(' + (st.bossX - bw / 2).toFixed(1) + 'px,' + (ground - bh * sq - laughing).toFixed(1) + 'px)'
+        + (st.bossFlip ? ' scaleX(-1)' : '') + (sq !== 1 ? ' scaleY(' + sq + ')' : '');
+      bossRef.current.style.transformOrigin = 'top left';
+      bossRef.current.style.filter = st.flash > 0 ? 'brightness(2.2)'
+        : rage ? 'saturate(1.5) drop-shadow(0 0 ' + (2 + Math.round(Math.abs(Math.sin(st.now * 8)) * 3)) + 'px #FF2A1A)' : '';
 
       const cw = chestImg ? chestImg.width : 24, ch = chestImg ? chestImg.height : 24;
       chestRef.current.style.display = carried ? 'none' : '';
@@ -470,6 +547,7 @@ export function BossChase(props) {
       clearTimeout(qteTimer);
       if (talkRef.current || st.block) { talkRef.current = null; p.onTalking && p.onTalking(false); }
       if (st.rage) p.onRage && p.onRage(false);
+      if (st.boosted) p.onBoost && p.onBoost(1);
     };
   }, [boss]);
 
@@ -483,9 +561,15 @@ export function BossChase(props) {
         <span ref={clockRef} className="bc-chip bc-clock">0:00</span>
         <div className="bc-bar" aria-label="ระยะห่างกับบอส">
           <div ref={fillRef} className="bc-fill"/>
-          <div className="bc-tick" style={{ left: 'calc(' + K2pct + '% - 1px)' }}><span>⭐⭐</span></div>
-          <div className="bc-tick" style={{ left: 'calc(100% - 3px)' }}><span style={{ left: 'auto', right: 5 }}>⭐⭐⭐ จับได้!</span></div>
+          <div ref={tick2Ref} className="bc-tick" style={{ left: 'calc(' + K2pct + '% - 1px)' }}><span>⭐⭐</span></div>
+          <div className="bc-tick" style={{ left: 'calc(100% - 3px)' }}>
+            <span style={{ left: 'auto', right: 5 }}>⭐⭐⭐ <img src={boss.dir + boss.head} alt="" className="bc-head end"/></span></div>
         </div>
+        {/* always there, fixed width, so the strip never shifts — dim = nothing yet */}
+        <span ref={stompRef} className="bc-chip bc-stat bc-stomps off" title={'เหยียบ' + boss.name + 'กี่ครั้ง'}>
+          <img src={boss.dir + boss.head} alt="" className="bc-head"/><b ref={stompNRef} style={{ fontFamily: PX_FONT }}>0</b></span>
+        <span ref={multRef} className="bc-chip bc-stat bc-mult off" title="ตัวคูณคะแนน (แถบล่าง = เวลาที่เหลือ)" style={{ fontFamily: PX_FONT }}>
+          <b ref={multTxtRef}>×1</b><i ref={multBarRef}/></span>
         <span ref={accRef} className="bc-chip bc-acc ok">แม่น 100%</span>
       </div>
       {/* actors: clipped at the scene's left/right edges, free to rise above it (jumps, stomp, flying chest) */}

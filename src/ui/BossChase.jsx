@@ -4,8 +4,9 @@
 //   • Distance = the real star formula: correct keys (Shift = 1 key, like pressCountRef) against
 //     target × 1.5 × 4 × minutes (⭐⭐⭐), with a mark at 2/3 of it (⭐⭐). Net steps (stage 9) take 4 keys off per error.
 //   • Accuracy: under 95 % the boss can't be caught (⭐⭐⭐ needs 95 %), under 90 % it pulls far ahead (0 stars).
-//   • The boss throws rocks back; typing steadily = the hero jumps them by itself, a fresh mistake or a pause = trips
-//     (only a look — nothing is taken off).
+//   • Start: the boss talks (off screen), dashes in from behind and overtakes to the far end, "พร้อม… เริ่ม!", then typing opens.
+//   • The boss throws a rock now and then: a big Space QTE pops up (the scene slows, typing and the clock pause);
+//     Space in time = jump, too late = trip (only a look — nothing is taken off).
 //   • Rage (red, rocks come faster, music speeds up): past the ⭐⭐ mark or in the last 30 seconds.
 //   • Endings follow the stars the step really gets (lessonStars): ⭐⭐⭐ boss panics in a dialogue, then gets stomped
 //     and bursts into pixels, the chest flies back · ⭐–⭐⭐ drops the chest and escapes · 0 runs off with it.
@@ -64,6 +65,25 @@ const CSS = `
 @keyframes bcUp{from{transform:translateY(30px);opacity:0}}
 .bc-face{position:absolute;image-rendering:pixelated;z-index:2;transform:scaleX(-1);filter:drop-shadow(0 6px 0 rgba(24,14,8,.35));animation:bcFade .22s ease-out}
 @keyframes bcFade{from{opacity:0}}   /* fade only: a transform animation would undo the mirror while it plays */
+.bc-qte,.bc-cue{position:absolute;left:50%;transform:translate(-50%,-50%) scale(.6);opacity:0;pointer-events:none;z-index:20;
+  transition:opacity .12s,transform .15s}
+.bc-qte{display:flex;flex-direction:column;align-items:center;gap:6px}
+.bc-qte.show,.bc-cue.show{opacity:1;transform:translate(-50%,-50%) scale(1)}
+.bc-qte-key{width:300px;height:76px;background:linear-gradient(#FFE08A,#FFC23D);border:4px solid ${INK};border-radius:10px;
+  box-shadow:0 8px 0 ${INK},0 0 0 6px rgba(255,255,255,.55),0 0 30px 8px rgba(255,194,61,.8);
+  display:flex;align-items:center;justify-content:center;font-size:30px;color:${INK};letter-spacing:4px}
+.bc-qte.on .bc-qte-key{animation:bcThump .35s ease-in-out infinite alternate}
+@keyframes bcThump{to{transform:translateY(4px);box-shadow:0 2px 0 ${INK},0 0 0 6px rgba(255,255,255,.55),0 0 30px 8px rgba(255,194,61,.8)}}
+.bc-qte-word{font-size:24px;font-weight:700;color:#fff;white-space:nowrap;background:rgba(59,36,22,.82);border:3px solid ${INK};padding:0 14px;
+  text-shadow:0 2px 0 ${INK},2px 0 0 ${INK},-2px 0 0 ${INK},0 -2px 0 ${INK},0 0 10px rgba(0,0,0,.5)}
+.bc-qte-track{width:300px;height:12px;background:rgba(59,36,22,.8);border:3px solid ${INK}}
+.bc-qte-bar{height:100%;width:100%;background:linear-gradient(90deg,#FF6B5A,#FFC23D 40%,#9BE39A)}
+.bc-qte.ok .bc-qte-key{background:linear-gradient(#C9F7C0,#7BD67A)}
+.bc-qte.miss .bc-qte-key{background:linear-gradient(#FFB3AA,#FF6B5A)}
+.bc-qte.ok .bc-qte-track,.bc-qte.miss .bc-qte-track{visibility:hidden}
+.bc-cue{font-weight:700;font-size:56px;color:#FFE08A;white-space:nowrap;
+  text-shadow:0 4px 0 ${INK},3px 0 0 ${INK},-3px 0 0 ${INK},0 -3px 0 ${INK}}
+.bc-cue.go{color:#9BE39A;font-size:72px}
 .bc-name{position:absolute;top:-30px;background:#FFC23D;border:3px solid ${INK};color:${INK};font-weight:700;font-size:16px;
   padding:1px 12px;box-shadow:0 3px 0 rgba(59,36,22,.35)}
 .bc-text{flex:1;min-width:0;background:#F8EED2;border:3px solid ${INK};padding:10px 16px 6px;display:flex;flex-direction:column}
@@ -121,7 +141,8 @@ function BossTalk({ boss, talk, big, rect }) {
 
 // props: boss (bosses.js), world (lanes.js), cfg (character), height (lane px), big (tall screen),
 //   total (secs), target (stage wpm), net (stage 9 net words), startTime, endTime, keys (correct keypresses),
-//   pos, errors, overlay (element the dialogue covers), onTalking(bool), onRage(bool), onDone()
+//   pos, errors, overlay (element the dialogue covers), onTalking(bool: typing must wait), onRage(bool),
+//   onPause(ms: a QTE window to take off the clock), onDone()
 export function BossChase(props) {
   const { boss, world, cfg, height, big } = props;
   const live = useRef(props); live.current = props;
@@ -130,6 +151,9 @@ export function BossChase(props) {
   const clockRef = useRef(null), fillRef = useRef(null), accRef = useRef(null), rageRef = useRef(null), linesRef = useRef(null);
   const [heroAnim, setHeroAnim] = useState('idle');
   const [talk, setTalk] = useState(null);
+  const [qteView, setQteView] = useState(null);        // null | 'on' | 'ok' | 'miss'
+  const [cue, setCue] = useState(null);                // { text, go } — "พร้อม…" / "เริ่ม!"
+  const qteBarRef = useRef(null);
   const [host, setHost] = useState(null);
   const talkRef = useRef(null);
   const S = useRef(null);
@@ -157,8 +181,7 @@ export function BossChase(props) {
     if (t.shown < t.g.length) { t.shown = t.g.length; setTalk({ ...t }); return; }   // first press finishes the line
     if (t.i + 1 < t.lines.length) { t.i++; t.g = graphemes(t.lines[t.i].text); t.shown = 0; setTalk({ ...t }); sfx('ui'); return; }
     talkRef.current = null; setTalk(null);
-    // released a tick later, so the key that closed the box is not also typed
-    setTimeout(() => { live.current.onTalking && live.current.onTalking(false); }, 0);
+    // typing is released by the scene loop on a later frame (so the key that closed the box is not also typed)
     if (t.done) t.done();
   }
   useEffect(() => {
@@ -171,7 +194,11 @@ export function BossChase(props) {
     return () => clearInterval(id);
   }, [talk && talk.i, talk && talk.lines]);
   useEffect(() => {
-    const onKey = e => { if (talkRef.current && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); next(); } };
+    const onKey = e => {
+      if (talkRef.current) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); next(); } return; }
+      const st = S.current;
+      if (st && st.qte && e.key === ' ' && !e.repeat) { e.preventDefault(); st.dodge(); }   // QTE: Space = jump (App types nothing meanwhile)
+    };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, []);
@@ -187,8 +214,11 @@ export function BossChase(props) {
   useEffect(() => {
     let alive = true, raf = 0;
     const st = S.current = {
-      phase: 'intro', heroX: 70, heroY: 0, bossX: 0, bossFlip: false, bossHide: false, squash: 1,
-      chest: 'carried', chestX: 0, chestY: 0, chestVX: 0, chestVY: 0, obs: [], nextObs: 3, trip: 0, jump: null,
+      // intro (boss talks, off screen) → dash (runs in from behind and overtakes to the far end) → go ("พร้อม… เริ่ม!")
+      // → ready (typing open) → chase (clock running) → end
+      phase: 'intro', heroX: 70, heroY: 0, bossX: -boss.w, bossFlip: false, bossHide: false, squash: 1,
+      chest: 'carried', chestX: 0, chestY: 0, chestVX: 0, chestVY: 0, obs: [], nextObs: 8, trip: 0, jump: null,
+      qte: null, owe: 0, oweStart: 0, block: null, taunted: false,
       end: null, endAt: 0, hold: false, talked: false, boom: false, finished: false, parts: [], bubbles: [],
       lastOk: -9e9, lastErr: -9e9, hist: [], cam: 0, vel: 0, legT: 0, now: 0, rage: false,
     };
@@ -233,6 +263,7 @@ export function BossChase(props) {
       const wpm = mins > 0 ? (p.net ? Math.max(0, p.keys / 4 - p.errors) : p.keys / 4) / mins : 0;
       const stars = p.startTime ? lessonStars(wpm, acc, p.target) : 0;
       st.phase = 'end'; st.end = stars; st.endAt = st.now; st.obs = []; st.vel = 0;
+      if (st.qte) { st.qte = null; setQteView(null); }
       const W = wrapRef.current.clientWidth;
       if (stars === 3) {
         st.bossX = Math.min(st.bossX, W * .62); st.hold = true;
@@ -240,6 +271,23 @@ export function BossChase(props) {
       }
     }
     const done = () => { if (!st.finished) { st.finished = true; live.current.onDone && live.current.onDone(); } };
+
+    // ── rock QTE: Space within the window = jump; the clock stands still for the whole window ──
+    const QTE_AT = 230, QTE_SECS = 1.3;               // px from the hero when it starts · window length
+    let qteTimer = 0;
+    function endQte(result) {
+      const q = st.qte; if (!q) return;
+      st.qte = null;
+      st.owe += Date.now() - q.wall0; st.oweStart = live.current.startTime;
+      live.current.onPause && live.current.onPause(Date.now() - q.wall0);   // App moves startTime on by the window
+      setQteView(result); clearTimeout(qteTimer); qteTimer = setTimeout(() => setQteView(null), 650);
+    }
+    st.dodge = () => {
+      if (!st.qte) return;
+      st.qte.o.state = 'past'; endQte('ok');
+      st.jump = { t: 0, len: .55, hgt: (height < 90 ? 30 : 34) + 6 }; sfx('jump');
+    };
+    function showCue(text, isGo) { setCue({ text, go: isGo }); sfx(isGo ? 'go' : 'count'); }
 
     let last = performance.now();
     function loop(t) {
@@ -252,10 +300,25 @@ export function BossChase(props) {
       const prog = K3 > 0 ? eff / K3 : 0;
       const acc = (p.pos + p.errors) > 0 ? Math.round(p.pos / (p.pos + p.errors) * 100) : 100;
       const pEff = acc < 90 ? Math.min(prog, .35) : acc < 95 ? Math.min(prog, .9) : Math.min(prog, 1);
-      const timeLeft = p.startTime ? Math.max(0, total - ((p.endTime || Date.now()) - p.startTime) / 1000) : total;
+      // QTE time owed to the clock: the open window, plus a finished one App hasn't moved startTime for yet
+      if (p.startTime !== st.oweStart) st.owe = 0;
+      const pending = st.owe + (st.qte ? Date.now() - st.qte.wall0 : 0);
+      const ran = p.startTime ? ((p.endTime || Date.now()) - p.startTime - (p.endTime ? 0 : pending)) / 1000 : 0;
+      const timeLeft = p.startTime ? Math.max(0, total - ran) : total;
 
-      if (st.phase === 'ready' && p.startTime) { st.phase = 'chase'; bubble(boss.taunts.start, 1600); }
+      if (st.phase === 'ready' && p.startTime) st.phase = 'chase';
       if ((st.phase === 'chase' || st.phase === 'ready') && p.endTime) finish();
+
+      // typing waits while the boss talks, while it dashes off, until "เริ่ม!", and during a QTE
+      const block = !!talkRef.current || st.phase === 'intro' || st.phase === 'dash' || st.phase === 'go' || !!st.qte;
+      if (block !== st.block) { st.block = block; p.onTalking && p.onTalking(block); }
+
+      // start: dash → "พร้อม…" → "เริ่ม!" → typing
+      if (st.phase === 'go') {
+        const g = st.now - st.goAt;
+        if (g > .9 && !st.saidGo) { st.saidGo = true; showCue('เริ่ม!', true); }
+        if (g > 1.3) { st.phase = 'ready'; setTimeout(() => setCue(null), 400); }
+      }
 
       const rage = st.phase === 'chase' && (prog >= 2 / 3 || timeLeft <= 30);
       if (rage !== st.rage) { st.rage = rage; p.onRage && p.onRage(rage); }   // App → setRage (plays the rage sting)
@@ -273,7 +336,7 @@ export function BossChase(props) {
       st.hist = st.hist.filter(x => now - x < 4);
       const typing = now - st.lastOk < okGap;
       const rate = st.hist.length / 4 / pace;
-      if (st.phase === 'chase') st.vel += ((typing && !st.trip ? 90 + 80 * Math.min(1.5, rate) : 0) - st.vel) * Math.min(1, dt * 3);
+      if (st.phase === 'chase') st.vel += ((typing && !st.trip ? 90 + 80 * Math.min(1.5, rate) : 0) * (st.qte ? .25 : 1) - st.vel) * Math.min(1, dt * 3);
       else if (st.phase !== 'end') st.vel = 0;
       st.cam += st.vel * dt;
       lay.forEach(({ l, el }) => {
@@ -281,34 +344,47 @@ export function BossChase(props) {
         el.style.transform = 'translate3d(' + (l.x == null ? -(off % l.w) : l.x - off).toFixed(1) + 'px,0,0)' + (l.flip ? ' scaleX(-1)' : '');
       });
 
-      // boss distance = progress (held back by accuracy); before the chase it stands by the hero
+      // boss distance = progress (held back by accuracy); off screen while it talks, then it dashes in
       const bw = boss.w, bh = boss.h;
       if (st.phase !== 'end') {
         const far = W - bw / 2 - 12, near = st.heroX + 40 + bw / 2;
-        let want = st.phase === 'chase' ? far + (near - far) * pEff : st.heroX + 50 + bw / 2;
-        if (acc < 95 && prog > pEff) want += Math.sin(st.now * 6) * 6;
-        st.bossX += (want - st.bossX) * Math.min(1, dt * 2.5);
-        if (!st.bossX) st.bossX = want;
+        let want = st.phase === 'chase' ? far + (near - far) * pEff : st.phase === 'intro' ? -bw : far;
+        if (st.phase === 'chase' && acc < 95 && prog > pEff) want += Math.sin(st.now * 6) * 6;
+        if (st.phase === 'dash') {                     // runs in from behind the hero, overtakes, stops at the far end
+          st.bossX = Math.min(far, st.bossX + 620 * dt);
+          if (st.bossX > st.heroX + 60 && !st.taunted) { st.taunted = true; bubble(boss.taunts.start, 1600); }
+          if (st.bossX >= far) { st.phase = 'go'; st.goAt = st.now; showCue('พร้อม…', false); }
+        } else st.bossX += (want - st.bossX) * Math.min(1, dt * 2.5);
       }
 
-      // rocks
-      if (st.phase === 'chase' && p.startTime && (Date.now() - p.startTime) / 1000 > st.nextObs && st.bossX - st.heroX > 120) {
+      // rocks: one at a time — first ~8 s in, then every 15–20 s (≈10 s in rage); none in the last 5 s
+      // (thrown even when the boss is close, so a fast typist still gets the QTE)
+      const chaseSecs = ran;
+      if (st.phase === 'chase' && p.startTime && chaseSecs > st.nextObs && timeLeft > 5 && st.bossX - st.heroX > 70
+          && !st.obs.some(o => o.state === 'roll')) {
         st.obs.push({ x: st.bossX - bw / 2, rot: 0, state: 'roll', vy: 0, y: 0 });
-        st.nextObs = (Date.now() - p.startTime) / 1000 + (rage ? 2.2 + Math.random() : 3.8 + Math.random() * 2);
+        st.nextObs = chaseSecs + (rage ? 9 + Math.random() * 2 : 15 + Math.random() * 5);
         bubble(rage ? boss.taunts.throwRage : boss.taunts.throw, 700);
       }
-      const good = typing && now - st.lastErr > 1.5;
+      if (st.qte) st.qte.t += dt;
       st.obs.forEach(o => {
-        if (o.state === 'roll') {
-          o.x -= (st.vel + 70) * dt; o.rot -= (st.vel + 70) * dt / 8;
-          if (o.x - st.heroX < 46 && !st.jump && !st.trip && good) { st.jump = { t: 0, len: .55, hgt: height < 90 ? 30 : 34 }; sfx('jump'); }
-          if (o.x - st.heroX < 8) {
-            if (st.jump) o.state = 'past';
-            else { o.state = 'hit'; o.vy = -120; st.trip = .7; bubble(boss.taunts.laugh, 900); sfx('trip'); setTimeout(() => sfx('laugh'), 180); }
+        if (o.state === 'roll' && !o.qte) {
+          o.x -= (st.vel + 110) * dt; o.rot -= (st.vel + 110) * dt / 8;
+          // close: QTE — the scene slows down and the rock reaches the hero exactly as the window closes
+          if (o.x - st.heroX < QTE_AT && !st.trip && st.phase === 'chase') {
+            o.qte = true; st.qte = { o, t: 0, len: QTE_SECS, from: o.x, wall0: Date.now() }; setQteView('on'); sfx('qte');
+          }
+        } else if (o.state === 'roll') {
+          const k = st.qte ? Math.min(1, st.qte.t / st.qte.len) : 1;
+          o.x = (st.qte ? st.qte.from : o.x) - ((st.qte ? st.qte.from : o.x) - (st.heroX + 8)) * k; o.rot -= dt * 4;
+          if (k >= 1) {                                // too late: trip (only a look — nothing is taken off)
+            o.state = 'hit'; o.vy = -120; st.trip = .7; endQte('miss');
+            bubble(boss.taunts.laugh, 900); sfx('trip'); setTimeout(() => sfx('laugh'), 180);
           }
         } else if (o.state === 'hit') { o.x -= 60 * dt; o.vy += 500 * dt; o.y += o.vy * dt; if (o.y > 0) { o.y = 0; o.vy = 0; } }
-        else o.x -= (st.vel + 70) * dt;
+        else o.x -= (st.vel + 110) * dt;
       });
+      if (st.qte && qteBarRef.current) qteBarRef.current.style.width = (100 * (1 - st.qte.t / st.qte.len)) + '%';
       st.obs = st.obs.filter(o => o.x > -40);
       if (st.jump) { st.jump.t += dt; const k = st.jump.t / st.jump.len; st.heroY = k >= 1 ? 0 : 4 * st.jump.hgt * k * (1 - k); if (k >= 1) st.jump = null; }
       if (st.trip > 0) st.trip = Math.max(0, st.trip - dt);
@@ -346,14 +422,14 @@ export function BossChase(props) {
       }
 
       // ── draw ──
-      if (st.phase === 'intro' || st.phase === 'ready') setHero('idle');
+      if (['intro', 'dash', 'go', 'ready'].includes(st.phase)) setHero('idle');
       else if (st.phase === 'chase') setHero(st.trip ? 'sad' : st.vel > 25 ? 'run' : 'idle');
       const hc = heroRef.current.firstChild, hw = hc ? hc.width : 52, hh = hc ? hc.height : 62;
       const shake = st.trip ? Math.sin(st.now * 50) * 2 : 0;
       heroRef.current.style.transform = 'translate(' + (st.heroX - hw / 2 + shake).toFixed(1) + 'px,' + (ground - hh - st.heroY).toFixed(1) + 'px)';
       heroRef.current.style.filter = st.trip > .5 ? 'brightness(1.6) sepia(1) hue-rotate(-40deg) saturate(4)' : '';
 
-      const moving = st.phase === 'chase' || (st.phase === 'end' && !st.hold && st.end !== 3);
+      const moving = st.phase === 'chase' || st.phase === 'dash' || (st.phase === 'end' && !st.hold && st.end !== 3);
       if (moving) st.legT += dt * boss.fps;
       const carried = st.chest === 'carried', strip = carried ? runChest : run;
       bg.clearRect(0, 0, boss.w, boss.h);
@@ -382,15 +458,17 @@ export function BossChase(props) {
     raf = requestAnimationFrame(loop);
 
     // The boss talks first; the clock only starts at the first key, which the dialogue holds back.
-    if (!live.current.startTime) say(boss.lines.intro, () => { st.phase = 'ready'; });
-    else st.phase = 'ready';
+    // after it talks, the boss dashes in and overtakes; typing opens after "พร้อม… เริ่ม!"
+    if (!live.current.startTime) say(boss.lines.intro, () => { st.phase = 'dash'; });
+    else { st.phase = 'ready'; st.bossX = wrapRef.current.clientWidth - boss.w / 2 - 12; }
 
     return () => {
       alive = false; cancelAnimationFrame(raf);
       lay.forEach(({ el }) => el.remove()); bossCv.remove();
       st.bubbles.forEach(b => b.el.remove());
       const p = live.current;
-      if (talkRef.current) { talkRef.current = null; p.onTalking && p.onTalking(false); }
+      clearTimeout(qteTimer);
+      if (talkRef.current || st.block) { talkRef.current = null; p.onTalking && p.onTalking(false); }
       if (st.rage) p.onRage && p.onRage(false);
     };
   }, [boss]);
@@ -419,6 +497,13 @@ export function BossChase(props) {
         </div>
         <canvas ref={fxRef} style={{ position: 'absolute', left: 0, top: -80, pointerEvents: 'none', zIndex: 8 }}/>
       </div>
+      {/* rock QTE: a big Space key over the bottom of the scene and the top of the text; the bar runs out with the window */}
+      <div className={'bc-qte' + (qteView ? ' show ' + qteView : '')} style={{ top: height + 30 }} aria-live="assertive">
+        <div className="bc-qte-key" style={{ fontFamily: PX_FONT }}>SPACE</div>
+        <div className="bc-qte-word">{qteView === 'ok' ? 'เยี่ยม!' : qteView === 'miss' ? 'โอ๊ะ!' : 'กดเพื่อกระโดดหลบ!'}</div>
+        <div className="bc-qte-track"><div ref={qteBarRef} className="bc-qte-bar"/></div>
+      </div>
+      <div className={'bc-cue' + (cue ? ' show' + (cue.go ? ' go' : '') : '')} style={{ top: height + 30 }} aria-live="assertive">{cue && cue.text}</div>
       {talk && ReactDOM.createPortal(<BossTalk boss={boss} talk={talk} big={big} rect={host}/>, document.body)}
     </div>
   );

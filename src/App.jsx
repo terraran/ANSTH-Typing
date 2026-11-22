@@ -1736,6 +1736,7 @@ export function ThaiTypingApp() {
                 startTime={startTime} endTime={endTime} keys={pressCountRef.current} pos={pos} errors={errors}
                 overlay={practiceRef}
                 onTalking={v=>{ bossTalkRef.current=v; }}
+                onPause={ms=>setStartTime(t=>t?t+ms:t)}
                 onRage={setChaseRage}
                 onDone={()=>setScreen(s=>s==='practice'?'results':s)}/>
             )}

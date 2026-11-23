@@ -11,6 +11,9 @@
 //       'crows' (stage 2) crows fly in on the boss music's beat, each with a key on a rhythm track: press it as it
 //               reaches the ring; a missed crow pecks the hero; 2+ misses = the whole flock mobs the hero
 //       'roots' (stage 3) roots creep up and grab the hero's legs: mash Space 5 times before the bar runs out
+//       'dive'  (stage 4) the water rises and the boss's tail sweeps in: hold Space to duck under before it hits
+//               (white mark), let go only after it has passed (green part) — up too early = hit
+//       'seq'   (stage 5) a giant boulder rolls in: press the keys shown, in order (bosses.js `keys`, `seqLen`), to jump it
 //   • Caught before time's up: one stomp, the boss runs back to the start, and the score gets a short multiplier
 //     (×2 for 15 s, +1 per stomp while it lasts, up to ×5); each next lap is longer the higher the multiplier.
 //     The top strip keeps fixed chips (boss-head stomp count · ×multiplier · accuracy) so nothing shifts.
@@ -44,6 +47,11 @@ const CROW_PAL = { k: '#1f1a17', b: '#2b2f3a', g: '#555b6b', y: '#e0b23c', w: '#
 // rhythm track: note speed (px/s) · centre of the ring (px in the lane) · judgement windows (s), kind to young hands
 const RT_SPEED = 300, RT_HIT = 93, RT_PERFECT = .08, RT_OK = .16, RT_LATE = .22;
 const MASH_NEED = 5, MASH_SECS = 2.2;
+const DIVE_SECS = 2.4, DIVE_HIT = 1.2, DIVE_SAFE = 1.5;   // window · the tail reaches the hero · it has passed
+const SEQ_SECS = 2.2;
+const BOULDER_PAL = { k: '#241a14', r: '#7c7469', q: '#a39a8c' };
+const isMark = c => /[\u0E31\u0E34-\u0E3A\u0E47-\u0E4E]/.test(c);
+const keyFace = c => (isMark(c) ? '◌' + c : c);
 const loadImg = src => new Promise(ok => { const i = new Image(); i.onload = () => ok(i); i.onerror = () => ok(null); i.src = src; });
 
 const seg = typeof Intl !== 'undefined' && Intl.Segmenter ? new Intl.Segmenter('th', { granularity: 'grapheme' }) : null;
@@ -111,6 +119,20 @@ const CSS = `
 .bc-cue{font-weight:700;font-size:56px;color:#FFE08A;white-space:nowrap;
   text-shadow:0 4px 0 ${INK},3px 0 0 ${INK},-3px 0 0 ${INK},0 -3px 0 ${INK}}
 .bc-cue.go{color:#9BE39A;font-size:72px}
+.bc-qte-key.held{background:linear-gradient(#9fd8ff,#4aa3e0);transform:translateY(5px);box-shadow:0 3px 0 ${INK},0 0 0 6px rgba(255,255,255,.55),0 0 30px 8px rgba(80,170,230,.8)}
+.bc-qte.on .bc-qte-key.held{animation:none}
+.bc-qte-track{position:relative}
+.bc-qte-zone{position:absolute;left:0;top:0;bottom:0;background:rgba(155,227,154,.55);border-right:2px dashed #fff}
+.bc-qte-mark{position:absolute;top:-7px;bottom:-7px;width:4px;margin-left:-2px;background:#fff;box-shadow:0 0 0 2px ${INK}}
+.bc-qte-caps{display:flex;align-items:center;gap:10px}
+.bc-qte-cap{min-width:76px;height:76px;background:linear-gradient(#FFE08A,#FFC23D);border:4px solid ${INK};border-radius:10px;
+  box-shadow:0 8px 0 ${INK},0 0 0 6px rgba(255,255,255,.55),0 0 30px 8px rgba(255,194,61,.8);
+  display:flex;align-items:center;justify-content:center;font-size:38px;font-weight:800;color:${INK};line-height:1}
+.bc-qte-cap.done{background:linear-gradient(#C9F7C0,#7BD67A);box-shadow:0 3px 0 ${INK};transform:translateY(5px)}
+.bc-qte-cap.bad{animation:bcShake .2s}
+@keyframes bcShake{25%{transform:translateX(-6px)}75%{transform:translateX(6px)}}
+.bc-qte-arrow{font-size:30px;font-weight:800;color:#fff;text-shadow:0 2px 0 ${INK},2px 0 0 ${INK},-2px 0 0 ${INK},0 -2px 0 ${INK}}
+.bc-qte.miss .bc-qte-cap:not(.done){background:linear-gradient(#FFB3AA,#FF6B5A)}
 .bc-pips{display:flex;gap:6px}
 .bc-pips i{width:22px;height:22px;border:3px solid ${INK};background:#F8EED2;display:block;transition:background .08s}
 .bc-pips i.on{background:#7BD67A}
@@ -210,6 +232,9 @@ export function BossChase(props) {
   const qteKind = boss.qte || 'rock';                   // which QTE this boss throws (bosses.js)
   const rtLaneRef = useRef(null), rtDotsRef = useRef(null), rtJudgeRef = useRef(null), rtRingRef = useRef(null), pipsRef = useRef(null);
   const [rtTitle, setRtTitle] = useState(null);         // crows: the title over the track, then the result
+  const [qteWord, setQteWord] = useState('');           // dive: the line under the key changes as the tail comes
+  const [diveHeld, setDiveHeld] = useState(false);
+  const [qteSeq, setQteSeq] = useState(null);           // seq: { keys, i, bad }
   const [cue, setCue] = useState(null);                // { text, go } — "พร้อม…" / "เริ่ม!"
   const qteBarRef = useRef(null);
   const stompRef = useRef(null), stompNRef = useRef(null), multRef = useRef(null), multTxtRef = useRef(null), multBarRef = useRef(null), tick2Ref = useRef(null);
@@ -261,9 +286,12 @@ export function BossChase(props) {
       const k = st.qte.kind;
       if ((k === 'rock' || k === 'mash') && e.key === ' ') { e.preventDefault(); k === 'rock' ? st.dodge() : st.mash(); }
       else if (k === 'crows' && e.key.length === 1) { e.preventDefault(); st.press(e.key); }
+      else if (k === 'dive' && e.key === ' ') { e.preventDefault(); st.diveDown(); }
+      else if (k === 'seq' && e.key.length === 1) { e.preventDefault(); st.seqKey(e.key); }
     };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
+    const onUp = e => { const st = S.current; if (st && st.qte && st.qte.kind === 'dive' && e.key === ' ') { e.preventDefault(); st.diveUp(); } };
+    window.addEventListener('keydown', onKey); window.addEventListener('keyup', onUp);
+    return () => { window.removeEventListener('keydown', onKey); window.removeEventListener('keyup', onUp); };
   }, []);
   // where the dialogue box goes: the typing area's spot on screen, kept in step with resizes
   useEffect(() => {
@@ -281,7 +309,7 @@ export function BossChase(props) {
       // → ready (typing open) → chase (clock running) → end
       phase: 'intro', heroX: 70, heroY: 0, bossX: -boss.w, bossFlip: false, bossHide: false, squash: 1,
       chest: 'carried', chestX: 0, chestY: 0, chestVX: 0, chestVY: 0, obs: [], nextObs: 8, trip: 0, jump: null,
-      qte: null, owe: 0, oweStart: 0, block: null, taunted: false, crows: [], lastPeck: 0, wiggle: 0,
+      qte: null, owe: 0, oweStart: 0, block: null, taunted: false, crows: [], lastPeck: 0, wiggle: 0, dip: 0, water: 0, tail0: -99,
       laps: 0, lapBase: 0, lapNeed: 0, newLap: false, mult: 1, boostUntil: 0, boosted: false, stomp: null, flash: 0,
       end: null, endAt: 0, hold: false, talked: false, boom: false, finished: false, parts: [], bubbles: [],
       lastOk: -9e9, lastErr: -9e9, hist: [], cam: 0, vel: 0, legT: 0, now: 0, rage: false,
@@ -293,7 +321,7 @@ export function BossChase(props) {
       else { el.src = l.src; if (l.w) el.style.width = l.w + 'px'; }
       sceneRef.current.appendChild(el); return { l, el };
     });
-    const rock = pixelArt(ROCK, 2, ROCK_PAL);
+    const rock = pixelArt(ROCK, 2, ROCK_PAL), boulder = pixelArt(ROCK, 4, BOULDER_PAL);
     const crowArt = CROW.map(r => pixelArt(r, 3, CROW_PAL)), crowIcon = qteKind === 'crows' ? pixelArt(CROW[0], 2, CROW_PAL).toDataURL() : '';
     const bossCv = document.createElement('canvas'); bossCv.width = boss.w; bossCv.height = boss.h;
     bossRef.current.appendChild(bossCv);
@@ -458,6 +486,64 @@ export function BossChase(props) {
       }
       setTimeout(clearNotes, 700);
     }
+    // ── dive: the water rises, the tail sweeps in; hold Space under water until it has passed ──
+    function splash(n, x) {
+      const ground = wrapRef.current.clientHeight - 9;
+      for (let i = 0; i < n; i++) st.parts.push({ x: x + (Math.random() - .5) * 40, y: ground - 30 - Math.random() * 10, vx: (Math.random() - .5) * 200,
+        vy: -100 - Math.random() * 180, s: 3, c: Math.random() < .5 ? '#bfe6ff' : '#5fb0e8', life: .5 + Math.random() * .3 });
+    }
+    function startDive() {
+      st.qte = { kind: 'dive', t: 0, len: DIVE_SECS, held: false, judged: false, wall0: Date.now() };
+      st.tail0 = st.now; setDiveHeld(false); setQteWord('กด SPACE ค้างไว้ ดำน้ำหลบหาง!'); setQteView('on'); sfx('qte'); sfx('splash');
+    }
+    st.diveDown = () => {
+      const q = st.qte; if (!q || q.kind !== 'dive' || q.held) return;
+      q.held = true; setDiveHeld(true); sfx('dive'); splash(6, st.heroX);
+      setQteWord(q.t < DIVE_HIT ? 'ค้างไว้… หางกำลังมา!' : 'รอให้หางผ่าน… แล้วปล่อย!');
+    };
+    st.diveUp = () => {
+      const q = st.qte; if (!q || q.kind !== 'dive' || !q.held) return;
+      q.held = false; setDiveHeld(false);
+      if (q.t >= DIVE_SAFE) diveEnd(true); else diveEnd(false, q.t < DIVE_HIT ? 'ขึ้นเร็วไป โดนหางฟาด!' : 'ยังไม่ผ่าน! โดนหางฟาด!');
+    };
+    function diveEnd(ok, why) {
+      endQte(ok ? 'ok' : 'miss'); setDiveHeld(false);
+      if (ok) { setQteWord('เยี่ยม! หลบพ้น'); jump(); splash(10, st.heroX); }
+      else {
+        setQteWord(why || 'โดนหางฟาด!'); st.trip = .8; splash(14, st.heroX); sfx('whoosh'); sfx('trip');
+        bubble(boss.taunts.laugh, 900); setTimeout(() => sfx('laugh'), 180);
+      }
+    }
+    // tail across the scene: in from the right, at the hero at DIVE_HIT, gone past it by DIVE_SAFE (keeps going after the window)
+    function tailX(W) {
+      const t = st.now - st.tail0;
+      return t < DIVE_HIT ? st.heroX + (W + 40 - st.heroX) * (1 - t / DIVE_HIT) : st.heroX - (t - DIVE_HIT) / (DIVE_SAFE - DIVE_HIT) * 150;
+    }
+    function drawTail(g, x, y) {
+      g.save(); g.translate(x, y);
+      g.fillStyle = '#1f3d1e'; g.beginPath(); g.moveTo(-6, 0); g.quadraticCurveTo(40, -16, 110, -10); g.lineTo(110, 14); g.quadraticCurveTo(40, 12, -6, 0); g.fill();
+      g.fillStyle = '#3f7a3a'; g.beginPath(); g.moveTo(-2, 0); g.quadraticCurveTo(40, -12, 108, -7); g.lineTo(108, 11); g.quadraticCurveTo(40, 9, -2, 0); g.fill();
+      g.fillStyle = '#c0ca70'; g.fillRect(20, 3, 86, 4);
+      g.fillStyle = '#1f3d1e'; for (let i = 0; i < 7; i++) { const sx = 14 + i * 13; g.beginPath(); g.moveTo(sx, -8 + i * .2); g.lineTo(sx + 5, -16 - i * .6); g.lineTo(sx + 10, -9); g.fill(); }
+      g.restore();
+    }
+    // ── seq: the boulder; press its keys in order, then a double jump clears it ──
+    function startSeq(o) {
+      const pool = boss.keys || ['ฟ', 'ห', 'ก', 'ด'], n = Math.min(boss.seqLen || 2, pool.length), keys = [];
+      while (keys.length < n) { const c = pool[Math.floor(Math.random() * pool.length)]; if (!keys.includes(c)) keys.push(c); }
+      st.qte = { kind: 'seq', o, t: 0, len: boss.seqSecs || SEQ_SECS, from: o.x, keys, i: 0, wall0: Date.now() };
+      setQteSeq({ keys, i: 0, bad: 0 }); setQteView('on'); sfx('qte'); sfx('rumble');
+    }
+    st.seqKey = key => {
+      const q = st.qte; if (!q || q.kind !== 'seq') return;
+      if (key === q.keys[q.i]) {
+        q.i++; sfx('hit'); setQteSeq({ keys: q.keys, i: q.i, bad: 0 });
+        if (q.i >= q.keys.length) {
+          q.o.state = 'past'; endQte('ok');
+          st.jump = { t: 0, len: .5 * q.keys.length, hgt: (height < 90 ? 30 : 34) + 10, hops: q.keys.length }; sfx('jump');
+        }
+      } else if (/[\u0E00-\u0E7F]/.test(key)) { sfx('wrong'); setQteSeq(v => v && { ...v, bad: (v.bad || 0) + 1 }); }
+    };
     function showCue(text, isGo) { setCue({ text, go: isGo }); sfx(isGo ? 'go' : 'count'); }
 
     let last = performance.now();
@@ -560,6 +646,7 @@ export function BossChase(props) {
       if (st.phase === 'chase' && !st.stomp && !st.qte && p.startTime && chaseSecs > st.nextObs && timeLeft > 5 && st.bossX - st.heroX > 70
           && !st.obs.some(o => o.state === 'roll' || o.state === 'hold') && !st.crows.length && !st.trip) {
         if (qteKind === 'crows') startCrows();         // crows come straight away (the track shows them coming)
+        else if (qteKind === 'dive') startDive();      // so does the tail (the window starts with the water rising)
         else { st.obs.push({ kind: qteKind, x: st.bossX - bw / 2, rot: 0, state: 'roll', vy: 0, y: 0, t: 0 }); if (qteKind === 'roots') sfx('root'); }
         st.nextObs = chaseSecs + (rage ? 9 + Math.random() * 2 : 15 + Math.random() * 5);
         bubble(rage ? boss.taunts.throwRage : boss.taunts.throw, 700);
@@ -584,13 +671,15 @@ export function BossChase(props) {
           // close: QTE — the scene slows down and the rock reaches the hero exactly as the window closes
           if (o.x - st.heroX < QTE_AT && !st.trip && st.phase === 'chase') {
             o.x = Math.max(o.x, st.heroX + 120);       // a long frame must never carry it past the hero first
-            o.qte = true; st.qte = { kind: 'rock', o, t: 0, len: QTE_SECS, from: o.x, wall0: Date.now() }; setQteView('on'); sfx('qte');
+            o.qte = true;
+            if (o.kind === 'seq') startSeq(o);
+            else { st.qte = { kind: 'rock', o, t: 0, len: QTE_SECS, from: o.x, wall0: Date.now() }; setQteView('on'); sfx('qte'); }
           }
         } else if (o.state === 'roll') {
           const k = st.qte ? Math.min(1, st.qte.t / st.qte.len) : 1;
           o.x = (st.qte ? st.qte.from : o.x) - ((st.qte ? st.qte.from : o.x) - (st.heroX + 8)) * k; o.rot -= dt * 4;
           if (k >= 1) {                                // too late: trip (only a look — nothing is taken off)
-            o.state = 'hit'; o.vy = -120; st.trip = .7; endQte('miss');
+            o.state = 'hit'; o.vy = -120; st.trip = o.kind === 'seq' ? .9 : .7; endQte('miss');
             bubble(boss.taunts.laugh, 900); sfx('trip'); setTimeout(() => sfx('laugh'), 180);
           }
         } else if (o.state === 'hit') { o.x -= 60 * dt; o.vy += 500 * dt; o.y += o.vy * dt; if (o.y > 0) { o.y = 0; o.vy = 0; } }
@@ -599,6 +688,15 @@ export function BossChase(props) {
       if (st.qte && qteBarRef.current) qteBarRef.current.style.width = (100 * (1 - st.qte.t / st.qte.len)) + '%';
       st.obs = st.obs.filter(o => o.state !== 'gone' && (o.x > -40 || (st.qte && st.qte.o === o)));   // never drop the rock of an open QTE
       if (st.qte && st.qte.kind === 'mash' && st.qte.t >= st.qte.len) failMash();
+      if (st.qte && st.qte.kind === 'dive') {
+        const q = st.qte;
+        if (!q.judged && q.t >= DIVE_HIT) { q.judged = true; if (!q.held) diveEnd(false, 'โดนหางฟาด!'); else { setQteWord('รอให้หางผ่าน… แล้วปล่อย!'); sfx('whoosh'); } }
+        if (st.qte === q && q.t >= q.len) diveEnd(true);   // still under water when the window ends = safe
+      }
+      // water: up while the tail is about, then drains · the hero ducks while Space is held
+      const tailOn = st.now - st.tail0 < DIVE_SECS + .5;
+      st.water += ((tailOn ? 1 : 0) - st.water) * Math.min(1, dt * (tailOn ? 6 : 3));
+      st.dip += ((st.qte && st.qte.kind === 'dive' && st.qte.held ? 28 : 0) - st.dip) * Math.min(1, dt * 14);
       // crows: notes slide to the ring on the beat; the birds fly from the boss to the hero in the scene
       if (st.qte && st.qte.kind === 'crows') {
         const q = st.qte, t = q.clock();
@@ -610,7 +708,10 @@ export function BossChase(props) {
         });
         if (st.qte === q && q.notes.every(n => n.state !== 'live')) finishCrows();
       }
-      if (st.jump) { st.jump.t += dt; const k = st.jump.t / st.jump.len; st.heroY = k >= 1 ? 0 : 4 * st.jump.hgt * k * (1 - k); if (k >= 1) st.jump = null; }
+      if (st.jump) {                                   // hops > 1 = that many arcs in a row (the boulder's double jump)
+        st.jump.t += dt; const k = st.jump.t / st.jump.len, h = st.jump.hops || 1, f = (k * h) % 1;
+        st.heroY = k >= 1 ? 0 : 4 * st.jump.hgt * f * (1 - f); if (k >= 1) st.jump = null;
+      }
       if (st.trip > 0) st.trip = Math.max(0, st.trip - dt);
       if (st.wiggle > 0) st.wiggle = Math.max(0, st.wiggle - dt);
 
@@ -676,7 +777,7 @@ export function BossChase(props) {
       // pecked by crows: shakes harder the more birds, flashes red, feathers fly
       const peckers = st.crows.filter(c => c.state === 'peck' || c.state === 'swarm').length;
       const shake = st.trip || peckers || st.wiggle ? Math.sin(st.now * 50) * (2 + peckers) : 0;
-      heroRef.current.style.transform = 'translate(' + (st.heroX - hw / 2 + shake).toFixed(1) + 'px,' + (ground - hh - st.heroY).toFixed(1) + 'px)';
+      heroRef.current.style.transform = 'translate(' + (st.heroX - hw / 2 + shake).toFixed(1) + 'px,' + (ground - hh - st.heroY + st.dip).toFixed(1) + 'px)';
       heroRef.current.style.filter = st.trip > .5 || (peckers && Math.floor(st.now * 10) % 2) ? 'brightness(1.6) sepia(1) hue-rotate(-40deg) saturate(4)' : '';
       if (peckers && st.now - st.lastPeck > Math.max(.07, .22 / peckers)) {
         st.lastPeck = st.now; sfx('peck');
@@ -707,8 +808,15 @@ export function BossChase(props) {
       const g = fx.getContext('2d'); g.clearRect(0, 0, fx.width, fx.height); g.imageSmoothingEnabled = false;
       st.obs.forEach(o => {
         if (o.kind === 'roots') return drawRoots(g, o, ground + 80);
-        g.save(); g.translate(o.x, 80 + ground - rock.height / 2 - o.y); g.rotate(o.rot); g.drawImage(rock, -rock.width / 2, -rock.height / 2); g.restore();
+        const img = o.kind === 'seq' ? boulder : rock;
+        g.save(); g.translate(o.x, 80 + ground - img.height / 2 - o.y); g.rotate(o.rot); g.drawImage(img, -img.width / 2, -img.height / 2); g.restore();
       });
+      if (st.water > .01) {                            // over the hero, so ducking really hides them
+        const wh = Math.min(H - 16, 40) * st.water, wy = 80 + H - wh, wave = Math.sin(st.now * 6) * 2;
+        g.fillStyle = 'rgba(60,150,220,.62)'; g.fillRect(0, wy + wave, W, wh + 10);
+        g.fillStyle = 'rgba(210,240,255,.85)'; for (let x = -((st.now * 60) % 24); x < W; x += 24) g.fillRect(x, wy + wave - 1, 12, 3);
+        if (st.now - st.tail0 < DIVE_SECS + .5) drawTail(g, tailX(W), 80 + ground - 62 + 8);
+      }
       // crows in the scene: fly from the boss to the hero, landing on their beat; shooed = off up and away; missed = perch and peck
       if (st.crows.length) {
         const q = st.qte && st.qte.kind === 'crows' ? st.qte : null, t = q ? q.clock() : 0, beat = q ? q.beat : .45;
@@ -788,13 +896,23 @@ export function BossChase(props) {
         <canvas ref={fxRef} style={{ position: 'absolute', left: 0, top: -80, pointerEvents: 'none', zIndex: 8 }}/>
       </div>
       {/* rock / roots QTE: a big Space key over the bottom of the scene and the top of the text; the bar runs out with the window */}
-      {qteKind !== 'crows' && <div className={'bc-qte' + (qteView ? ' show ' + qteView : '')} style={{ top: height + 30 }} aria-live="assertive">
-        <div className="bc-qte-key" style={{ fontFamily: PX_FONT }}>SPACE</div>
+      {/* dive: lower, clear of the scene — the tail and the water are the cue to watch */}
+      {qteKind !== 'crows' && <div className={'bc-qte' + (qteView ? ' show ' + qteView : '')} style={{ top: height + (qteKind === 'dive' ? 82 : 30) }} aria-live="assertive">
+        {qteKind === 'seq'
+          ? <div className="bc-qte-caps">{(qteSeq ? qteSeq.keys : []).map((k, i) => [
+              i > 0 && <span key={'a' + i} className="bc-qte-arrow">→</span>,
+              <div key={i + '-' + (i === (qteSeq && qteSeq.i) ? qteSeq.bad : 0)}
+                className={'bc-qte-cap' + (i < qteSeq.i ? ' done' : '') + (i === qteSeq.i && qteSeq.bad ? ' bad' : '')}>{keyFace(k)}</div>])}</div>
+          : <div className={'bc-qte-key' + (diveHeld ? ' held' : '')} style={{ fontFamily: PX_FONT }}>SPACE</div>}
         <div className="bc-qte-word">{qteKind === 'roots'
           ? (qteView === 'ok' ? 'หลุดแล้ว!' : qteView === 'miss' ? 'โดนรากพันขา!' : 'รัว SPACE ดิ้นให้หลุด!')
+          : qteKind === 'dive' ? qteWord
+          : qteKind === 'seq' ? (qteView === 'ok' ? 'ข้ามได้!' : qteView === 'miss' ? 'โดนหินกลิ้งใส่!' : 'กดตามลำดับ กระโดด ' + ((qteSeq && qteSeq.keys.length) || 2) + ' จังหวะ!')
           : (qteView === 'ok' ? 'เยี่ยม!' : qteView === 'miss' ? 'โอ๊ะ!' : 'กดเพื่อกระโดดหลบ!')}</div>
         {qteKind === 'roots' && <div ref={pipsRef} className="bc-pips">{Array.from({ length: MASH_NEED }, (_, i) => <i key={i}/>)}</div>}
-        <div className="bc-qte-track"><div ref={qteBarRef} className="bc-qte-bar"/></div>
+        <div className="bc-qte-track"><div ref={qteBarRef} className="bc-qte-bar"/>
+          {qteKind === 'dive' && [<div key="z" className="bc-qte-zone" style={{ width: (100 * (1 - DIVE_SAFE / DIVE_SECS)) + '%' }}/>,
+            <div key="m" className="bc-qte-mark" style={{ left: (100 * (1 - DIVE_HIT / DIVE_SECS)) + '%' }}/>]}</div>
       </div>}
       {/* crows QTE: a rhythm track — a note per crow slides to the ring on the beat */}
       {qteKind === 'crows' && <div className={'bc-rt' + (qteView ? ' show' : '')} style={{ top: height - 26 }} aria-live="assertive">

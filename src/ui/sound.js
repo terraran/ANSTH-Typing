@@ -157,6 +157,11 @@ const SFX = {
   hit: () => T(880, 0.1, { v: 0.08, f1: 1320 }),
   root: () => { T(90, 0.35, { type: 'sawtooth', v: 0.06, f1: 60 }); Z(0.3, { v: 0.06, hp: 200, lp: 900 }); },
   snap: () => { Z(0.08, { v: 0.16, hp: 1500 }); T(300, 0.08, { type: 'square', v: 0.06, f1: 120 }); },
+  // stage 4 (tail / water) and stage 5 (boulder)
+  splash: () => { Z(0.35, { v: 0.12, hp: 500, lp: 4000 }); T(600, 0.2, { type: 'sine', v: 0.06, f1: 200 }); },
+  dive: () => { T(500, 0.25, { type: 'sine', v: 0.08, f1: 150 }); Z(0.2, { v: 0.06, hp: 800, lp: 3000 }); },
+  whoosh: () => Z(0.3, { v: 0.1, hp: 300, lp: 1500 }),
+  rumble: () => { T(60, 0.5, { type: 'sawtooth', v: 0.08, f1: 40 }); Z(0.4, { v: 0.08, hp: 60, lp: 400 }); },
 };
 export function sfx(name, arg) {
   if (!ready() || settings.sfx === 0 || !SFX[name]) return;

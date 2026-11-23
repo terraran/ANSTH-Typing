@@ -10,7 +10,9 @@
 //   • faces: half-body dialogue portraits (96×128); faceArt = the last painted column / row inside them, so the boss
 //     stands right on the screen's bottom edge (`bottom` may differ per face)
 //   • qte: what the boss throws at the hero, a different quick-time event per stage (drawn in code):
-//     'rock' = Space to jump · 'crows' = keys on the music's beat (`keys`) · 'roots' = mash Space to break free
+//     'rock' = Space to jump · 'crows' = keys on the music's beat (`keys`) · 'roots' = mash Space to break free ·
+//     'dive' = hold Space under water until the tail has passed · 'seq' = `seqLen` keys from `keys` in order
+//   • from stage 4 on the bosses wear no red bandana (each is its own character, not one bandit gang)
 // ═══════════════════════════════════════════════════════════════
 
 const BOSSES = {
@@ -103,6 +105,66 @@ const BOSSES = {
       ],
     },
     taunts: { start: 'ตามข้ามาเลย!', throw: 'รากไม้ จับมัน!', throwRage: 'รากไม้ทั้งป่า!!', laugh: 'ฮ่าๆๆ!', stomped: 'โอ๊ย! กิ่งข้า!' },
+  },
+  4: {
+    name: 'จระเข้ชาละวัน',
+    dir: 'assets/boss/stage4/',
+    run: 'run.png', runChest: 'run-carry.png', frames: 8, w: 89, h: 62, fps: 11,
+    chest: 'item.png',                       // ไข่มุกยักษ์
+    head: 'head.png',
+    faces: { smug: 'half-smug.png', shock: 'half-shock.png' },
+    faceArt: { right: 88, bottom: { smug: 127, shock: 124 } },
+    qte: 'dive',
+    lines: {
+      intro: [
+        { face: 'smug', text: 'ฮ่าๆๆ! ไข่มุกยักษ์แห่งลำธาร ตกเป็นของชาละวันแล้ว!' },
+        { face: 'smug', text: 'อยากได้คืนก็พิมพ์ให้เร็ว ๆ แล้ววิ่งไล่ข้ามาสิ!' },
+        { face: 'smug', text: 'ระวังหางของข้าให้ดี! กด SPACE ค้างไว้ดำน้ำหลบ แล้วอย่าเพิ่งโผล่จนกว่าหางจะผ่านไปนะ!' },
+      ],
+      caught: [
+        { face: 'shock', text: 'ห๊ะ!? เจ้าตามข้าทันได้ยังไง!' },
+        { face: 'shock', text: 'มงกุฎข้าจะหล่นแล้ว อย่ากระโดดนะ— โอ๊ยยย!' },
+      ],
+      escaped: [
+        { face: 'smug', text: 'แย่แล้ว! ไข่มุกหลุดมือซะได้…' },
+        { face: 'smug', text: 'ครั้งนี้ข้ายอม แต่ลำธารนี้ยังเป็นถิ่นของชาละวันนะ!' },
+      ],
+      won: [
+        { face: 'smug', text: 'ฮ่าๆๆ ช้าไปแล้ว! ไข่มุกยักษ์เป็นของข้า!' },
+        { face: 'smug', text: 'กลับไปฝึกพิมพ์มาใหม่ แล้วค่อยมาไล่ราชาจระเข้อย่างข้า!' },
+      ],
+    },
+    taunts: { start: 'ตามมาเลย ถ้ากล้า!', throw: 'กินหางข้าซะ!', throwRage: 'หางฟาดสะเทือนลำธาร!!', laugh: 'ฮ่าๆๆ!', stomped: 'โอ๊ย! มงกุฎข้า!' },
+  },
+  5: {
+    name: 'ยักษ์หินผา',
+    dir: 'assets/boss/stage5/',
+    run: 'run.png', runChest: 'run-carry.png', frames: 8, w: 81, h: 70, fps: 11,
+    chest: 'item.png',                       // ทับทิมแดง
+    head: 'head.png',
+    faces: { smug: 'half-smug.png', shock: 'half-shock.png' },
+    faceArt: { right: 91, bottom: { smug: 122, shock: 120 } },
+    qte: 'seq', seqLen: 2, keys: ['บ', 'ล', 'ฝ', 'ค', 'ต', 'ถ', 'ภ', 'จ', 'ข', 'ช'],   // stage 5's new keys
+    lines: {
+      intro: [
+        { face: 'smug', text: 'โฮะ โฮะ! ทับทิมแดงบนยอดเขา ข้าเอามาเก็บไว้เองแล้ว!' },
+        { face: 'smug', text: 'อยากได้คืน ก็พิมพ์ให้เร็วแล้วปีนตามข้ามาสิ!' },
+        { face: 'smug', text: 'ข้าจะกลิ้งหินยักษ์ใส่เจ้า! กดแป้นสองตัวตามลำดับให้ทัน แล้วกระโดดข้ามไปให้ได้!' },
+      ],
+      caught: [
+        { face: 'shock', text: 'หา!? เจ้าตัวเล็กตามข้าทันได้ยังไง!' },
+        { face: 'shock', text: 'อย่ากระโดดใส่หัวข้านะ หินข้าจะร้าว— โอ๊ยยย!' },
+      ],
+      escaped: [
+        { face: 'smug', text: 'แย่แล้ว! ทับทิมหลุดจากหลังข้าซะได้…' },
+        { face: 'smug', text: 'คราวนี้ข้ายอม แต่ภูเขาทั้งลูกยังเป็นของข้านะ!' },
+      ],
+      won: [
+        { face: 'smug', text: 'โฮะ โฮะ โฮะ ช้าไปแล้ว! ทับทิมเป็นของข้า!' },
+        { face: 'smug', text: 'กลับไปฝึกพิมพ์มาใหม่ แล้วค่อยมาปีนเขาไล่ข้าอีกที!' },
+      ],
+    },
+    taunts: { start: 'ตามมาสิ ถ้าปีนไหว!', throw: 'รับหินไปซะ!', throwRage: 'หินถล่มทั้งภูเขา!!', laugh: 'ฮ่าๆๆ!', stomped: 'โอ๊ย! หัวข้าร้าว!' },
   },
 };
 

@@ -27,7 +27,7 @@ function textUnits(chars) {
 
 // Memoised: only re-renders when the visible text chunk, the cursor or `compact` changes.
 // offset: index of displayChars[0] in the whole text (data-i = absolute index, used by TextPager).
-export const TextDisplay = React.memo(function TextDisplay({ displayChars, displayPos, compact, offset = 0 }) {
+export const TextDisplay = React.memo(function TextDisplay({ displayChars, displayPos, compact, offset = 0, lines = TEXT_LINES }) {
   const cursorOnCombining = displayPos >= 0 && displayPos < displayChars.length &&
     COMBINING_CLS.has(CHAR_CLASS[displayChars[displayPos]] ?? '');
   let baseIdxForCombining = -1;
@@ -41,8 +41,8 @@ export const TextDisplay = React.memo(function TextDisplay({ displayChars, displ
   return (
     <div style={{fontFamily:TEXT_FONT, fontSize:'var(--tf)', lineHeight:lh, display:'flex', flexWrap:'wrap',
       alignContent:'flex-start', gap:'0 2px',
-      // always room for TEXT_LINES lines, so the box never changes height while typing
-      minHeight:`calc(var(--tf) * ${lh * TEXT_LINES})`, '--tf':TF_CLAMP}}>
+      // always room for `lines` lines (TEXT_LINES; 2 in the boss chase on low screens), so the box never changes height while typing
+      minHeight:`calc(var(--tf) * ${lh * lines})`, '--tf':TF_CLAMP}}>
       {textUnits(displayChars).map((u,ui) => {
         const long = u.chars.length > 16;
         let space = null;
@@ -80,9 +80,9 @@ export const TextDisplay = React.memo(function TextDisplay({ displayChars, displ
 });
 
 // Pages of the typing text by real lines: lays the WHOLE text out invisibly at the same width and
-// font as the text box, then cuts it every TEXT_LINES lines — so every page fills the box
+// font as the text box, then cuts it every `lines` lines (TEXT_LINES unless told) — so every page fills the box
 // whatever the screen size. Reports [{start,end}] via onChunks(targetChars, chunks).
-export const TextPager = React.memo(function TextPager({ targetChars, compact, onChunks }) {
+export const TextPager = React.memo(function TextPager({ targetChars, compact, onChunks, lines = TEXT_LINES }) {
   const ref = React.useRef(null);
   const [tick, setTick] = React.useState(0);
   React.useEffect(() => {
@@ -118,16 +118,16 @@ export const TextPager = React.memo(function TextPager({ targetChars, compact, o
     const chunks = [];
     let start = 0;
     for (let i = 1; i <= targetChars.length; i++) {
-      if (i === targetChars.length || Math.floor(lineOf[i] / TEXT_LINES) !== Math.floor(lineOf[start] / TEXT_LINES)) {
+      if (i === targetChars.length || Math.floor(lineOf[i] / lines) !== Math.floor(lineOf[start] / lines)) {
         chunks.push({ start, end: i }); start = i;
       }
     }
     onChunks && onChunks(targetChars, chunks);
-  }, [targetChars, compact, tick]);
+  }, [targetChars, compact, tick, lines]);
   return (
     <div ref={ref} aria-hidden="true" style={{position:'absolute', left:0, right:0, top:0, height:0, overflow:'hidden',
       visibility:'hidden', pointerEvents:'none'}}>
-      <TextDisplay displayChars={targetChars} displayPos={-1} compact={compact}/>
+      <TextDisplay displayChars={targetChars} displayPos={-1} compact={compact} lines={lines}/>
     </div>
   );
 });

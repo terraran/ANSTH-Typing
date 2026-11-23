@@ -11,7 +11,9 @@
 //     stands right on the screen's bottom edge (`bottom` may differ per face)
 //   • qte: what the boss throws at the hero, a different quick-time event per stage (drawn in code):
 //     'rock' = Space to jump · 'crows' = keys on the music's beat (`keys`) · 'roots' = mash Space to break free ·
-//     'dive' = hold Space under water until the tail has passed · 'seq' = `seqLen` keys from `keys` in order
+//     'dive' = hold Space under water until the tail has passed · 'seq' = `seqLen` keys from `keys` in order ·
+//     'shift' = Shift + one of `keys` · 'word' = type one of `words`
+//   • fly: px a flying boss hovers above the ground (scene room ~120 px above the ground: h + fly must stay under it)
 //   • from stage 4 on the bosses wear no red bandana (each is its own character, not one bandit gang)
 // ═══════════════════════════════════════════════════════════════
 
@@ -165,6 +167,66 @@ const BOSSES = {
       ],
     },
     taunts: { start: 'ตามมาสิ ถ้าปีนไหว!', throw: 'รับหินไปซะ!', throwRage: 'หินถล่มทั้งภูเขา!!', laugh: 'ฮ่าๆๆ!', stomped: 'โอ๊ย! หัวข้าร้าว!' },
+  },
+  6: {
+    name: 'ราชาค้างคาว',
+    dir: 'assets/boss/stage6/',
+    run: 'run.png', runChest: 'run-carry.png', frames: 8, w: 89, h: 80, fps: 11, fly: 24,
+    chest: 'item.png',                       // ตะเกียงทอง
+    head: 'head.png',
+    faces: { smug: 'half-smug.png', shock: 'half-shock.png' },
+    faceArt: { right: 89, bottom: { smug: 119, shock: 117 } },
+    qte: 'shift', keys: ['โ', 'ธ', 'ณ', '็', '์', 'ฉ', 'ซ', 'ญ', 'ศ', 'ฮ'],   // stage 6's Shift letters
+    lines: {
+      intro: [
+        { face: 'smug', text: 'คิก คิก! ตะเกียงทองของถ้ำนี้ ตกเป็นของราชาค้างคาวแล้ว!' },
+        { face: 'smug', text: 'ไม่มีแสงแล้ว เจ้าจะตามข้าทันได้ยังไงกัน!' },
+        { face: 'smug', text: 'ลูกน้องค้างคาวของข้าจะพุ่งใส่เจ้า! กด Shift ค้างไว้แล้วกดตัวที่ขึ้น ไล่มันไปให้ได้ล่ะ!' },
+      ],
+      caught: [
+        { face: 'shock', text: 'อะไรนะ!? เจ้าตามข้าทันในความมืดได้ยังไง!' },
+        { face: 'shock', text: 'อย่ากระโดดใส่ข้านะ ปีกข้าจะพับ— อ๊ากก!' },
+      ],
+      escaped: [
+        { face: 'smug', text: 'แย่แล้ว! ตะเกียงหลุดจากเท้าข้าซะได้…' },
+        { face: 'smug', text: 'ข้ายอมรอบนี้ แต่ถ้ำทั้งถ้ำยังเป็นของข้านะ!' },
+      ],
+      won: [
+        { face: 'smug', text: 'คิก คิก คิก ช้าไปแล้ว! ตะเกียงทองเป็นของข้า!' },
+        { face: 'smug', text: 'กลับไปฝึกพิมพ์มาใหม่ แล้วค่อยมาไล่ข้าในถ้ำอีกที!' },
+      ],
+    },
+    taunts: { start: 'ตามมาสิ ถ้ามองเห็น!', throw: 'ลูกน้อง จัดการมัน!', throwRage: 'ค้างคาวทั้งถ้ำ บุก!!', laugh: 'ฮ่าๆๆ!', stomped: 'โอ๊ย! ปีกข้า!' },
+  },
+  7: {
+    name: 'พ่อมดอักษรโบราณ',
+    dir: 'assets/boss/stage7/',
+    run: 'run.png', runChest: 'run-carry.png', frames: 8, w: 69, h: 75, fps: 11,
+    chest: 'item.png',                       // คัมภีร์โบราณ
+    head: 'head.png',
+    faces: { smug: 'half-smug.png', shock: 'half-shock.png' },
+    faceArt: { right: 83, bottom: { smug: 118, shock: 115 } },
+    qte: 'word', words: ['ฤษี', 'ระฆัง', 'เฒ่า', 'ฐาน', 'จุฬา', 'ปฏิทิน', 'กีฬา', 'ฆ้อง', 'ครุฑ', 'ภูผา'],   // stage 7's rare letters
+    lines: {
+      intro: [
+        { face: 'smug', text: 'โฮ่ โฮ่! คัมภีร์โบราณของปราสาทนี้ ข้าขอยืมไปนะ!' },
+        { face: 'smug', text: 'อยากได้คืน ก็พิมพ์ให้เร็วแล้ววิ่งตามข้ามาสิ!' },
+        { face: 'smug', text: 'หนังสือเวทของข้าจะบินใส่เจ้า! พิมพ์คำที่ขึ้นให้ครบ มันถึงจะแตก!' },
+      ],
+      caught: [
+        { face: 'shock', text: 'เป็นไปไม่ได้!? เจ้าตามข้าทันได้ยังไง!' },
+        { face: 'shock', text: 'อย่า ๆ หมวกข้าจะหลุด— โอ๊ยยย!' },
+      ],
+      escaped: [
+        { face: 'smug', text: 'แย่แล้ว! คัมภีร์หล่นจากมือข้าซะได้…' },
+        { face: 'smug', text: 'คราวนี้ข้ายอม แต่อักษรโบราณยังมีอีกเยอะนะ!' },
+      ],
+      won: [
+        { face: 'smug', text: 'โฮ่ โฮ่ โฮ่ ช้าไปแล้ว! คัมภีร์นี้เป็นของข้า!' },
+        { face: 'smug', text: 'กลับไปฝึกพิมพ์อักษรหายากมาใหม่ แล้วค่อยมาไล่ข้า!' },
+      ],
+    },
+    taunts: { start: 'ตามข้าทันไหมล่ะ!', throw: 'หนังสือเวท ไป!', throwRage: 'หนังสือเวททั้งห้องสมุด!!', laugh: 'ฮ่าๆๆ!', stomped: 'โอ๊ย! หมวกข้า!' },
   },
 };
 

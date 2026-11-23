@@ -14,6 +14,9 @@
 //       'dive'  (stage 4) the water rises and the boss's tail sweeps in: hold Space to duck under before it hits
 //               (white mark), let go only after it has passed (green part) — up too early = hit
 //       'seq'   (stage 5) a giant boulder rolls in: press the keys shown, in order (bosses.js `keys`, `seqLen`), to jump it
+//       'shift' (stage 6) a little bat swoops in: hold Shift and press the key shown (stage 6's Shift letters)
+//       'word'  (stage 7) a spell book flies in: type the word shown (rare letters, bosses.js `words`) to burst it
+//   • Flying bosses (bosses.js `fly` = px above the ground) hover and bob; the stomp, the burst and the dropped item follow them up.
 //   • Caught before time's up: one stomp, the boss runs back to the start, and the score gets a short multiplier
 //     (×2 for 15 s, +1 per stomp while it lasts, up to ×5); each next lap is longer the higher the multiplier.
 //     The top strip keeps fixed chips (boss-head stomp count · ×multiplier · accuracy) so nothing shifts.
@@ -44,8 +47,16 @@ function pixelArt(rows, s, pal) {
 const CROW = [['....kk......', '...kbbk.....', 'kkkbwbbk....', '.yyybbbbkkkk', '...kbbbbgggk', '....kbbbbkk.', '.....kk.k...'],
               ['....kk......', 'kk.kbbk..kk.', 'kgkbwbbkkgk.', '.ykbbbbbbk..', '...kbbbbbk..', '....kbbbk...', '.....k.k....']];
 const CROW_PAL = { k: '#1f1a17', b: '#2b2f3a', g: '#555b6b', y: '#e0b23c', w: '#f2ead2' };
+// Little bat (stage 6 'shift') and spell book (stage 7 'word'), two frames each
+const BAT = [['k..........k', 'kk........kk', 'bkk..kk..kkb', '.bbkkbbkkbb.', '..bbbrrbbb..', '...bbbbbb...', '....k..k....'],
+             ['.....kk.....', '....kbbk....', '..kkbrrbkk..', '.kbbbbbbbbk.', 'kbb.bbbb.bbk', 'kb...kk...bk', 'k..........k']];
+const BAT_PAL = { k: '#1a0d22', b: '#4a3460', r: '#ff4d4d' };
+const BOOK = [['kkkkkkkkkkkk', 'kwwwwkkwwwwk', 'kwyywkkwyywk', 'kwwwwkkwwwwk', 'kwyywkkwyywk', 'kwwwwkkwwwwk', 'kppppkkppppk', 'kkkkkkkkkkkk'],
+              ['.kkkk..kkkk.', 'kwwwwkkwwwwk', 'kwyywkkwyywk', 'kwwwwkkwwwwk', 'kwyywkkwyywk', 'kwwwwkkwwwwk', 'kppppkkppppk', 'kkkkkkkkkkkk']];
+const BOOK_PAL = { k: '#2a1430', w: '#f2ead2', y: '#e0b23c', p: '#7a2d8a' };
 // rhythm track: note speed (px/s) · centre of the ring (px in the lane) · judgement windows (s), kind to young hands
 const RT_SPEED = 300, RT_HIT = 93, RT_PERFECT = .08, RT_OK = .16, RT_LATE = .22;
+const CHASE_H = 132;
 const MASH_NEED = 5, MASH_SECS = 2.2;
 const DIVE_SECS = 2.4, DIVE_HIT = 1.2, DIVE_SAFE = 1.5;   // window · the tail reaches the hero · it has passed
 const SEQ_SECS = 2.2;
@@ -128,6 +139,9 @@ const CSS = `
 .bc-qte-cap{min-width:76px;height:76px;background:linear-gradient(#FFE08A,#FFC23D);border:4px solid ${INK};border-radius:10px;
   box-shadow:0 8px 0 ${INK},0 0 0 6px rgba(255,255,255,.55),0 0 30px 8px rgba(255,194,61,.8);
   display:flex;align-items:center;justify-content:center;font-size:38px;font-weight:800;color:${INK};line-height:1}
+.bc-qte-cap.wide{padding:0 16px;font-size:24px}
+.bc-qte-cap.held{background:linear-gradient(#9fd8ff,#4aa3e0);box-shadow:0 3px 0 ${INK};transform:translateY(5px)}
+.bc-qte-cap.word{padding:0 20px;font-size:40px;gap:0}
 .bc-qte-cap.done{background:linear-gradient(#C9F7C0,#7BD67A);box-shadow:0 3px 0 ${INK};transform:translateY(5px)}
 .bc-qte-cap.bad{animation:bcShake .2s}
 @keyframes bcShake{25%{transform:translateX(-6px)}75%{transform:translateX(6px)}}
@@ -221,7 +235,10 @@ function BossTalk({ boss, talk, big, rect }) {
 //   pos, errors, overlay (element the dialogue covers), onTalking(bool: typing must wait), onRage(bool),
 //   onPause(ms: a QTE window to take off the clock), onBoost(score multiplier: 1 / 2…5), onDone()
 export function BossChase(props) {
-  const { boss, world, cfg, height, big } = props;
+  // The chase scene is taller than the practice lane (84 / 100) so big and flying bosses fit inside it:
+  // CHASE_H at every screen size; the text box above the keyboard gives up the room (lab 1366×657: 3 → 2 lines,
+  // bigger screens keep theirs — mock .claude/mock/chase-layout.html). Boss art: ≤ ~110 px tall incl. flapping / flying.
+  const { boss, world, cfg, big } = props, height = CHASE_H;
   const live = useRef(props); live.current = props;
   const wrapRef = useRef(null), sceneRef = useRef(null), actorsRef = useRef(null);
   const heroRef = useRef(null), bossRef = useRef(null), chestRef = useRef(null), fxRef = useRef(null);
@@ -287,9 +304,14 @@ export function BossChase(props) {
       if ((k === 'rock' || k === 'mash') && e.key === ' ') { e.preventDefault(); k === 'rock' ? st.dodge() : st.mash(); }
       else if (k === 'crows' && e.key.length === 1) { e.preventDefault(); st.press(e.key); }
       else if (k === 'dive' && e.key === ' ') { e.preventDefault(); st.diveDown(); }
+      else if (k === 'seq' && e.key === 'Shift') st.seqShift(true);
       else if (k === 'seq' && e.key.length === 1) { e.preventDefault(); st.seqKey(e.key); }
     };
-    const onUp = e => { const st = S.current; if (st && st.qte && st.qte.kind === 'dive' && e.key === ' ') { e.preventDefault(); st.diveUp(); } };
+    const onUp = e => {
+      const st = S.current; if (!st || !st.qte) return;
+      if (st.qte.kind === 'dive' && e.key === ' ') { e.preventDefault(); st.diveUp(); }
+      if (st.qte.kind === 'seq' && e.key === 'Shift') st.seqShift(false);
+    };
     window.addEventListener('keydown', onKey); window.addEventListener('keyup', onUp);
     return () => { window.removeEventListener('keydown', onKey); window.removeEventListener('keyup', onUp); };
   }, []);
@@ -322,6 +344,8 @@ export function BossChase(props) {
       sceneRef.current.appendChild(el); return { l, el };
     });
     const rock = pixelArt(ROCK, 2, ROCK_PAL), boulder = pixelArt(ROCK, 4, BOULDER_PAL);
+    const batArt = BAT.map(r => pixelArt(r, 3, BAT_PAL)), bookArt = BOOK.map(r => pixelArt(r, 3, BOOK_PAL));
+    const F = boss.fly || 0;                           // a flying boss hovers this high above the ground
     const crowArt = CROW.map(r => pixelArt(r, 3, CROW_PAL)), crowIcon = qteKind === 'crows' ? pixelArt(CROW[0], 2, CROW_PAL).toDataURL() : '';
     const bossCv = document.createElement('canvas'); bossCv.width = boss.w; bossCv.height = boss.h;
     bossRef.current.appendChild(bossCv);
@@ -528,19 +552,34 @@ export function BossChase(props) {
       g.restore();
     }
     // ── seq: the boulder; press its keys in order, then a double jump clears it ──
+    // variants (o.kind): 'seq' = keys from `keys` in order · 'shift' = one Shift letter · 'word' = every letter of a word
     function startSeq(o) {
-      const pool = boss.keys || ['ฟ', 'ห', 'ก', 'ด'], n = Math.min(boss.seqLen || 2, pool.length), keys = [];
-      while (keys.length < n) { const c = pool[Math.floor(Math.random() * pool.length)]; if (!keys.includes(c)) keys.push(c); }
-      st.qte = { kind: 'seq', o, t: 0, len: boss.seqSecs || SEQ_SECS, from: o.x, keys, i: 0, wall0: Date.now() };
-      setQteSeq({ keys, i: 0, bad: 0 }); setQteView('on'); sfx('qte'); sfx('rumble');
+      const variant = o.kind, pool = boss.keys || ['ฟ', 'ห', 'ก', 'ด'];
+      let keys = [];
+      if (variant === 'word') keys = [...(boss.words || ['ฤษี'])[Math.floor(Math.random() * (boss.words || ['ฤษี']).length)]];
+      else {
+        const n = variant === 'shift' ? 1 : Math.min(boss.seqLen || 2, pool.length);
+        while (keys.length < n) { const c = pool[Math.floor(Math.random() * pool.length)]; if (!keys.includes(c)) keys.push(c); }
+      }
+      // a word gets time by its length (the clock is paused anyway) — young typists are ~1 key a second at stage 7
+      const len = boss.seqSecs || (variant === 'word' ? 1.5 + .7 * keys.length : SEQ_SECS);
+      st.qte = { kind: 'seq', variant, o, t: 0, len, from: o.x, keys, i: 0, wall0: Date.now() };
+      setQteSeq({ keys, i: 0, bad: 0, variant, shiftDown: false }); setQteView('on'); sfx('qte');
+      sfx(variant === 'seq' ? 'rumble' : 'whoosh');
     }
+    st.seqShift = down => setQteSeq(v => v && v.variant === 'shift' ? { ...v, shiftDown: down } : v);
     st.seqKey = key => {
       const q = st.qte; if (!q || q.kind !== 'seq') return;
       if (key === q.keys[q.i]) {
-        q.i++; sfx('hit'); setQteSeq({ keys: q.keys, i: q.i, bad: 0 });
+        q.i++; sfx('hit'); setQteSeq(v => ({ ...v, keys: q.keys, i: q.i, bad: 0 }));
         if (q.i >= q.keys.length) {
-          q.o.state = 'past'; endQte('ok');
-          st.jump = { t: 0, len: .5 * q.keys.length, hgt: (height < 90 ? 30 : 34) + 10, hops: q.keys.length }; sfx('jump');
+          endQte('ok');
+          if (q.variant === 'word') {                  // the book bursts into paper bits
+            q.o.state = 'gone'; sfx('snap');
+            for (let i = 0; i < 18; i++) st.parts.push({ x: q.o.x, y: wrapRef.current.clientHeight - 9 - 20 - q.o.y, vx: (Math.random() - .5) * 260,
+              vy: -80 - Math.random() * 200, s: 3, c: ['#f2ead2', '#e0b23c', '#7a2d8a'][i % 3], life: .6 + Math.random() * .4 });
+          } else if (q.variant === 'shift') { q.o.state = 'past'; q.o.flee = true; jump(); }   // swatted: the bat flees up and away
+          else { q.o.state = 'past'; st.jump = { t: 0, len: .5 * q.keys.length, hgt: (height < 90 ? 30 : 34) + 10, hops: q.keys.length }; sfx('jump'); }
         }
       } else if (/[\u0E00-\u0E7F]/.test(key)) { sfx('wrong'); setQteSeq(v => v && { ...v, bad: (v.bad || 0) + 1 }); }
     };
@@ -647,7 +686,11 @@ export function BossChase(props) {
           && !st.obs.some(o => o.state === 'roll' || o.state === 'hold') && !st.crows.length && !st.trip) {
         if (qteKind === 'crows') startCrows();         // crows come straight away (the track shows them coming)
         else if (qteKind === 'dive') startDive();      // so does the tail (the window starts with the water rising)
-        else { st.obs.push({ kind: qteKind, x: st.bossX - bw / 2, rot: 0, state: 'roll', vy: 0, y: 0, t: 0 }); if (qteKind === 'roots') sfx('root'); }
+        else {
+          const air = qteKind === 'shift' || qteKind === 'word';   // the bat and the book fly in at head height
+          st.obs.push({ kind: qteKind, x: st.bossX - bw / 2, rot: 0, state: 'roll', vy: 0, y: air ? 36 : 0, t: 0, air });
+          if (qteKind === 'roots') sfx('root');
+        }
         st.nextObs = chaseSecs + (rage ? 9 + Math.random() * 2 : 15 + Math.random() * 5);
         bubble(rage ? boss.taunts.throwRage : boss.taunts.throw, 700);
       }
@@ -667,23 +710,24 @@ export function BossChase(props) {
           return;
         }
         if (o.state === 'roll' && !o.qte) {
-          o.x -= (st.vel + 110) * dt; o.rot -= (st.vel + 110) * dt / 8;
+          o.x -= (st.vel + 110) * dt; if (!o.air) o.rot -= (st.vel + 110) * dt / 8;
           // close: QTE — the scene slows down and the rock reaches the hero exactly as the window closes
           if (o.x - st.heroX < QTE_AT && !st.trip && st.phase === 'chase') {
             o.x = Math.max(o.x, st.heroX + 120);       // a long frame must never carry it past the hero first
             o.qte = true;
-            if (o.kind === 'seq') startSeq(o);
+            if (o.kind === 'seq' || o.kind === 'shift' || o.kind === 'word') startSeq(o);
             else { st.qte = { kind: 'rock', o, t: 0, len: QTE_SECS, from: o.x, wall0: Date.now() }; setQteView('on'); sfx('qte'); }
           }
         } else if (o.state === 'roll') {
           const k = st.qte ? Math.min(1, st.qte.t / st.qte.len) : 1;
-          o.x = (st.qte ? st.qte.from : o.x) - ((st.qte ? st.qte.from : o.x) - (st.heroX + 8)) * k; o.rot -= dt * 4;
+          o.x = (st.qte ? st.qte.from : o.x) - ((st.qte ? st.qte.from : o.x) - (st.heroX + 8)) * k; if (!o.air) o.rot -= dt * 4;
           if (k >= 1) {                                // too late: trip (only a look — nothing is taken off)
-            o.state = 'hit'; o.vy = -120; st.trip = o.kind === 'seq' ? .9 : .7; endQte('miss');
+            if (o.air) { o.state = 'past'; o.flee = true; } else { o.state = 'hit'; o.vy = -120; }   // a flyer hits and flies off
+            st.trip = o.kind === 'rock' ? .7 : .9; endQte('miss');
             bubble(boss.taunts.laugh, 900); sfx('trip'); setTimeout(() => sfx('laugh'), 180);
           }
         } else if (o.state === 'hit') { o.x -= 60 * dt; o.vy += 500 * dt; o.y += o.vy * dt; if (o.y > 0) { o.y = 0; o.vy = 0; } }
-        else o.x -= (st.vel + 110) * dt;
+        else { o.x -= (st.vel + 110) * dt; if (o.flee) o.y += 150 * dt; }
       });
       if (st.qte && qteBarRef.current) qteBarRef.current.style.width = (100 * (1 - st.qte.t / st.qte.len)) + '%';
       st.obs = st.obs.filter(o => o.state !== 'gone' && (o.x > -40 || (st.qte && st.qte.o === o)));   // never drop the rock of an open QTE
@@ -720,12 +764,12 @@ export function BossChase(props) {
         const s = st.stomp, far = W - bw / 2 - 12, jumpH = height < 90 ? 30 : 34; s.t += dt;
         if (s.t < .4) { st.heroX += ((st.bossX - bw * .55) - st.heroX) * Math.min(1, dt * 9); st.heroY = 0; }
         else if (s.t < .8) { const k = (s.t - .4) / .4; st.heroX += (st.bossX - st.heroX) * Math.min(1, dt * 10);
-          st.heroY = (bh * .75 + jumpH) * Math.sin(k * Math.PI * .5) * (k < .7 ? 1 : 1 - (k - .7) * 1.3); }
+          st.heroY = (bh * .75 + jumpH + F) * Math.sin(k * Math.PI * .5) * (k < .7 ? 1 : 1 - (k - .7) * 1.3); }
         else if (!s.hit) {
           s.hit = true; s.x1 = st.heroX; st.flash = .15; st.squash = .6;
           showCue('เหยียบ! ×' + st.mult, true); sfx('stomp'); setTimeout(() => sfx('combo', 2), 120);
           bubble(boss.taunts.stomped || 'อ๊าก!!', 900);
-          for (let i = 0; i < 14; i++) st.parts.push({ x: st.bossX, y: ground - bh * .9, vx: (Math.random() - .5) * 260,
+          for (let i = 0; i < 14; i++) st.parts.push({ x: st.bossX, y: ground - bh * .9 - F, vx: (Math.random() - .5) * 260,
             vy: -120 - Math.random() * 200, s: 3, c: Math.random() < .5 ? '#FFFFFF' : '#FFE08A', life: .4 + Math.random() * .3 });
         } else {
           const k = Math.min(1, (s.t - .8) / .7);
@@ -745,15 +789,15 @@ export function BossChase(props) {
         if (st.end === 3) {
           if (e < .8) { st.heroX += ((st.bossX - bw * .55) - st.heroX) * Math.min(1, dt * 5); setHero('run'); }
           else if (e < 1.35) { const k = (e - .8) / .55; st.heroX += (st.bossX - st.heroX) * Math.min(1, dt * 8);
-            st.heroY = (bh * .8 + 30) * Math.sin(Math.min(1, k) * Math.PI * .5) * (k < .6 ? 1 : 1 - (k - .6) * 1.2); }
-          else if (!st.boom) { st.boom = true; burst(st.bossX, ground - bh * .45); st.bossHide = true; sfx('stomp');
-            st.chest = 'fly'; st.chestVX = -90; st.chestVY = -260; st.chestX = st.bossX; st.chestY = bh * .9; setTimeout(() => sfx('chest'), 700); }
+            st.heroY = (bh * .8 + 30 + F) * Math.sin(Math.min(1, k) * Math.PI * .5) * (k < .6 ? 1 : 1 - (k - .6) * 1.2); }
+          else if (!st.boom) { st.boom = true; burst(st.bossX, ground - bh * .45 - F); st.bossHide = true; sfx('stomp');
+            st.chest = 'fly'; st.chestVX = -90; st.chestVY = -260; st.chestX = st.bossX; st.chestY = bh * .9 + F; setTimeout(() => sfx('chest'), 700); }
           if (e >= 1.35) st.heroY = Math.max(0, st.heroY - 260 * dt);
           if (e > 1.7) setHero('cheer');
           if (e > 3.2) done();
         } else if (st.end >= 1) {
           if (e < .05 && !st.yelp) { st.yelp = true; bubble('!', 500); }
-          if (e > .35 && st.chest === 'carried') { st.chest = 'fly'; st.chestX = st.bossX - bw * .1; st.chestY = bh * .9; st.chestVX = -40; st.chestVY = -60; }
+          if (e > .35 && st.chest === 'carried') { st.chest = 'fly'; st.chestX = st.bossX - bw * .1; st.chestY = bh * .9 + F; st.chestVX = -40; st.chestVY = -60; }
           if (e > .7 && !gone) st.bossX += 260 * dt;
           if (e > .7) { const tx = st.chestX - 46; if (st.heroX < tx - 2) { st.heroX += 150 * dt; setHero('run'); } else setHero('cheer'); }
           if (e > 1.1 && !st.got) { st.got = true; sfx('chest'); }
@@ -793,7 +837,8 @@ export function BossChase(props) {
       const laughing = st.bubbles.some(b => /ฮ่า/.test(b.el.textContent)) ? Math.abs(Math.sin(st.now * 18)) * 6 : 0;
       bossRef.current.style.display = st.bossHide ? 'none' : '';
       const sq = st.squash || 1;                       // squashed for a moment when stomped (feet stay on the ground)
-      bossRef.current.style.transform = 'translate(' + (st.bossX - bw / 2).toFixed(1) + 'px,' + (ground - bh * sq - laughing).toFixed(1) + 'px)'
+      const lift = F ? F + Math.sin(st.now * 4) * 3 : 0;   // flying: hovers and bobs
+      bossRef.current.style.transform = 'translate(' + (st.bossX - bw / 2).toFixed(1) + 'px,' + (ground - bh * sq - laughing - lift).toFixed(1) + 'px)'
         + (st.bossFlip ? ' scaleX(-1)' : '') + (sq !== 1 ? ' scaleY(' + sq + ')' : '');
       bossRef.current.style.transformOrigin = 'top left';
       bossRef.current.style.filter = st.flash > 0 ? 'brightness(2.2)'
@@ -808,7 +853,8 @@ export function BossChase(props) {
       const g = fx.getContext('2d'); g.clearRect(0, 0, fx.width, fx.height); g.imageSmoothingEnabled = false;
       st.obs.forEach(o => {
         if (o.kind === 'roots') return drawRoots(g, o, ground + 80);
-        const img = o.kind === 'seq' ? boulder : rock;
+        const fr = Math.floor(st.now * 8) % 2;
+        const img = o.kind === 'seq' ? boulder : o.kind === 'shift' ? batArt[fr] : o.kind === 'word' ? bookArt[fr] : rock;
         g.save(); g.translate(o.x, 80 + ground - img.height / 2 - o.y); g.rotate(o.rot); g.drawImage(img, -img.width / 2, -img.height / 2); g.restore();
       });
       if (st.water > .01) {                            // over the hero, so ducking really hides them
@@ -843,7 +889,7 @@ export function BossChase(props) {
       g.globalAlpha = 1;
 
       st.bubbles = st.bubbles.filter(b => { if (st.now > b.until) { b.el.remove(); return false; } return true; });
-      st.bubbles.forEach(b => { b.el.style.left = Math.min(W - 60, st.bossX + bw * .15) + 'px'; b.el.style.top = (ground - bh - 4) + 'px'; });
+      st.bubbles.forEach(b => { b.el.style.left = Math.min(W - 60, st.bossX + bw * .15) + 'px'; b.el.style.top = (ground - bh - 4 - F) + 'px'; });
       raf = requestAnimationFrame(loop);
     }
     raf = requestAnimationFrame(loop);
@@ -898,7 +944,15 @@ export function BossChase(props) {
       {/* rock / roots QTE: a big Space key over the bottom of the scene and the top of the text; the bar runs out with the window */}
       {/* dive: lower, clear of the scene — the tail and the water are the cue to watch */}
       {qteKind !== 'crows' && <div className={'bc-qte' + (qteView ? ' show ' + qteView : '')} style={{ top: height + (qteKind === 'dive' ? 82 : 30) }} aria-live="assertive">
-        {qteKind === 'seq'
+        {qteKind === 'shift' && qteSeq
+          ? <div className="bc-qte-caps">
+              <div className={'bc-qte-cap wide' + (qteSeq.shiftDown || qteSeq.i ? ' held' : '')}>⇧ Shift</div><span className="bc-qte-arrow">+</span>
+              <div key={'k' + qteSeq.bad} className={'bc-qte-cap' + (qteSeq.i ? ' done' : '') + (qteSeq.bad ? ' bad' : '')}>{keyFace(qteSeq.keys[0])}</div></div>
+          : qteKind === 'word' && qteSeq
+          ? <div className="bc-qte-caps"><div key={'w' + qteSeq.bad} className={'bc-qte-cap word' + (qteSeq.bad ? ' bad' : '') + (qteSeq.i >= qteSeq.keys.length ? ' done' : '')}>
+              {qteSeq.keys.map((c, i) => <span key={i} style={{ color: i < qteSeq.i ? '#2f8a3a' : INK, textDecoration: i === qteSeq.i ? 'underline' : 'none',
+                textUnderlineOffset: 6 }}>{c}</span>)}</div></div>
+          : qteKind === 'seq'
           ? <div className="bc-qte-caps">{(qteSeq ? qteSeq.keys : []).map((k, i) => [
               i > 0 && <span key={'a' + i} className="bc-qte-arrow">→</span>,
               <div key={i + '-' + (i === (qteSeq && qteSeq.i) ? qteSeq.bad : 0)}
@@ -908,6 +962,8 @@ export function BossChase(props) {
           ? (qteView === 'ok' ? 'หลุดแล้ว!' : qteView === 'miss' ? 'โดนรากพันขา!' : 'รัว SPACE ดิ้นให้หลุด!')
           : qteKind === 'dive' ? qteWord
           : qteKind === 'seq' ? (qteView === 'ok' ? 'ข้ามได้!' : qteView === 'miss' ? 'โดนหินกลิ้งใส่!' : 'กดตามลำดับ กระโดด ' + ((qteSeq && qteSeq.keys.length) || 2) + ' จังหวะ!')
+          : qteKind === 'shift' ? (qteView === 'ok' ? 'ไล่ค้างคาวไปแล้ว!' : qteView === 'miss' ? 'โดนค้างคาวชน!' : 'กด Shift ค้างไว้ แล้วกดตัวนี้!')
+          : qteKind === 'word' ? (qteView === 'ok' ? 'หนังสือเวทแตกกระจาย!' : qteView === 'miss' ? 'โดนหนังสือเวทฟาด!' : 'พิมพ์คำนี้ ทำลายหนังสือเวท!')
           : (qteView === 'ok' ? 'เยี่ยม!' : qteView === 'miss' ? 'โอ๊ะ!' : 'กดเพื่อกระโดดหลบ!')}</div>
         {qteKind === 'roots' && <div ref={pipsRef} className="bc-pips">{Array.from({ length: MASH_NEED }, (_, i) => <i key={i}/>)}</div>}
         <div className="bc-qte-track"><div ref={qteBarRef} className="bc-qte-bar"/>

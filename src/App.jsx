@@ -1756,8 +1756,9 @@ export function ThaiTypingApp() {
             <div className="px-panel" style={{padding:roomCode?'0 8px':'2px 10px',flex:roomCode?'1 0 auto':'1 1 auto',minHeight:roomCode?'auto':0,
               display:'flex',alignItems:'center',justifyContent:'center',overflow:'hidden'}}>
               <div style={{position:'relative',width:'100%'}}>
-                <TextDisplay displayChars={displayChars} displayPos={displayPos} compact={!!roomCode} offset={curChunk.start}/>
-                <TextPager targetChars={targetChars} compact={!!roomCode} onChunks={onPages}/>
+                {/* boss chase: its scene is taller (BossChase CHASE_H), so on the lab's low screen the text pages 2 lines, not 3 */}
+                <TextDisplay displayChars={displayChars} displayPos={displayPos} compact={!!roomCode} offset={curChunk.start} lines={chaseBoss && viewH<720 ? 2 : undefined}/>
+                <TextPager targetChars={targetChars} compact={!!roomCode} onChunks={onPages} lines={chaseBoss && viewH<720 ? 2 : undefined}/>
               </div>
             </div>
             <div className="px-wood" style={{padding:'0 2px',color:'#F5E6BE',flex:'none'}}>

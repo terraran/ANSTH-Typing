@@ -5,8 +5,12 @@
 //     target × 1.5 × 4 × minutes (⭐⭐⭐), with a mark at 2/3 of it (⭐⭐). Net steps (stage 9) take 4 keys off per error.
 //   • Accuracy: under 95 % the boss can't be caught (⭐⭐⭐ needs 95 %), under 90 % it pulls far ahead (0 stars).
 //   • Start: the boss talks (off screen), dashes in from behind and overtakes to the far end, "พร้อม… เริ่ม!", then typing opens.
-//   • The boss throws a rock now and then: a big Space QTE pops up (the scene slows, typing and the clock pause);
-//     Space in time = jump, too late = trip (only a look — nothing is taken off).
+//   • The boss throws something now and then — a quick-time event, different per boss (bosses.js `qte`); the scene
+//     slows, typing and the clock pause for the whole window, and failing is only a look (nothing is taken off):
+//       'rock'  (stage 1) a big Space key: Space in time = jump, too late = trip
+//       'crows' (stage 2) crows fly in on the boss music's beat, each with a key on a rhythm track: press it as it
+//               reaches the ring; a missed crow pecks the hero; 2+ misses = the whole flock mobs the hero
+//       'roots' (stage 3) roots creep up and grab the hero's legs: mash Space 5 times before the bar runs out
 //   • Caught before time's up: one stomp, the boss runs back to the start, and the score gets a short multiplier
 //     (×2 for 15 s, +1 per stomp while it lasts, up to ×5); each next lap is longer the higher the multiplier.
 //     The top strip keeps fixed chips (boss-head stomp count · ×multiplier · accuracy) so nothing shifts.
@@ -18,7 +22,7 @@
 // ═══════════════════════════════════════════════════════════════
 import { lessonStars } from '../engine/scoring';
 import { PX_FONT, TH_FONT } from './pixel';
-import { sfx } from './sound';
+import { sfx, beatGrid, audioTime } from './sound';
 
 const { useEffect, useRef, useState } = React;
 const INK = '#3B2416';
@@ -33,13 +37,20 @@ function pixelArt(rows, s, pal) {
   rows.forEach((r, j) => [...r].forEach((ch, i) => { if (pal[ch]) { g.fillStyle = pal[ch]; g.fillRect(i * s, j * s, s, s); } }));
   return c;
 }
+// Crow (stage 2), two wing frames
+const CROW = [['....kk......', '...kbbk.....', 'kkkbwbbk....', '.yyybbbbkkkk', '...kbbbbgggk', '....kbbbbkk.', '.....kk.k...'],
+              ['....kk......', 'kk.kbbk..kk.', 'kgkbwbbkkgk.', '.ykbbbbbbk..', '...kbbbbbk..', '....kbbbk...', '.....k.k....']];
+const CROW_PAL = { k: '#1f1a17', b: '#2b2f3a', g: '#555b6b', y: '#e0b23c', w: '#f2ead2' };
+// rhythm track: note speed (px/s) · centre of the ring (px in the lane) · judgement windows (s), kind to young hands
+const RT_SPEED = 300, RT_HIT = 93, RT_PERFECT = .08, RT_OK = .16, RT_LATE = .22;
+const MASH_NEED = 5, MASH_SECS = 2.2;
 const loadImg = src => new Promise(ok => { const i = new Image(); i.onload = () => ok(i); i.onerror = () => ok(null); i.src = src; });
 
 const seg = typeof Intl !== 'undefined' && Intl.Segmenter ? new Intl.Segmenter('th', { granularity: 'grapheme' }) : null;
 const graphemes = t => seg ? [...seg.segment(t)].map(s => s.segment) : [...t];   // never split a Thai vowel / tone mark off
 
 const CSS = `
-.bc-top{position:absolute;left:8px;right:8px;top:5px;display:flex;align-items:center;gap:8px;z-index:4;pointer-events:none}
+.bc-top{position:absolute;left:8px;right:8px;top:5px;display:flex;align-items:center;gap:8px;z-index:9;pointer-events:none}
 .bc-chip{background:rgba(59,36,22,.82);color:#F5E6BE;border:2px solid ${INK};padding:2px 6px;font-size:12px;white-space:nowrap;line-height:1.3;font-weight:600}
 .bc-clock{font-family:${PX_FONT};font-size:13px;color:#FFE08A;padding:4px 6px}
 .bc-clock.hot{color:#FF6B5A;animation:bcPulse .5s ease-in-out infinite alternate}
@@ -100,6 +111,33 @@ const CSS = `
 .bc-cue{font-weight:700;font-size:56px;color:#FFE08A;white-space:nowrap;
   text-shadow:0 4px 0 ${INK},3px 0 0 ${INK},-3px 0 0 ${INK},0 -3px 0 ${INK}}
 .bc-cue.go{color:#9BE39A;font-size:72px}
+.bc-pips{display:flex;gap:6px}
+.bc-pips i{width:22px;height:22px;border:3px solid ${INK};background:#F8EED2;display:block;transition:background .08s}
+.bc-pips i.on{background:#7BD67A}
+.bc-rt{position:absolute;left:30px;right:30px;height:104px;z-index:20;opacity:0;transform:scale(.9);transition:opacity .15s,transform .15s;pointer-events:none}
+.bc-rt.show{opacity:1;transform:none}
+.bc-rt-lane{position:absolute;left:0;right:0;top:22px;height:74px;background:rgba(59,36,22,.86);border:4px solid ${INK};border-radius:10px;
+  box-shadow:0 6px 0 rgba(59,36,22,.4);overflow:hidden}
+.bc-rt-ring{position:absolute;left:${RT_HIT - 31}px;top:6px;bottom:6px;width:62px;border:4px solid #FFE08A;border-radius:50%;box-shadow:0 0 18px 4px rgba(255,224,138,.55)}
+.bc-rt-ring.flash{animation:bcRing .18s ease-out}
+@keyframes bcRing{from{transform:scale(1.25);box-shadow:0 0 30px 12px rgba(255,224,138,.9)}}
+.bc-note{position:absolute;left:0;top:9px;width:56px;height:56px;margin-left:-28px;will-change:transform}
+.bc-note b{position:absolute;inset:0;border:4px solid ${INK};border-radius:10px;background:linear-gradient(#FFF6DE,#F5D27A);box-shadow:0 5px 0 ${INK};
+  display:flex;align-items:center;justify-content:center;font-size:30px;font-weight:800;color:${INK};line-height:1}
+.bc-note img{position:absolute;left:10px;top:-24px;image-rendering:pixelated}
+.bc-note.hit b{background:linear-gradient(#C9F7C0,#7BD67A);transform:translateY(-6px) scale(1.15);transition:transform .12s}
+.bc-note.miss b{background:linear-gradient(#FFB3AA,#FF6B5A)}
+.bc-note.gone{opacity:0;transition:opacity .25s}
+.bc-rt-title{position:absolute;left:50%;transform:translateX(-50%);top:-8px;font-size:22px;white-space:nowrap;font-weight:800;color:#fff;
+  text-shadow:0 2px 0 ${INK},2px 0 0 ${INK},-2px 0 0 ${INK},0 -2px 0 ${INK}}
+.bc-rt-title.ok{color:#9BE39A}.bc-rt-title.miss{color:#FF8A7A}
+.bc-rt-judge{position:absolute;left:${RT_HIT}px;top:-6px;transform:translateX(-50%);font-size:22px;font-weight:800;white-space:nowrap;
+  text-shadow:0 2px 0 ${INK},2px 0 0 ${INK},-2px 0 0 ${INK},0 -2px 0 ${INK}}
+.bc-rt-judge.pop{animation:bcJudge .3s ease-out}
+@keyframes bcJudge{from{transform:translateX(-50%) scale(1.5)}}
+.bc-rt-dots{position:absolute;right:8px;top:-2px;display:flex;gap:6px}
+.bc-rt-dots i{width:16px;height:16px;border:3px solid ${INK};background:#F8EED2;display:block}
+.bc-rt-dots i.ok{background:#7BD67A}.bc-rt-dots i.bad{background:#FF6B5A}
 .bc-name{position:absolute;top:-30px;background:#FFC23D;border:3px solid ${INK};color:${INK};font-weight:700;font-size:16px;
   padding:1px 12px;box-shadow:0 3px 0 rgba(59,36,22,.35)}
 .bc-text{flex:1;min-width:0;background:#F8EED2;border:3px solid ${INK};padding:10px 16px 6px;display:flex;flex-direction:column}
@@ -133,7 +171,8 @@ function BossTalk({ boss, talk, big, rect }) {
   const bBottom = Math.min(r.bottom + 52, innerHeight - 6), by = bBottom - bh;
   // the boss's lowest painted row sits exactly on the screen's bottom edge (never floating above it)
   const art = boss.faceArt || { right: 95, bottom: 127 };
-  const fRight = Math.min(right + 270, innerWidth - 4), fx = fRight - pf, fy = innerHeight - (art.bottom + 1) * sc;
+  const artBottom = typeof art.bottom === 'object' ? art.bottom[line.face] : art.bottom;
+  const fRight = Math.min(right + 270, innerWidth - 4), fx = fRight - pf, fy = innerHeight - (artBottom + 1) * sc;
   const artLeft = fx + (95 - art.right) * sc;        // where the (mirrored) painting starts on screen
   const under = Math.max(0, bRight - artLeft);       // keep the text out from under the boss
   return (
@@ -168,6 +207,9 @@ export function BossChase(props) {
   const [heroAnim, setHeroAnim] = useState('idle');
   const [talk, setTalk] = useState(null);
   const [qteView, setQteView] = useState(null);        // null | 'on' | 'ok' | 'miss'
+  const qteKind = boss.qte || 'rock';                   // which QTE this boss throws (bosses.js)
+  const rtLaneRef = useRef(null), rtDotsRef = useRef(null), rtJudgeRef = useRef(null), rtRingRef = useRef(null), pipsRef = useRef(null);
+  const [rtTitle, setRtTitle] = useState(null);         // crows: the title over the track, then the result
   const [cue, setCue] = useState(null);                // { text, go } — "พร้อม…" / "เริ่ม!"
   const qteBarRef = useRef(null);
   const stompRef = useRef(null), stompNRef = useRef(null), multRef = useRef(null), multTxtRef = useRef(null), multBarRef = useRef(null), tick2Ref = useRef(null);
@@ -214,7 +256,11 @@ export function BossChase(props) {
     const onKey = e => {
       if (talkRef.current) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); next(); } return; }
       const st = S.current;
-      if (st && st.qte && e.key === ' ' && !e.repeat) { e.preventDefault(); st.dodge(); }   // QTE: Space = jump (App types nothing meanwhile)
+      // QTE keys (App types nothing meanwhile): rock = Space to jump · roots = mash Space · crows = the key on the note
+      if (!st || !st.qte || e.repeat) return;
+      const k = st.qte.kind;
+      if ((k === 'rock' || k === 'mash') && e.key === ' ') { e.preventDefault(); k === 'rock' ? st.dodge() : st.mash(); }
+      else if (k === 'crows' && e.key.length === 1) { e.preventDefault(); st.press(e.key); }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
@@ -235,7 +281,7 @@ export function BossChase(props) {
       // → ready (typing open) → chase (clock running) → end
       phase: 'intro', heroX: 70, heroY: 0, bossX: -boss.w, bossFlip: false, bossHide: false, squash: 1,
       chest: 'carried', chestX: 0, chestY: 0, chestVX: 0, chestVY: 0, obs: [], nextObs: 8, trip: 0, jump: null,
-      qte: null, owe: 0, oweStart: 0, block: null, taunted: false,
+      qte: null, owe: 0, oweStart: 0, block: null, taunted: false, crows: [], lastPeck: 0, wiggle: 0,
       laps: 0, lapBase: 0, lapNeed: 0, newLap: false, mult: 1, boostUntil: 0, boosted: false, stomp: null, flash: 0,
       end: null, endAt: 0, hold: false, talked: false, boom: false, finished: false, parts: [], bubbles: [],
       lastOk: -9e9, lastErr: -9e9, hist: [], cam: 0, vel: 0, legT: 0, now: 0, rage: false,
@@ -248,6 +294,7 @@ export function BossChase(props) {
       sceneRef.current.appendChild(el); return { l, el };
     });
     const rock = pixelArt(ROCK, 2, ROCK_PAL);
+    const crowArt = CROW.map(r => pixelArt(r, 3, CROW_PAL)), crowIcon = qteKind === 'crows' ? pixelArt(CROW[0], 2, CROW_PAL).toDataURL() : '';
     const bossCv = document.createElement('canvas'); bossCv.width = boss.w; bossCv.height = boss.h;
     bossRef.current.appendChild(bossCv);
     const bg = bossCv.getContext('2d'); bg.imageSmoothingEnabled = false;
@@ -274,6 +321,32 @@ export function BossChase(props) {
       }
     }
 
+    // roots (stage 3): a creeping root along the ground; round the hero's legs while they hold (thinner with each Space)
+    function drawRoots(g, o, gy) {
+      const t = st.now;
+      g.save(); g.lineCap = 'round';
+      if (o.state === 'roll') {
+        for (let i = 0; i < 3; i++) {
+          g.strokeStyle = i ? '#7a5230' : '#3b2416'; g.lineWidth = i ? 3 : 6;
+          g.beginPath(); g.moveTo(o.x + 46, gy);
+          g.bezierCurveTo(o.x + 30, gy - 10 - Math.sin(t * 9) * 3, o.x + 12, gy + 2, o.x, gy - 6 - Math.sin(t * 12) * 3);
+          g.stroke();
+        }
+      } else {
+        const q = st.qte && st.qte.o === o ? st.qte : null;
+        const left = q ? 1 - q.n / MASH_NEED * .7 : 1;
+        const up = Math.min(1, o.t / .18) * (o.state === 'sink' ? Math.max(0, 1 - o.t / .4) : 1) * left;
+        [[-14, 1], [-5, -1], [5, 1], [13, -1]].forEach(([dx, dir], i) => {
+          const hgt = (20 + (i % 2) * 8) * up, x = o.x + dx, w = Math.sin(t * 10 + i) * 3;
+          g.strokeStyle = '#3b2416'; g.lineWidth = 6;
+          g.beginPath(); g.moveTo(x, gy); g.quadraticCurveTo(x + dir * 10 + w, gy - hgt * .6, x - dir * 4, gy - hgt); g.stroke();
+          g.strokeStyle = '#7a5230'; g.lineWidth = 3; g.stroke();
+          g.fillStyle = '#4f7a2a'; g.fillRect(x - dir * 4 - 2, gy - hgt - 3, 5, 3);      // a little leaf on the tip
+        });
+      }
+      g.restore();
+    }
+
     function finish() {
       const p = live.current;
       const mins = (p.endTime - p.startTime) / 60000;
@@ -282,6 +355,7 @@ export function BossChase(props) {
       const stars = p.startTime ? lessonStars(wpm, acc, p.target) : 0;
       st.phase = 'end'; st.end = stars; st.endAt = st.now; st.obs = []; st.vel = 0;
       if (st.qte) { st.qte = null; setQteView(null); }
+      clearNotes(); st.crows.forEach(c => { c.state = 'leave'; });
       if (st.stomp) { st.stomp = null; st.squash = 1; st.heroY = 0; setCue(null); }
       if (st.boosted) { st.boosted = false; st.boostUntil = 0; p.onBoost && p.onBoost(1); }
       const W = wrapRef.current.clientWidth;
@@ -303,13 +377,87 @@ export function BossChase(props) {
       st.qte = null;
       st.owe += Date.now() - q.wall0; st.oweStart = live.current.startTime;
       live.current.onPause && live.current.onPause(Date.now() - q.wall0);   // App moves startTime on by the window
-      setQteView(result); clearTimeout(qteTimer); qteTimer = setTimeout(() => setQteView(null), 650);
+      setQteView(result); clearTimeout(qteTimer); qteTimer = setTimeout(() => setQteView(null), qteKind === 'crows' ? 1000 : 650);
     }
-    st.dodge = () => {
-      if (!st.qte) return;
-      st.qte.o.state = 'past'; endQte('ok');
-      st.jump = { t: 0, len: .55, hgt: (height < 90 ? 30 : 34) + 6 }; sfx('jump');
+    const jump = () => { st.jump = { t: 0, len: .55, hgt: (height < 90 ? 30 : 34) + 6 }; sfx('jump'); };
+    st.dodge = () => {                                 // rock: Space in time = jump
+      if (!st.qte || st.qte.kind !== 'rock') return;
+      st.qte.o.state = 'past'; endQte('ok'); jump();
     };
+    // ── roots: they grab the legs; mash Space MASH_NEED times before the bar runs out ──
+    function paintPips(n) { const el = pipsRef.current; if (el) [...el.children].forEach((p, i) => p.classList.toggle('on', i < n)); }
+    st.mash = () => {
+      const q = st.qte; if (!q || q.kind !== 'mash') return;
+      q.n++; paintPips(q.n); st.wiggle = .12; sfx('pop', q.n * 3);
+      if (q.n >= MASH_NEED) { q.o.state = 'snap'; snapRoots(); endQte('ok'); jump(); sfx('snap'); }
+    };
+    function failMash() {
+      const q = st.qte; q.o.state = 'hold'; q.o.t = 0; endQte('miss'); st.trip = 1;
+      bubble(boss.taunts.laugh, 900); sfx('trip'); setTimeout(() => sfx('laugh'), 180);
+    }
+    function snapRoots() {                             // broken root bits fly off
+      const ground = wrapRef.current.clientHeight - 9;
+      for (let i = 0; i < 16; i++) st.parts.push({ x: st.heroX + (Math.random() - .5) * 30, y: ground - Math.random() * 20,
+        vx: (Math.random() - .5) * 240, vy: -120 - Math.random() * 160, s: 3, c: Math.random() < .5 ? '#5b3a1e' : '#7a5230', life: .6 + Math.random() * .3 });
+    }
+    // ── crows: on the boss music's beat (or our own drum if the music is off) ──
+    function clearNotes() { if (rtLaneRef.current) rtLaneRef.current.querySelectorAll('.bc-note').forEach(e => e.remove()); }
+    function startCrows() {
+      const grid = beatGrid();
+      const clock = grid ? audioTime : () => performance.now() / 1000;
+      const t = clock();
+      let beat = grid ? grid.beat : .5, first = grid ? grid.next : t + .1;
+      while (beat < .3) beat *= 2;                     // never closer than ~0.3 s (very fast songs: every other beat)
+      while (first < t + beat * 2) first += beat;      // the first crow lands 2+ beats from now
+      const pattern = st.rage ? [0, 1, 1.5, 2, 3] : [0, 1, 2, 3];   // rage: 5 crows with a quick double
+      const keys = boss.keys || [' '];
+      let last = '';
+      clearNotes();
+      const notes = pattern.map((o, i) => {
+        let k; do { k = keys[Math.floor(Math.random() * keys.length)]; } while (k === last && keys.length > 1); last = k;   // never the same key twice in a row
+        const el = document.createElement('div'); el.className = 'bc-note';
+        el.innerHTML = '<b>' + (/[\u0E31\u0E34-\u0E3A\u0E47-\u0E4E]/.test(k) ? '◌' + k : k) + '</b><img src="' + crowIcon + '" alt="">';
+        if (rtLaneRef.current) rtLaneRef.current.appendChild(el);
+        const crow = { x: -99, y: 0, state: 'fly', i, at: first + o * beat, py: 0 };
+        st.crows.push(crow);
+        return { at: first + o * beat, key: k, state: 'live', el, crow };
+      });
+      if (rtDotsRef.current) rtDotsRef.current.innerHTML = notes.map(() => '<i></i>').join('');
+      if (rtJudgeRef.current) rtJudgeRef.current.textContent = '';
+      setRtTitle({ text: 'ไล่อีกา! กดแป้นตอนถึงวงกลม', cls: '' });
+      st.qte = { kind: 'crows', t: 0, wall0: Date.now(), clock, beat, notes, misses: 0, nextKick: grid ? Infinity : first - beat * 2 };
+      setQteView('on'); sfx('qte');
+    }
+    function judgeNote(nt, text, ok) {
+      const q = st.qte; nt.state = ok ? 'hit' : 'miss'; nt.el.classList.add(ok ? 'hit' : 'miss'); setTimeout(() => nt.el.classList.add('gone'), 220);
+      const dot = rtDotsRef.current && rtDotsRef.current.children[q.notes.indexOf(nt)]; if (dot) dot.className = ok ? 'ok' : 'bad';
+      const j = rtJudgeRef.current;
+      if (j) { j.textContent = text; j.style.color = ok ? (text === 'เยี่ยม!' ? '#FFE08A' : '#9BE39A') : '#FF8A7A'; j.classList.remove('pop'); void j.offsetWidth; j.classList.add('pop'); }
+      if (ok) { sfx('hit'); nt.crow.state = 'flee'; const r = rtRingRef.current; if (r) { r.classList.remove('flash'); void r.offsetWidth; r.classList.add('flash'); } }
+      else { sfx('wrong'); q.misses++; nt.crow.state = 'peck'; }      // a missed crow lands on the hero and pecks
+    }
+    st.press = key => {
+      const q = st.qte; if (!q || q.kind !== 'crows') return;
+      const t = q.clock();
+      const nt = q.notes.filter(n => n.state === 'live').sort((a, b) => Math.abs(a.at - t) - Math.abs(b.at - t))[0];
+      if (!nt || Math.abs(nt.at - t) > RT_LATE) return;                 // nothing near the ring: ignored (no penalty)
+      const d = Math.abs(nt.at - t);
+      if (key !== nt.key) return judgeNote(nt, 'ผิดแป้น', false);
+      judgeNote(nt, d <= RT_PERFECT ? 'เยี่ยม!' : d <= RT_OK ? 'ดี!' : (nt.at > t ? 'เร็วไปนิด' : 'ช้าไปนิด'), true);
+    };
+    function finishCrows() {
+      const q = st.qte, pass = q.misses <= 1;
+      setRtTitle({ text: pass ? 'ไล่อีกาสำเร็จ!' : 'โดนรุมจิก!', cls: pass ? 'ok' : 'miss' });
+      endQte(pass ? 'ok' : 'miss');
+      const mine = q.notes.map(n => n.crow);
+      if (pass) { mine.forEach(c => { if (c.state === 'peck') c.state = 'leave'; }); sfx('combo', 1); }
+      else {                                           // failed: every crow, even the shooed ones, comes back and mobs the hero
+        mine.forEach(c => { c.state = 'swarm'; }); st.trip = 1.4;
+        bubble(boss.taunts.laugh, 1000); setTimeout(() => sfx('laugh'), 150);
+        setTimeout(() => mine.forEach(c => { c.state = 'leave'; }), 1400);
+      }
+      setTimeout(clearNotes, 700);
+    }
     function showCue(text, isGo) { setCue({ text, go: isGo }); sfx(isGo ? 'go' : 'count'); }
 
     let last = performance.now();
@@ -409,20 +557,34 @@ export function BossChase(props) {
       // rocks: one at a time — first ~8 s in, then every 15–20 s (≈10 s in rage); none in the last 5 s
       // (thrown even when the boss is close, so a fast typist still gets the QTE)
       const chaseSecs = ran;
-      if (st.phase === 'chase' && !st.stomp && p.startTime && chaseSecs > st.nextObs && timeLeft > 5 && st.bossX - st.heroX > 70
-          && !st.obs.some(o => o.state === 'roll')) {
-        st.obs.push({ x: st.bossX - bw / 2, rot: 0, state: 'roll', vy: 0, y: 0 });
+      if (st.phase === 'chase' && !st.stomp && !st.qte && p.startTime && chaseSecs > st.nextObs && timeLeft > 5 && st.bossX - st.heroX > 70
+          && !st.obs.some(o => o.state === 'roll' || o.state === 'hold') && !st.crows.length && !st.trip) {
+        if (qteKind === 'crows') startCrows();         // crows come straight away (the track shows them coming)
+        else { st.obs.push({ kind: qteKind, x: st.bossX - bw / 2, rot: 0, state: 'roll', vy: 0, y: 0, t: 0 }); if (qteKind === 'roots') sfx('root'); }
         st.nextObs = chaseSecs + (rage ? 9 + Math.random() * 2 : 15 + Math.random() * 5);
         bubble(rage ? boss.taunts.throwRage : boss.taunts.throw, 700);
       }
       if (st.qte) st.qte.t += dt;
       st.obs.forEach(o => {
+        o.t += dt;
+        if (o.kind === 'roots') {                      // creeps along the ground, grabs the legs → mash QTE
+          if (o.state === 'roll') {
+            o.x -= (st.vel + 110) * dt;
+            if (o.x - st.heroX < 18 && st.phase === 'chase' && !st.qte) {
+              o.state = 'grab'; o.x = st.heroX; o.t = 0; sfx('root');
+              st.qte = { kind: 'mash', o, t: 0, len: MASH_SECS, n: 0, wall0: Date.now() }; paintPips(0); setQteView('on'); sfx('qte');
+            }
+          } else if (o.state === 'grab' || o.state === 'hold') o.x = st.heroX;
+          if (o.state === 'hold' && o.t > 1) { o.state = 'sink'; o.t = 0; }
+          if ((o.state === 'sink' && o.t > .4) || o.state === 'snap') o.state = 'gone';
+          return;
+        }
         if (o.state === 'roll' && !o.qte) {
           o.x -= (st.vel + 110) * dt; o.rot -= (st.vel + 110) * dt / 8;
           // close: QTE — the scene slows down and the rock reaches the hero exactly as the window closes
           if (o.x - st.heroX < QTE_AT && !st.trip && st.phase === 'chase') {
             o.x = Math.max(o.x, st.heroX + 120);       // a long frame must never carry it past the hero first
-            o.qte = true; st.qte = { o, t: 0, len: QTE_SECS, from: o.x, wall0: Date.now() }; setQteView('on'); sfx('qte');
+            o.qte = true; st.qte = { kind: 'rock', o, t: 0, len: QTE_SECS, from: o.x, wall0: Date.now() }; setQteView('on'); sfx('qte');
           }
         } else if (o.state === 'roll') {
           const k = st.qte ? Math.min(1, st.qte.t / st.qte.len) : 1;
@@ -435,9 +597,22 @@ export function BossChase(props) {
         else o.x -= (st.vel + 110) * dt;
       });
       if (st.qte && qteBarRef.current) qteBarRef.current.style.width = (100 * (1 - st.qte.t / st.qte.len)) + '%';
-      st.obs = st.obs.filter(o => o.x > -40 || (st.qte && st.qte.o === o));   // never drop the rock of an open QTE
+      st.obs = st.obs.filter(o => o.state !== 'gone' && (o.x > -40 || (st.qte && st.qte.o === o)));   // never drop the rock of an open QTE
+      if (st.qte && st.qte.kind === 'mash' && st.qte.t >= st.qte.len) failMash();
+      // crows: notes slide to the ring on the beat; the birds fly from the boss to the hero in the scene
+      if (st.qte && st.qte.kind === 'crows') {
+        const q = st.qte, t = q.clock();
+        while (q.nextKick <= t) { sfx('kick'); q.nextKick += q.beat; }   // music off: our own drum keeps the beat
+        q.notes.forEach(nt => {
+          nt.el.style.transform = 'translateX(' + (RT_HIT + (nt.at - t) * RT_SPEED).toFixed(1) + 'px)';
+          if (!nt.cawed && t > nt.at - q.beat * 1.5) { nt.cawed = true; sfx('caw'); }
+          if (nt.state === 'live' && t - nt.at > RT_LATE) judgeNote(nt, 'พลาด!', false);
+        });
+        if (st.qte === q && q.notes.every(n => n.state !== 'live')) finishCrows();
+      }
       if (st.jump) { st.jump.t += dt; const k = st.jump.t / st.jump.len; st.heroY = k >= 1 ? 0 : 4 * st.jump.hgt * k * (1 - k); if (k >= 1) st.jump = null; }
       if (st.trip > 0) st.trip = Math.max(0, st.trip - dt);
+      if (st.wiggle > 0) st.wiggle = Math.max(0, st.wiggle - dt);
 
       // stomp: run up → jump on its head → THUMP ("เหยียบ! ×2") → bounce back home while the boar runs back to the start
       if (st.stomp && st.phase === 'chase') {
@@ -498,9 +673,16 @@ export function BossChase(props) {
       if (['intro', 'dash', 'go', 'ready'].includes(st.phase)) setHero('idle');
       else if (st.phase === 'chase') setHero(st.stomp ? (st.stomp.hit ? 'cheer' : 'run') : st.trip ? 'sad' : st.vel > 25 ? 'run' : 'idle');
       const hc = heroRef.current.firstChild, hw = hc ? hc.width : 52, hh = hc ? hc.height : 62;
-      const shake = st.trip ? Math.sin(st.now * 50) * 2 : 0;
+      // pecked by crows: shakes harder the more birds, flashes red, feathers fly
+      const peckers = st.crows.filter(c => c.state === 'peck' || c.state === 'swarm').length;
+      const shake = st.trip || peckers || st.wiggle ? Math.sin(st.now * 50) * (2 + peckers) : 0;
       heroRef.current.style.transform = 'translate(' + (st.heroX - hw / 2 + shake).toFixed(1) + 'px,' + (ground - hh - st.heroY).toFixed(1) + 'px)';
-      heroRef.current.style.filter = st.trip > .5 ? 'brightness(1.6) sepia(1) hue-rotate(-40deg) saturate(4)' : '';
+      heroRef.current.style.filter = st.trip > .5 || (peckers && Math.floor(st.now * 10) % 2) ? 'brightness(1.6) sepia(1) hue-rotate(-40deg) saturate(4)' : '';
+      if (peckers && st.now - st.lastPeck > Math.max(.07, .22 / peckers)) {
+        st.lastPeck = st.now; sfx('peck');
+        for (let f = 0; f < 2; f++) st.parts.push({ x: st.heroX + (Math.random() - .5) * 30, y: ground - hh + 6, vx: (Math.random() - .5) * 90,
+          vy: -60 - Math.random() * 60, s: 3, c: Math.random() < .5 ? '#3a3f4c' : '#6b7182', life: .7, light: true });
+      }
 
       const moving = st.phase === 'chase' || st.phase === 'dash' || (st.phase === 'end' && !st.hold && st.end !== 3);
       if (moving) st.legT += dt * boss.fps;
@@ -523,9 +705,33 @@ export function BossChase(props) {
       const fx = fxRef.current;
       if (fx.width !== W) { fx.width = W; fx.height = H + 80; }
       const g = fx.getContext('2d'); g.clearRect(0, 0, fx.width, fx.height); g.imageSmoothingEnabled = false;
-      st.obs.forEach(o => { g.save(); g.translate(o.x, 80 + ground - rock.height / 2 - o.y); g.rotate(o.rot); g.drawImage(rock, -rock.width / 2, -rock.height / 2); g.restore(); });
+      st.obs.forEach(o => {
+        if (o.kind === 'roots') return drawRoots(g, o, ground + 80);
+        g.save(); g.translate(o.x, 80 + ground - rock.height / 2 - o.y); g.rotate(o.rot); g.drawImage(rock, -rock.width / 2, -rock.height / 2); g.restore();
+      });
+      // crows in the scene: fly from the boss to the hero, landing on their beat; shooed = off up and away; missed = perch and peck
+      if (st.crows.length) {
+        const q = st.qte && st.qte.kind === 'crows' ? st.qte : null, t = q ? q.clock() : 0, beat = q ? q.beat : .45;
+        const SPOTS = [[-26, -4], [22, -2], [-6, -18], [12, -22], [-20, -16]];
+        st.crows.forEach(c => {
+          if (c.state === 'fly') {
+            if (!q) { c.state = 'leave'; return; }
+            const k = 1 - Math.max(0, Math.min(1, (c.at - t) / (beat * 2.5)));
+            const x0 = st.bossX - bw * .2, y0 = ground - bh * .8, x1 = st.heroX + 20, y1 = ground - hh + 6;
+            c.x = x0 + (x1 - x0) * k; c.y = y0 + (y1 - y0) * k - Math.sin(k * Math.PI) * 14; c.on = k > 0;
+          } else if (c.state === 'flee') { c.x += 170 * dt; c.y -= 170 * dt; }
+          else if (c.state === 'peck' || c.state === 'swarm') {
+            const sp = SPOTS[c.i % 5], tx = st.heroX + sp[0], ty = ground - hh - 8 + sp[1], f = Math.min(1, dt * (c.state === 'swarm' ? 6 : 12));
+            c.x += (tx - c.x) * f; c.y += (ty - c.y) * f; c.py = Math.abs(Math.sin(st.now * 22 + c.i)) * 5; c.on = true;
+          } else if (c.state === 'leave') { c.x -= 40 * dt; c.y -= 200 * dt; c.py = 0; }
+          if (!c.on) return;
+          const img = crowArt[Math.floor(st.now * 8) % 2], flip = (c.state === 'peck' || c.state === 'swarm') && c.x > st.heroX;
+          g.save(); g.translate(c.x, 80 + c.y + (c.py || 0)); if (flip) g.scale(-1, 1); g.drawImage(img, -img.width / 2, -img.height / 2); g.restore();
+        });
+        st.crows = st.crows.filter(c => c.y > -100 && c.x < W + 60);
+      }
       st.parts = st.parts.filter(q => (q.life -= dt) > 0);
-      st.parts.forEach(q => { q.vy += 600 * dt; q.x += q.vx * dt; q.y += q.vy * dt; g.globalAlpha = Math.min(1, q.life * 2); g.fillStyle = q.c; g.fillRect(q.x, 80 + q.y, q.s, q.s); });
+      st.parts.forEach(q => { q.vy += (q.light ? 140 : 600) * dt; if (q.light) q.vx *= .97; q.x += q.vx * dt; q.y += q.vy * dt; g.globalAlpha = Math.min(1, q.life * 2); g.fillStyle = q.c; g.fillRect(q.x, 80 + q.y, q.s, q.s); });
       g.globalAlpha = 1;
 
       st.bubbles = st.bubbles.filter(b => { if (st.now > b.until) { b.el.remove(); return false; } return true; });
@@ -544,7 +750,7 @@ export function BossChase(props) {
       lay.forEach(({ el }) => el.remove()); bossCv.remove();
       st.bubbles.forEach(b => b.el.remove());
       const p = live.current;
-      clearTimeout(qteTimer);
+      clearTimeout(qteTimer); clearNotes();
       if (talkRef.current || st.block) { talkRef.current = null; p.onTalking && p.onTalking(false); }
       if (st.rage) p.onRage && p.onRage(false);
       if (st.boosted) p.onBoost && p.onBoost(1);
@@ -581,12 +787,22 @@ export function BossChase(props) {
         </div>
         <canvas ref={fxRef} style={{ position: 'absolute', left: 0, top: -80, pointerEvents: 'none', zIndex: 8 }}/>
       </div>
-      {/* rock QTE: a big Space key over the bottom of the scene and the top of the text; the bar runs out with the window */}
-      <div className={'bc-qte' + (qteView ? ' show ' + qteView : '')} style={{ top: height + 30 }} aria-live="assertive">
+      {/* rock / roots QTE: a big Space key over the bottom of the scene and the top of the text; the bar runs out with the window */}
+      {qteKind !== 'crows' && <div className={'bc-qte' + (qteView ? ' show ' + qteView : '')} style={{ top: height + 30 }} aria-live="assertive">
         <div className="bc-qte-key" style={{ fontFamily: PX_FONT }}>SPACE</div>
-        <div className="bc-qte-word">{qteView === 'ok' ? 'เยี่ยม!' : qteView === 'miss' ? 'โอ๊ะ!' : 'กดเพื่อกระโดดหลบ!'}</div>
+        <div className="bc-qte-word">{qteKind === 'roots'
+          ? (qteView === 'ok' ? 'หลุดแล้ว!' : qteView === 'miss' ? 'โดนรากพันขา!' : 'รัว SPACE ดิ้นให้หลุด!')
+          : (qteView === 'ok' ? 'เยี่ยม!' : qteView === 'miss' ? 'โอ๊ะ!' : 'กดเพื่อกระโดดหลบ!')}</div>
+        {qteKind === 'roots' && <div ref={pipsRef} className="bc-pips">{Array.from({ length: MASH_NEED }, (_, i) => <i key={i}/>)}</div>}
         <div className="bc-qte-track"><div ref={qteBarRef} className="bc-qte-bar"/></div>
-      </div>
+      </div>}
+      {/* crows QTE: a rhythm track — a note per crow slides to the ring on the beat */}
+      {qteKind === 'crows' && <div className={'bc-rt' + (qteView ? ' show' : '')} style={{ top: height - 26 }} aria-live="assertive">
+        <div className={'bc-rt-title ' + (rtTitle ? rtTitle.cls : '')}>{rtTitle && rtTitle.text}</div>
+        <div ref={rtDotsRef} className="bc-rt-dots"/>
+        <div ref={rtLaneRef} className="bc-rt-lane"><div ref={rtRingRef} className="bc-rt-ring"/></div>
+        <div ref={rtJudgeRef} className="bc-rt-judge"/>
+      </div>}
       <div className={'bc-cue' + (cue ? ' show' + (cue.go ? ' go' : '') : '')} style={{ top: height + 30 }} aria-live="assertive">{cue && cue.text}</div>
       {talk && ReactDOM.createPortal(<BossTalk boss={boss} talk={talk} big={big} rect={host}/>, document.body)}
     </div>

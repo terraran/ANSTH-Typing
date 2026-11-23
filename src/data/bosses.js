@@ -1,14 +1,16 @@
 // ═══════════════════════════════════════════════════════════════
 // BOSS CHASE — the timed (last) step of each stage's boss lesson (src/ui/BossChase.jsx).
-//   The boss stole the treasure chest and runs; the student types to catch up.
+//   The boss stole something (stage 1: the treasure chest) and runs; the student types to catch up.
 //   A stage without an entry here keeps the plain timed screen.
 //
 //   Art (PixelLab, assets/boss/stageN/), all drawn at its own size — never scaled by a fraction:
 //   • run / runChest: 8-frame run facing right, one horizontal strip, every frame `w`×`h`
-//     (both strips cropped to one shared box, so the feet stay on the same line)
-//   • chest: the loose chest (falls off / flies back), faces: half-body dialogue portraits (96×128);
-//     faceArt = where the painting ends inside them, so the boss stands right on the screen's bottom edge
-//   • obstacle: what the boss throws back — 'rock' is drawn in code
+//     (both strips cropped to one shared box, so the feet stay on the same line); runChest = carrying what it stole
+//   • chest: the stolen thing on its own (falls off / flies back), 24×24 · head: 24×24 icon for the top strip
+//   • faces: half-body dialogue portraits (96×128); faceArt = the last painted column / row inside them, so the boss
+//     stands right on the screen's bottom edge (`bottom` may differ per face)
+//   • qte: what the boss throws at the hero, a different quick-time event per stage (drawn in code):
+//     'rock' = Space to jump · 'crows' = keys on the music's beat (`keys`) · 'roots' = mash Space to break free
 // ═══════════════════════════════════════════════════════════════
 
 const BOSSES = {
@@ -20,7 +22,7 @@ const BOSSES = {
     head: 'head.png',                        // 24×24 head icon: the stomp counter + the end of the distance bar
     faces: { smug: 'half-smug.png', shock: 'half-shock.png' },
     faceArt: { right: 83, bottom: 116 },   // last painted column / row inside the 96×128 portraits (as stored, before mirroring)
-    obstacle: 'rock',
+    qte: 'rock',
     lines: {
       intro: [
         { face: 'smug', text: 'อู๊ดๆ! กล่องสมบัติของหมู่บ้านเป็นของข้าแล้ว!' },
@@ -41,6 +43,66 @@ const BOSSES = {
       ],
     },
     taunts: { start: 'อู๊ดๆ ไล่ให้ทันสิ!', throw: 'ฮึ่ย!', throwRage: 'รับไปเลย!!', laugh: 'ฮ่าๆๆ!', stomped: 'อ๊าก!! จำไว้นะ!' },
+  },
+  2: {
+    name: 'หุ่นไล่กายักษ์',
+    dir: 'assets/boss/stage2/',
+    run: 'run.png', runChest: 'run-carry.png', frames: 8, w: 66, h: 81, fps: 11,
+    chest: 'item.png',                       // กระบุงข้าวทอง
+    head: 'head.png',
+    faces: { smug: 'half-smug.png', shock: 'half-shock.png' },
+    faceArt: { right: 86, bottom: { smug: 121, shock: 124 } },
+    qte: 'crows', keys: ['เ', 'ง', 'ร', '้', 'ำ', 'ไ'],
+    lines: {
+      intro: [
+        { face: 'smug', text: 'ฮ่าๆ! กระบุงข้าวทองของทุ่งนานี้ เป็นของข้าแล้ว!' },
+        { face: 'smug', text: 'อยากได้คืนก็พิมพ์ให้เร็ว ๆ แล้ววิ่งไล่ข้าให้ทันสิ!' },
+        { face: 'smug', text: 'ระวังฝูงอีกาของข้าด้วย กดแป้นให้ตรงจังหวะ ไม่งั้นโดนรุมจิกนะ!' },
+      ],
+      caught: [
+        { face: 'shock', text: 'ห๊า!? ตามข้าทันได้ยังไงกัน!' },
+        { face: 'shock', text: 'อย่า ๆ อย่าเหยียบหมวกฟางข้านะ— อ๊ากก!' },
+      ],
+      escaped: [
+        { face: 'smug', text: 'แย่แล้ว! กระบุงข้าวหล่นซะได้…' },
+        { face: 'smug', text: 'คราวนี้ข้ายอมก่อน แต่คราวหน้าอีกาของข้าไม่ปล่อยเจ้าแน่!' },
+      ],
+      won: [
+        { face: 'smug', text: 'ฮ่าๆๆ ช้าไปแล้ว! ข้าวทองนี้เป็นของข้า!' },
+        { face: 'smug', text: 'กลับไปฝึกพิมพ์มาใหม่ แล้วค่อยมาไล่ข้าอีกทีนะ!' },
+      ],
+    },
+    taunts: { start: 'ตามมาสิ เจ้าตัวเล็ก!', throw: 'อีกา! จัดการมัน!', throwRage: 'อีกาทั้งฝูง บุก!!', laugh: 'ฮ่าๆๆ!', stomped: 'โอ๊ย! หมวกข้า!' },
+  },
+  3: {
+    name: 'พญาไม้เฒ่า',
+    dir: 'assets/boss/stage3/',
+    run: 'run.png', runChest: 'run-carry.png', frames: 8, w: 64, h: 86, fps: 11,
+    chest: 'item.png',                       // ผลไม้ทอง
+    head: 'head.png',
+    faces: { smug: 'half-smug.png', shock: 'half-shock.png' },
+    faceArt: { right: 84, bottom: { smug: 118, shock: 121 } },
+    qte: 'roots',
+    lines: {
+      intro: [
+        { face: 'smug', text: 'ฮึ่ม… ผลไม้ทองของป่าใหญ่ ข้าขอเก็บไว้เองดีกว่า!' },
+        { face: 'smug', text: 'อยากได้คืน ก็พิมพ์ให้เร็วแล้ววิ่งตามข้ามาสิ!' },
+        { face: 'smug', text: 'ระวังรากไม้ของข้าให้ดี โดนพันขาเมื่อไหร่ ต้องรัว SPACE ให้หลุดเร็ว ๆ ล่ะ!' },
+      ],
+      caught: [
+        { face: 'shock', text: 'เอ๊ะ!? เจ้าตามข้าทันได้ยังไง!' },
+        { face: 'shock', text: 'ใบข้าร่วงหมดแล้ว อย่ากระโดดนะ— โอ๊ยยย!' },
+      ],
+      escaped: [
+        { face: 'smug', text: 'ชิ! ผลไม้ทองหลุดมือซะได้…' },
+        { face: 'smug', text: 'ข้ายอมรอบนี้ แต่รากไม้ของข้ายังรอเจ้าอยู่นะ!' },
+      ],
+      won: [
+        { face: 'smug', text: 'ฮ่าๆๆ ช้าไปแล้ว! ผลไม้ทองนี้เป็นของข้า!' },
+        { face: 'smug', text: 'ไปฝึกพิมพ์มาใหม่ แล้วค่อยมาไล่ข้าอีกที!' },
+      ],
+    },
+    taunts: { start: 'ตามข้ามาเลย!', throw: 'รากไม้ จับมัน!', throwRage: 'รากไม้ทั้งป่า!!', laugh: 'ฮ่าๆๆ!', stomped: 'โอ๊ย! กิ่งข้า!' },
   },
 };
 

@@ -150,6 +150,13 @@ const SFX = {
   laugh: () => [0, 0.13, 0.26].forEach((at, i) => { T(N(-3 - i), 0.09, { type: 'square', v: 0.06, f1: N(-6 - i) }, at); Z(0.05, { v: 0.05, hp: 900, lp: 2500 }, at); }),
   stomp: () => { T(140, 0.22, { type: 'square', v: 0.12, f1: 50 }); Z(0.3, { v: 0.14, hp: 300, lp: 3000 }); notes([12, 16, 19], 0.05, { v: 0.06 }); },
   chest: () => notes([7, 12, 16, 19, 24], 0.06, { type: 'triangle', v: 0.16 }),
+  // boss QTEs: crows on the beat (stage 2), roots round the legs (stage 3)
+  caw: () => { T(900, 0.09, { type: 'sawtooth', v: 0.05, f1: 500 }); T(850, 0.09, { type: 'sawtooth', v: 0.04, f1: 450 }, 0.1); },
+  peck: () => { T(1800, 0.03, { v: 0.05, f1: 900 }); Z(0.03, { v: 0.04, hp: 3000 }); },
+  kick: () => T(140, 0.18, { type: 'sine', v: 0.35, f1: 45 }),
+  hit: () => T(880, 0.1, { v: 0.08, f1: 1320 }),
+  root: () => { T(90, 0.35, { type: 'sawtooth', v: 0.06, f1: 60 }); Z(0.3, { v: 0.06, hp: 200, lp: 900 }); },
+  snap: () => { Z(0.08, { v: 0.16, hp: 1500 }); T(300, 0.08, { type: 'square', v: 0.06, f1: 120 }); },
 };
 export function sfx(name, arg) {
   if (!ready() || settings.sfx === 0 || !SFX[name]) return;
@@ -296,6 +303,15 @@ export function music(id) {
   curTrack = null;
   if (curWanted && ready()) startTrack(curWanted);
 }
+// The beat of the song playing now, so the boss chase can land crows on it (stage 2's rhythm QTE):
+// { beat: seconds per beat, next: audioTime() of the next beat } — null when no song is playing (music off / not started).
+export function beatGrid() {
+  if (!curTrack || !ready()) return null;
+  const fast = rage && curTrack.group === 'boss';
+  const sd = 60 / (curTrack.bpm * (fast ? 1.15 : 1)) / 4;            // one 16th; a beat = 4 of them
+  return { beat: sd * 4, next: nextT + ((4 - step % 4) % 4) * sd };   // nextT = time of `step`, the next one not yet scheduled
+}
+export const audioTime = () => (ctx ? ctx.currentTime : 0);
 export function setRage(on) {
   on = !!on;
   if (on === rage) return;

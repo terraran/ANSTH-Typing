@@ -102,6 +102,12 @@ const CSS = `
 .bc-tick.dim{opacity:.3}
 .bc-acc{min-width:78px;text-align:center}
 .bc-acc.ok{color:#9BE39A}.bc-acc.mid{color:#FFD25A}.bc-acc.bad{color:#FF6B5A}
+/* the bar went grey (accuracy too low to catch the boss): say why on the bar, and make the accuracy chip pulse */
+.bc-why{position:absolute;inset:-2px 0;display:none;align-items:center;justify-content:center;font-size:12px;font-weight:800;color:#fff;white-space:nowrap;z-index:2;
+  text-shadow:0 1px 0 ${INK},1px 0 0 ${INK},-1px 0 0 ${INK},0 -1px 0 ${INK};pointer-events:none}
+.bc-why.on{display:flex}.bc-why.low{color:#FFD0C8}
+.bc-acc.warn{animation:bcAccPulse .9s ease-in-out infinite}
+@keyframes bcAccPulse{50%{background:#C0392B;color:#fff;transform:scale(1.08)}}
 .bc-rage{position:absolute;inset:0;pointer-events:none;opacity:0;transition:opacity .4s;
   background:radial-gradient(ellipse at 70% 60%,rgba(255,60,20,0),rgba(220,30,10,.38));mix-blend-mode:multiply}
 .bc-lines{position:absolute;inset:0;pointer-events:none;opacity:0;transition:opacity .4s;
@@ -250,7 +256,7 @@ export function BossChase(props) {
   const live = useRef(props); live.current = props;
   const wrapRef = useRef(null), sceneRef = useRef(null), actorsRef = useRef(null);
   const heroRef = useRef(null), bossRef = useRef(null), chestRef = useRef(null), fxRef = useRef(null);
-  const clockRef = useRef(null), fillRef = useRef(null), accRef = useRef(null), rageRef = useRef(null), linesRef = useRef(null);
+  const clockRef = useRef(null), fillRef = useRef(null), accRef = useRef(null), rageRef = useRef(null), linesRef = useRef(null), whyRef = useRef(null);
   const [heroAnim, setHeroAnim] = useState('idle');
   const [talk, setTalk] = useState(null);
   const [qteView, setQteView] = useState(null);        // null | 'on' | 'ok' | 'miss'
@@ -641,7 +647,15 @@ export function BossChase(props) {
       clockRef.current.classList.toggle('hot', st.phase === 'chase' && timeLeft <= 30);
       rageRef.current.style.opacity = rage ? 1 : 0; linesRef.current.style.opacity = rage ? .8 : 0;
       fillRef.current.style.width = (100 * Math.min(1, pEff)) + '%';
-      fillRef.current.classList.toggle('cap', acc < 95 && lapRaw > pEff);
+      const capped = acc < 95 && lapRaw > pEff;        // typing fast enough, but too many mistakes to catch the boss
+      fillRef.current.classList.toggle('cap', capped);
+      const why = capped ? (acc < 90 ? 'low' : 'mid') : '';
+      if (whyRef.current.dataset.k !== why) {
+        whyRef.current.dataset.k = why;
+        whyRef.current.className = 'bc-why' + (why ? ' on' : '') + (why === 'low' ? ' low' : '');
+        whyRef.current.textContent = why === 'low' ? '⚠ แม่นไม่ถึง 90% — บอสหนีไกล! พิมพ์ช้า ๆ ให้ถูกก่อน'
+          : why ? '⚠ แม่นไม่ถึง 95% — ไล่ไม่ทัน! พิมพ์ให้ถูกมากขึ้น' : '';
+      }
 
       // ── caught before time's up → one stomp (the boar runs back to the start) + a short score multiplier ──
       if (st.phase === 'chase' && !st.stomp && !st.qte && pEff >= 1) {
@@ -664,7 +678,7 @@ export function BossChase(props) {
       multBarRef.current.style.width = boostOn ? 'calc(' + (100 * (st.boostUntil - st.now) / BOOST_SECS).toFixed(1) + '% - 6px)' : '0';
       stompRef.current.classList.toggle('off', !st.laps); stompNRef.current.textContent = String(st.laps);
       accRef.current.textContent = (acc < 90 ? '⚠ ' : '') + 'แม่น ' + acc + '%';
-      accRef.current.className = 'bc-chip bc-acc ' + (acc >= 95 ? 'ok' : acc >= 90 ? 'mid' : 'bad');
+      accRef.current.className = 'bc-chip bc-acc ' + (acc >= 95 ? 'ok' : acc >= 90 ? 'mid' : 'bad') + (acc < 95 && st.phase === 'chase' ? ' warn' : '');
 
       // running speed follows typing, judged by the stage's own ⭐⭐⭐ pace (stage 1 is only ~0.5 keys a second)
       const pace = Math.max(.2, K3 / total), okGap = 1.6 / pace, now = performance.now() / 1000;
@@ -937,6 +951,7 @@ export function BossChase(props) {
         <span ref={clockRef} className="bc-chip bc-clock">0:00</span>
         <div className="bc-bar" aria-label="ระยะห่างกับบอส">
           <div ref={fillRef} className="bc-fill"/>
+          <div ref={whyRef} className="bc-why" aria-live="polite"/>
           <div ref={tick2Ref} className="bc-tick" style={{ left: 'calc(' + K2pct + '% - 1px)' }}><span>⭐⭐</span></div>
           <div className="bc-tick" style={{ left: 'calc(100% - 3px)' }}>
             <span style={{ left: 'auto', right: 5 }}>⭐⭐⭐ <img src={boss.dir + boss.head} alt="" className="bc-head end"/></span></div>

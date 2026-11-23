@@ -16,6 +16,8 @@
 //       'seq'   (stage 5) a giant boulder rolls in: press the keys shown, in order (bosses.js `keys`, `seqLen`), to jump it
 //       'shift' (stage 6) a little bat swoops in: hold Shift and press the key shown (stage 6's Shift letters)
 //       'word'  (stage 7) a spell book flies in: type the word shown (rare letters, bosses.js `words`) to burst it
+//       'num'   (stage 8) a gear rolls in: type the Thai numerals shown (bosses.js `keys`, `seqLen`) to break it
+//       stage 9 uses 'seq' with 3 keys and a fireball (bosses.js `obstacle`, `qteText` = its own lines on the card)
 //   • Flying bosses (bosses.js `fly` = px above the ground) hover and bob; the stomp, the burst and the dropped item follow them up.
 //   • Caught before time's up: one stomp, the boss runs back to the start, and the score gets a short multiplier
 //     (×2 for 15 s, +1 per stomp while it lasts, up to ×5); each next lap is longer the higher the multiplier.
@@ -54,6 +56,12 @@ const BAT_PAL = { k: '#1a0d22', b: '#4a3460', r: '#ff4d4d' };
 const BOOK = [['kkkkkkkkkkkk', 'kwwwwkkwwwwk', 'kwyywkkwyywk', 'kwwwwkkwwwwk', 'kwyywkkwyywk', 'kwwwwkkwwwwk', 'kppppkkppppk', 'kkkkkkkkkkkk'],
               ['.kkkk..kkkk.', 'kwwwwkkwwwwk', 'kwyywkkwyywk', 'kwwwwkkwwwwk', 'kwyywkkwyywk', 'kwwwwkkwwwwk', 'kppppkkppppk', 'kkkkkkkkkkkk']];
 const BOOK_PAL = { k: '#2a1430', w: '#f2ead2', y: '#e0b23c', p: '#7a2d8a' };
+// Gear (stage 8 'num') and fireball (stage 9, bosses.js obstacle: 'fire')
+const GEAR = ['....kk....', '..k.gg.k..', '.kggggggk.', '..gg..gg..', 'kgg....ggk', 'kgg....ggk', '..gg..gg..', '.kggggggk.', '..k.gg.k..', '....kk....'];
+const GEAR_PAL = { k: '#5a4a1e', g: '#d4a72c' };
+const FIRE = [['....rr....', '..rroorr..', '.rooyyoor.', 'rooyyyyoor', 'rooyyyyoor', '.rooyyoor.', '..rroorr..', '....rr....'],
+              ['...rr.....', '.rroorr.r.', 'rooyyoorr.', 'rooyyyyoor', 'rooyyyyoor', 'rooyyoorr.', '.rroorr.r.', '...rr.....']];
+const FIRE_PAL = { r: '#d4361c', o: '#ff8a1f', y: '#ffe36b' };
 // rhythm track: note speed (px/s) · centre of the ring (px in the lane) · judgement windows (s), kind to young hands
 const RT_SPEED = 300, RT_HIT = 93, RT_PERFECT = .08, RT_OK = .16, RT_LATE = .22;
 const CHASE_H = 132;
@@ -345,6 +353,7 @@ export function BossChase(props) {
     });
     const rock = pixelArt(ROCK, 2, ROCK_PAL), boulder = pixelArt(ROCK, 4, BOULDER_PAL);
     const batArt = BAT.map(r => pixelArt(r, 3, BAT_PAL)), bookArt = BOOK.map(r => pixelArt(r, 3, BOOK_PAL));
+    const gearArt = pixelArt(GEAR, 3, GEAR_PAL), fireArt = FIRE.map(r => pixelArt(r, 3, FIRE_PAL));
     const F = boss.fly || 0;                           // a flying boss hovers this high above the ground
     const crowArt = CROW.map(r => pixelArt(r, 3, CROW_PAL)), crowIcon = qteKind === 'crows' ? pixelArt(CROW[0], 2, CROW_PAL).toDataURL() : '';
     const bossCv = document.createElement('canvas'); bossCv.width = boss.w; bossCv.height = boss.h;
@@ -565,7 +574,7 @@ export function BossChase(props) {
       const len = boss.seqSecs || (variant === 'word' ? 1.5 + .7 * keys.length : SEQ_SECS);
       st.qte = { kind: 'seq', variant, o, t: 0, len, from: o.x, keys, i: 0, wall0: Date.now() };
       setQteSeq({ keys, i: 0, bad: 0, variant, shiftDown: false }); setQteView('on'); sfx('qte');
-      sfx(variant === 'seq' ? 'rumble' : 'whoosh');
+      sfx(variant === 'seq' || variant === 'num' ? 'rumble' : 'whoosh');
     }
     st.seqShift = down => setQteSeq(v => v && v.variant === 'shift' ? { ...v, shiftDown: down } : v);
     st.seqKey = key => {
@@ -579,6 +588,11 @@ export function BossChase(props) {
             for (let i = 0; i < 18; i++) st.parts.push({ x: q.o.x, y: wrapRef.current.clientHeight - 9 - 20 - q.o.y, vx: (Math.random() - .5) * 260,
               vy: -80 - Math.random() * 200, s: 3, c: ['#f2ead2', '#e0b23c', '#7a2d8a'][i % 3], life: .6 + Math.random() * .4 });
           } else if (q.variant === 'shift') { q.o.state = 'past'; q.o.flee = true; jump(); }   // swatted: the bat flees up and away
+          else if (q.variant === 'num') {              // the gear breaks into brass bits
+            q.o.state = 'gone'; sfx('snap');
+            for (let i = 0; i < 16; i++) st.parts.push({ x: q.o.x, y: wrapRef.current.clientHeight - 9 - 15, vx: (Math.random() - .5) * 260,
+              vy: -90 - Math.random() * 200, s: 3, c: i % 2 ? '#d4a72c' : '#5a4a1e', life: .6 + Math.random() * .3 });
+          }
           else { q.o.state = 'past'; st.jump = { t: 0, len: .5 * q.keys.length, hgt: (height < 90 ? 30 : 34) + 10, hops: q.keys.length }; sfx('jump'); }
         }
       } else if (/[\u0E00-\u0E7F]/.test(key)) { sfx('wrong'); setQteSeq(v => v && { ...v, bad: (v.bad || 0) + 1 }); }
@@ -715,7 +729,7 @@ export function BossChase(props) {
           if (o.x - st.heroX < QTE_AT && !st.trip && st.phase === 'chase') {
             o.x = Math.max(o.x, st.heroX + 120);       // a long frame must never carry it past the hero first
             o.qte = true;
-            if (o.kind === 'seq' || o.kind === 'shift' || o.kind === 'word') startSeq(o);
+            if (o.kind === 'seq' || o.kind === 'shift' || o.kind === 'word' || o.kind === 'num') startSeq(o);
             else { st.qte = { kind: 'rock', o, t: 0, len: QTE_SECS, from: o.x, wall0: Date.now() }; setQteView('on'); sfx('qte'); }
           }
         } else if (o.state === 'roll') {
@@ -854,7 +868,8 @@ export function BossChase(props) {
       st.obs.forEach(o => {
         if (o.kind === 'roots') return drawRoots(g, o, ground + 80);
         const fr = Math.floor(st.now * 8) % 2;
-        const img = o.kind === 'seq' ? boulder : o.kind === 'shift' ? batArt[fr] : o.kind === 'word' ? bookArt[fr] : rock;
+        const img = boss.obstacle === 'fire' ? fireArt[fr] : o.kind === 'num' ? gearArt
+          : o.kind === 'seq' ? boulder : o.kind === 'shift' ? batArt[fr] : o.kind === 'word' ? bookArt[fr] : rock;
         g.save(); g.translate(o.x, 80 + ground - img.height / 2 - o.y); g.rotate(o.rot); g.drawImage(img, -img.width / 2, -img.height / 2); g.restore();
       });
       if (st.water > .01) {                            // over the hero, so ducking really hides them
@@ -952,18 +967,20 @@ export function BossChase(props) {
           ? <div className="bc-qte-caps"><div key={'w' + qteSeq.bad} className={'bc-qte-cap word' + (qteSeq.bad ? ' bad' : '') + (qteSeq.i >= qteSeq.keys.length ? ' done' : '')}>
               {qteSeq.keys.map((c, i) => <span key={i} style={{ color: i < qteSeq.i ? '#2f8a3a' : INK, textDecoration: i === qteSeq.i ? 'underline' : 'none',
                 textUnderlineOffset: 6 }}>{c}</span>)}</div></div>
-          : qteKind === 'seq'
+          : qteKind === 'seq' || qteKind === 'num'
           ? <div className="bc-qte-caps">{(qteSeq ? qteSeq.keys : []).map((k, i) => [
               i > 0 && <span key={'a' + i} className="bc-qte-arrow">→</span>,
               <div key={i + '-' + (i === (qteSeq && qteSeq.i) ? qteSeq.bad : 0)}
                 className={'bc-qte-cap' + (i < qteSeq.i ? ' done' : '') + (i === qteSeq.i && qteSeq.bad ? ' bad' : '')}>{keyFace(k)}</div>])}</div>
           : <div className={'bc-qte-key' + (diveHeld ? ' held' : '')} style={{ fontFamily: PX_FONT }}>SPACE</div>}
-        <div className="bc-qte-word">{qteKind === 'roots'
+        <div className="bc-qte-word">{boss.qteText ? (qteView === 'ok' ? boss.qteText.ok : qteView === 'miss' ? boss.qteText.miss : boss.qteText.on)
+          : qteKind === 'roots'
           ? (qteView === 'ok' ? 'หลุดแล้ว!' : qteView === 'miss' ? 'โดนรากพันขา!' : 'รัว SPACE ดิ้นให้หลุด!')
           : qteKind === 'dive' ? qteWord
           : qteKind === 'seq' ? (qteView === 'ok' ? 'ข้ามได้!' : qteView === 'miss' ? 'โดนหินกลิ้งใส่!' : 'กดตามลำดับ กระโดด ' + ((qteSeq && qteSeq.keys.length) || 2) + ' จังหวะ!')
           : qteKind === 'shift' ? (qteView === 'ok' ? 'ไล่ค้างคาวไปแล้ว!' : qteView === 'miss' ? 'โดนค้างคาวชน!' : 'กด Shift ค้างไว้ แล้วกดตัวนี้!')
           : qteKind === 'word' ? (qteView === 'ok' ? 'หนังสือเวทแตกกระจาย!' : qteView === 'miss' ? 'โดนหนังสือเวทฟาด!' : 'พิมพ์คำนี้ ทำลายหนังสือเวท!')
+          : qteKind === 'num' ? (qteView === 'ok' ? 'เฟืองพังแล้ว!' : qteView === 'miss' ? 'โดนเฟืองชน!' : 'พิมพ์เลขไทยบนเฟือง หยุดมันซะ!')
           : (qteView === 'ok' ? 'เยี่ยม!' : qteView === 'miss' ? 'โอ๊ะ!' : 'กดเพื่อกระโดดหลบ!')}</div>
         {qteKind === 'roots' && <div ref={pipsRef} className="bc-pips">{Array.from({ length: MASH_NEED }, (_, i) => <i key={i}/>)}</div>}
         <div className="bc-qte-track"><div ref={qteBarRef} className="bc-qte-bar"/>

@@ -28,7 +28,7 @@
 // ═══════════════════════════════════════════════════════════════
 import { lessonStars } from '../engine/scoring';
 import { PX_FONT, TH_FONT } from './pixel';
-import { sfx, beatGrid, audioTime } from './sound';
+import { sfx, beatGrid, audioTime, bossSection } from './sound';
 
 const { useEffect, useRef, useState } = React;
 const INK = '#3B2416';
@@ -413,8 +413,8 @@ export function BossChase(props) {
       const W = wrapRef.current.clientWidth;
       if (stars === 3) {
         st.bossX = Math.min(st.bossX, W * .62); st.hold = true;
-        say(boss.lines.caught, () => { st.hold = false; st.endAt = st.now; });
-      }
+        say(boss.lines.caught, () => { st.hold = false; st.endAt = st.now; bossSection('win'); });   // story song: drum roll under the jump
+      } else bossSection(stars > 0 ? 'escape' : 'lost');
     }
     const done = () => { if (!st.finished) { st.finished = true; live.current.onDone && live.current.onDone(); } };
 
@@ -616,7 +616,7 @@ export function BossChase(props) {
       // start: dash → "พร้อม…" → "เริ่ม!" → typing
       if (st.phase === 'go') {
         const g = st.now - st.goAt;
-        if (g > .9 && !st.saidGo) { st.saidGo = true; showCue('เริ่ม!', true); }
+        if (g > .9 && !st.saidGo) { st.saidGo = true; showCue('เริ่ม!', true); bossSection('p1'); }
         if (g > 1.3) { st.phase = 'ready'; setTimeout(() => setCue(null), 400); }
       }
 
@@ -896,8 +896,9 @@ export function BossChase(props) {
 
     // The boss talks first; the clock only starts at the first key, which the dialogue holds back.
     // after it talks, the boss dashes in and overtakes; typing opens after "พร้อม… เริ่ม!"
-    if (!live.current.startTime) say(boss.lines.intro, () => { st.phase = 'dash'; });
-    else { st.phase = 'ready'; st.bossX = wrapRef.current.clientWidth - boss.w / 2 - 12; }
+    // the story song (src/data/bossThemes.js, if this stage has one) follows: intro → dash → p1 (→ p2 on rage) → ending
+    if (!live.current.startTime) { bossSection('intro'); say(boss.lines.intro, () => { st.phase = 'dash'; bossSection('dash'); }); }
+    else { st.phase = 'ready'; st.bossX = wrapRef.current.clientWidth - boss.w / 2 - 12; bossSection('p1'); }
 
     return () => {
       alive = false; cancelAnimationFrame(raf);

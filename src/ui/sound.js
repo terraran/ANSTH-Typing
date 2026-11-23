@@ -2,10 +2,14 @@
 //   sfx('wrong')            play one effect (names in SFX below)
 //   sfx.type(combo)         the student's chosen "correct key" sound (tick / pop / click / off)
 //   music('home' | null)    switch the background song (songs in src/data/music.js); null = silence
-//   setRage(true)           boss song speeds up ("boss almost beaten")
+//   setRage(true)           boss song speeds up ("boss almost beaten"); a story song moves to its rage section
+//   music('theme1')         the boss chase's orchestral story song for stage 1 (src/data/bossThemes.js, src/ui/orchestra.js)
+//   bossSection('dash')     move the story song along with the chase: intro · dash · p1 · p2 · win · escape · lost
 //   useSoundSettings()      React hook: { music, sfx, typeSound } + setters (saved on this device)
 // Browsers only allow sound after the first click or key press; until then everything is queued silently.
 import { TRACKS } from '../data/music';
+import { BOSS_THEMES } from '../data/bossThemes';
+import { makeOrchestra } from './orchestra';
 
 const { useEffect, useState } = React;
 
@@ -284,8 +288,39 @@ function tick() {
     nextT += sd; step = (step + 1) % tr.total;
   }
 }
+// ── boss-chase story songs (orchestra): sections follow the chase; a change waits for the next beat ──
+const ENDINGS = ['win', 'escape', 'lost'];
+let story = null;              // { S: sections, sec, pos, pending, first, over }
+let storySec = 'intro';        // the section the chase is in now (kept even while music is off / not started yet)
+const storyStage = (id) => (/^theme(\d+)$/.exec(id || '') || [])[1];
+export const hasBossTheme = (stage) => !!BOSS_THEMES[stage];
+// The chase moves on (src/ui/BossChase.jsx). Same section again = keep playing.
+export function bossSection(name) {
+  storySec = name;
+  if (!story || story.over) return;
+  if (name === (story.pending || story.sec)) return;
+  story.pending = name;
+}
+function tickStory() {
+  const sy = story;
+  if (!sy || sy.over || !ready()) return;
+  if (nextT < ctx.currentTime) nextT = ctx.currentTime + 0.05;      // tab was asleep: don't burst
+  while (nextT < ctx.currentTime + 0.15) {
+    if (sy.pending && sy.pos % 4 === 0) { sy.sec = sy.pending; sy.pending = null; sy.pos = 0; sy.first = true; }
+    const sec = sy.S[sy.sec];
+    if (!sec) { sy.over = true; clearInterval(timer); return; }
+    const sd = 60 / sec.bpm / 4;
+    sec.play(Math.floor(sy.pos / S), sy.pos % S, nextT, sd, sy.first);
+    nextT += sd; sy.pos++;
+    if (sy.pos >= sec.bars * S) {
+      sy.pos = 0; sy.first = false;
+      if (sec.next) { sy.sec = sec.next; sy.first = true; }
+      else if (!sec.loop) { sy.over = true; clearInterval(timer); return; }    // an ending: played once, rings out
+    }
+  }
+}
 function startTrack(id) {
-  const tr = trackOf(id);
+  const n = storyStage(id), tr = n ? (BOSS_THEMES[n] && { group: 'boss', story: true }) : trackOf(id);
   if (!tr || !ctx) return;
   if (settings.music === 0) { curTrack = null; return; }     // silent: start when the student turns music up
   clearInterval(timer);
@@ -293,13 +328,23 @@ function startTrack(id) {
     const old = musicBus; old.gain.setTargetAtTime(0, ctx.currentTime, 0.08); setTimeout(() => old.disconnect(), 600);
     musicBus = newMusicBus();
   }
-  curTrack = tr; step = 0; nextT = ctx.currentTime + 0.12;
+  curTrack = tr; step = 0; nextT = ctx.currentTime + 0.12; story = null;
+  if (n) {
+    // an ending that has already played (music turned back on later) stays silent
+    story = { S: BOSS_THEMES[n](makeOrchestra(ctx, musicBus)), sec: storySec, pos: 0, pending: null, first: true, over: false };
+    if (ENDINGS.includes(storySec)) story.over = true;
+    else { timer = setInterval(tickStory, 25); tickStory(); }
+    return;
+  }
   timer = setInterval(tick, 25); tick();
 }
 // Switch the background song (same id again = keep playing). null = silence.
 export function music(id) {
   if (id === curWanted) return;
-  curWanted = id || null; rage = false;
+  // a story song's ending (win / escape / lost) is not cut when the results screen asks for silence: it plays out and rings
+  if (!id && story && ENDINGS.includes(story.pending || story.sec)) { curWanted = null; rage = false; return; }
+  curWanted = id || null; rage = false; story = null;
+  if (storyStage(id) && ENDINGS.includes(storySec)) storySec = 'intro';     // left over from the last chase
   clearInterval(timer);
   if (ctx && curTrack) {
     const old = musicBus; old.gain.setTargetAtTime(0, ctx.currentTime, 0.12); setTimeout(() => old.disconnect(), 800);
@@ -312,6 +357,12 @@ export function music(id) {
 // { beat: seconds per beat, next: audioTime() of the next beat } — null when no song is playing (music off / not started).
 export function beatGrid() {
   if (!curTrack || !ready()) return null;
+  if (story) {
+    const sec = !story.over && story.S[story.sec];
+    if (!sec) return null;
+    const sd = 60 / sec.bpm / 4;
+    return { beat: sd * 4, next: nextT + ((4 - story.pos % 4) % 4) * sd };
+  }
   const fast = rage && curTrack.group === 'boss';
   const sd = 60 / (curTrack.bpm * (fast ? 1.15 : 1)) / 4;            // one 16th; a beat = 4 of them
   return { beat: sd * 4, next: nextT + ((4 - step % 4) % 4) * sd };   // nextT = time of `step`, the next one not yet scheduled
@@ -321,6 +372,8 @@ export function setRage(on) {
   on = !!on;
   if (on === rage) return;
   rage = on;
+  // a story song has its own rage section (BRAAAM + gong) instead of the chiptune sting
+  if (on && ['intro', 'lurk', 'dash', 'p1'].includes(story ? (story.pending || story.sec) : storySec) && (story || storyStage(curWanted))) { bossSection('p2'); return; }
   if (on && curTrack && curTrack.group === 'boss' && settings.music > 0) sfx('rage');
 }
 

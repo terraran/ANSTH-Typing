@@ -30,7 +30,7 @@ import { ResultsScreen } from './screens/ResultsScreen';
 import { PERF_ON, PerfMeter, perf } from './ui/PerfMeter';
 import { FINGERS_ID, GuideLayer, HelpButton, TOUR_ID, TourLayer, guideInit, isSeen, showTip, startFingers, startTour } from './ui/Guide';
 import { FingerLayer } from './ui/FingerIntro';
-import { music, setRage, sfx } from './ui/sound';
+import { music, setRage, sfx, hasBossTheme } from './ui/sound';
 import { SoundButton } from './ui/SoundButton';
 
 // BR anti-AFK: after the zone starts moving, no correct key for AFK_FIRST_MS → lose 1 life,
@@ -244,7 +244,9 @@ export function ThaiTypingApp() {
     return inStage.length > 0 && inStage[inStage.length - 1].id === lesson.id;
   })();
   const musicId = (screen==='countdown' || screen==='mp-lobby' || screen==='host-dashboard' || (screen==='practice' && roomCode)) ? 'race'
-    : screen==='practice' ? (activeTest ? 'race' : activeHw ? 'calm' : isBossLesson ? 'boss' + lesson.stage : 'calm')
+    : screen==='practice' ? (activeTest ? 'race' : activeHw ? 'calm' : !isBossLesson ? 'calm'
+        // the boss chase (timed step) plays the stage's orchestral story song when it has one (src/data/bossThemes.js)
+        : timeLimit>0 && bossFor(lesson.stage) && hasBossTheme(lesson.stage) ? 'theme' + lesson.stage : 'boss' + lesson.stage)
     : screen==='results' ? null
     : 'home';
   useEffect(() => { music(musicId); },[musicId]);

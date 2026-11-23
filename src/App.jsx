@@ -1479,6 +1479,14 @@ export function ThaiTypingApp() {
         setScreen('class-picker');
       }}
       initialCode={startCode}
+      onIdLogin={who => {
+        // Student ID: the pass from Apps Script stands in for the Google token — same account, same saves.
+        // Kept in memory only (a reload or "ออก" ends it), and it runs out when the teacher's switch closes.
+        auth.idToken=who.token;
+        auth.subject='id:'+who.email;
+        setGoogleUser({ name: who.displayName, email: who.email });
+        setScreen('class-picker');
+      }}
       onCode={who => {
         // Classroom code: the student is "เลขที่ N" in the game and in races (no typed names)
         const name = 'เลขที่ ' + who.no, key = 'code:' + who.code;

@@ -42,6 +42,7 @@ export function demoApi() {
   const names = c => demoClass(c).map(s => s.name);
   let unlocks = [{ classCode: 'Y603', studentName: '', stage: 3 }];
   let nextId = 10;
+  const idOpen = {};
   let homework = [
     { hwId: 'h1', classCode: 'Y603', studentName: '', title: 'ด่าน 3 · ป่าใหญ่', mode: 'stage', stage: 3, lessonId: 109, exerciseTitle: '', minStars: 2, dueDate: day(3), total: 32, passed: 14, tried: 25 },
     { hwId: 'h2', classCode: 'Y603', studentName: names('Y603')[4], title: 'บท 8 · 8.4 วลี', mode: 'exercise', stage: 3, lessonId: 108, exerciseTitle: '8.4 วลี', minStars: 1, dueDate: day(6), total: 1, passed: 0, tried: 1 },
@@ -63,6 +64,8 @@ export function demoApi() {
       return { unlocks };
     },
     resetTips: async () => ({ reset: 32 }),
+    getIdLogin: async classCode => ({ classCode, openUntil: idOpen[classCode] || 0 }),
+    setIdLogin: async (classCode, open) => ({ classCode, openUntil: idOpen[classCode] = open ? Date.now() + 2 * 3600e3 : 0 }),
     homeworkList: async () => hwList(),
     homeworkResults: async hwId => {
       const h = homework.find(x => x.hwId === hwId), list = h.studentName ? [h.studentName] : names(h.classCode);

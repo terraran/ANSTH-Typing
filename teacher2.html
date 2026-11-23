@@ -48,6 +48,10 @@ a{color:inherit}
 .btn.purple{background:var(--purple)}
 .btn.blue{background:var(--blue)}
 .btn.ghost{background:var(--paper);color:var(--ink)}
+.idsw .sw{width:30px;height:16px;border-radius:8px;background:#C9BFA8;position:relative;flex:none;border:2px solid var(--ink)}
+.idsw .sw::after{content:"";position:absolute;top:1px;left:1px;width:10px;height:10px;border-radius:50%;background:#fff}
+.idsw.on{background:#DDF2E3}.idsw.on .sw{background:var(--green)}.idsw.on .sw::after{left:15px}
+.idsw .sm{font-size:.85em;font-weight:600}
 .btn:focus-visible,.seg button:focus-visible,.stat.care:focus-visible{outline:3px solid var(--gold);outline-offset:2px}
 .chip{display:inline-flex;align-items:center;gap:4px;border-radius:99px;padding:1px 9px;font-size:.82em;font-weight:700;white-space:nowrap}
 .chip.warn{background:#FBE0DA;color:#9C2A1F}

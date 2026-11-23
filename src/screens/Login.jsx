@@ -5,6 +5,7 @@ import { auth, parseJwt } from '../auth';
 import { GOOGLE_CLIENT_ID } from '../config';
 import { SoundButton } from '../ui/SoundButton';
 import { CardConfirm, CodeBox, checkCode } from './CodeEntry';
+import { IdLoginPanel } from './IdLogin';
 
 const { useEffect, useRef, useState } = React;
 
@@ -123,8 +124,11 @@ const LOGO_RATIO = 3.18;
 // Public edition: students sign in with the code on their teacher's card (backend/public.js).
 const CODES = !!backend.lookupCode;
 
-export function GoogleSignInScreen({ onSignIn, onSolo, onCode, initialCode = '' }) {
-  const [stage, setStage] = useState(initialCode ? 'checking' : 'title');   // title | signin | checking | confirm
+// School edition: students without their Google password type their student ID instead (screens/IdLogin.jsx).
+const IDS = !!backend.idLogin && backend.enabled;
+
+export function GoogleSignInScreen({ onSignIn, onSolo, onCode, onIdLogin, initialCode = '' }) {
+  const [stage, setStage] = useState(initialCode ? 'checking' : 'title');   // title | signin | checking | confirm | id
   const [code, setCode] = useState(initialCode);
   const [codeErr, setCodeErr] = useState('');
   const [who, setWho] = useState(null);         // the card being confirmed
@@ -263,13 +267,13 @@ export function GoogleSignInScreen({ onSignIn, onSolo, onCode, initialCode = '' 
       )}
       <div style={{ position: 'relative', minHeight: '100%', boxSizing: 'border-box', display: 'flex', flexDirection: 'column', alignItems: 'center',
         justifyContent: 'flex-start',
-        padding: small ? 'clamp(16px, 4vh, 40px) 16px 40px' : 'clamp(8px, 3vh, 40px) 16px clamp(80px, 16vh, 190px)',
+        padding: small ? `clamp(16px, 4vh, 40px) 16px ${stage === 'id' ? 'clamp(12px, 2vh, 40px)' : '40px'}` : 'clamp(8px, 3vh, 40px) 16px clamp(80px, 16vh, 190px)',
         gap: small ? 'clamp(12px, 3vh, 26px)' : 'clamp(4px, 1.6vh, 24px)' }}>
         {/* Logo — big like a game title screen: up to ~half the screen height (smaller on the sign-in step) */}
         <h1 style={{ margin: 0, lineHeight: 0 }}>
           <img src={LOGO} alt="คีย์บอร์ดเควส · Keyboard Quest" draggable={false}
             style={{ display: 'block', height: 'auto', userSelect: 'none',
-              width: small ? `min(72vw, calc(${CODES ? 22 : 30}vh * ${LOGO_RATIO}))` : `min(88vw, calc(46vh * ${LOGO_RATIO}))`,
+              width: small ? `min(72vw, calc(${CODES || IDS ? 22 : 30}vh * ${LOGO_RATIO}))` : `min(88vw, calc(46vh * ${LOGO_RATIO}))`,
               filter: 'drop-shadow(0 8px 0 rgba(30,58,76,.35))' }}/>
         </h1>
 
@@ -302,6 +306,8 @@ export function GoogleSignInScreen({ onSignIn, onSolo, onCode, initialCode = '' 
           <PxPanel title="กำลังตรวจรหัส…" style={{ width: '100%', maxWidth: 460 }} bodyStyle={{ padding: 20, textAlign: 'center', fontWeight: 700 }}>
             <span className="spin">⏳</span> รอสักครู่
           </PxPanel>
+        ) : stage === 'id' ? (
+          <IdLoginPanel onDone={onIdLogin} onBack={() => setStage('signin')}/>
         ) : stage === 'confirm' ? (
           <PxPanel title="นี่คือการ์ดของคุณใช่ไหม?" style={{ width: '100%', maxWidth: 500 }} bodyStyle={{ padding: '10px 16px 14px' }}>
             <CardConfirm who={who} onYes={() => onCode(who)} onNo={notMine}/>
@@ -333,6 +339,11 @@ export function GoogleSignInScreen({ onSignIn, onSolo, onCode, initialCode = '' 
               alignItems: 'center', justifyContent: 'center', width: '100%' }}>
               <div id="google-signin-btn"></div>
             </div>
+            {IDS && <>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%', fontSize: 13, color: '#8C6E4E', fontWeight: 700 }}>
+                <span style={{ flex: 1, height: 3, background: '#C9A66B' }}/>ยังจำรหัส Google ไม่ได้?<span style={{ flex: 1, height: 3, background: '#C9A66B' }}/></div>
+              <PxButton color="gold" style={{ width: '100%', fontSize: 18 }} onClick={() => setStage('id')}>🔢 เข้าด้วยเลขประจำตัว</PxButton>
+            </>}
             <div style={{ display: 'flex', gap: 12, width: '100%' }}>
               <PxButton style={{ flex: 1, fontSize: 16 }} onClick={onSolo}>ทดลองเล่น</PxButton>
               <PxButton style={{ flex: 1, fontSize: 16 }} onClick={back}>← กลับ</PxButton>

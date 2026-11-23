@@ -1,7 +1,7 @@
 // School backend: Google Apps Script + Google Sheets (wraps src/api.js).
 // Every call sends exactly what the screens used to send to Apps Script directly.
 import { SCRIPT_URL } from '../config';
-import { apiGetHomework, apiGetStudentStats, apiGetWeeklyBoard, apiGetWeeklyPast, apiMarkTipsSeen, apiRequest,
+import { apiGetHomework, apiGetStudentStats, apiGetWeeklyBoard, apiGetWeeklyPast, apiIdLogin, apiMarkTipsSeen, apiRequest,
   apiSaveMatch, apiSubmitHomework, apiSubmitWeekly, apiTitleRunners, describeApiError, saveSession as apiSaveSession } from '../api';
 
 // true = players sign in and results are saved (false = offline: everything stays on this device)
@@ -33,6 +33,14 @@ export const submitHomework = apiSubmitHomework;
 
 export const titleRunners = apiTitleRunners;
 
+// Student ID sign-in (young students without their Google password) — only while the teacher has opened the room.
+// → { token, exp, classCode, displayName, email } · throws ID_CLOSED | ID_NOT_FOUND | ID_BUSY
+export async function idLogin(studentId) {
+  const d = await apiIdLogin(studentId);
+  if (d?.error) throw new Error(d.error);
+  return d;
+}
+
 // ── Teacher page (teacher2.html) — the same Apps Script actions teacher.html uses ──
 // → { classes: ['Y603', …], limited? }  Admins (TEACHER_EMAILS) get every room; teachers in the
 // Sheet's Teachers tab get only their rooms (limited: true) — Apps Script refuses the other rooms
@@ -45,6 +53,9 @@ export const classData = classCode => apiRequest('getClassData', { classCode });
 export const getUnlocks = () => apiRequest('getUnlocks');
 // stage 0 = remove the unlock; studentName '' = whole class. Replies with getUnlocks' shape.
 export const setUnlock = (classCode, studentName, stage) => apiRequest('setUnlock', { classCode, studentName, stage });
+// Student ID sign-in switch of a room → { classCode, openUntil (ms, 0 = closed) }; open: true = for 2 hours
+export const getIdLogin = classCode => apiRequest('getIdLogin', { classCode });
+export const setIdLogin = (classCode, open) => apiRequest('setIdLogin', { classCode, open: open ? '1' : '0' });
 // Show Mr.AT's tips again to a whole class → { reset: n }
 export const resetTips = classCode => apiRequest('resetTips', { target: classCode });
 

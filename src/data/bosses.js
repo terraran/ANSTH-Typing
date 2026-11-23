@@ -12,7 +12,8 @@
 //   • qte: what the boss throws at the hero, a different quick-time event per stage (drawn in code):
 //     'rock' = Space to jump · 'crows' = keys on the music's beat (`keys`) · 'roots' = mash Space to break free ·
 //     'dive' = hold Space under water until the tail has passed · 'seq' = `seqLen` keys from `keys` in order ·
-//     'shift' = Shift + one of `keys` · 'word' = type one of `words`
+//     'shift' = Shift + one of `keys` · 'word' = type one of `words` · 'num' = type `seqLen` Thai numerals from `keys`
+//   • obstacle: 'fire' draws a fireball instead (stage 9) · qteText: { on, ok, miss } replaces the card's lines
 //   • fly: px a flying boss hovers above the ground (scene room ~120 px above the ground: h + fly must stay under it)
 //   • from stage 4 on the bosses wear no red bandana (each is its own character, not one bandit gang)
 // ═══════════════════════════════════════════════════════════════
@@ -227,6 +228,68 @@ const BOSSES = {
       ],
     },
     taunts: { start: 'ตามข้าทันไหมล่ะ!', throw: 'หนังสือเวท ไป!', throwRage: 'หนังสือเวททั้งห้องสมุด!!', laugh: 'ฮ่าๆๆ!', stomped: 'โอ๊ย! หมวกข้า!' },
+  },
+  8: {
+    name: 'หุ่นกลไขตัวเลข',
+    dir: 'assets/boss/stage8/',
+    run: 'run.png', runChest: 'run-carry.png', frames: 8, w: 77, h: 74, fps: 11,
+    chest: 'item.png',                       // เฟืองทอง
+    head: 'head.png',
+    faces: { smug: 'half-smug.png', shock: 'half-shock.png' },
+    faceArt: { right: 90, bottom: { smug: 110, shock: 114 } },
+    qte: 'num', seqLen: 2, seqSecs: 3, keys: ['๑', '๒', '๓', '๔', '๕', '๖', '๗', '๘', '๙'],   // stage 8's Thai numerals
+    lines: {
+      intro: [
+        { face: 'smug', text: 'ติ๊ด ติ๊ด! เฟืองทองของหอคอยนี้ ถูกข้ายึดแล้ว!' },
+        { face: 'smug', text: 'อยากได้คืน ก็พิมพ์ให้เร็วกว่าเครื่องจักรอย่างข้าสิ!' },
+        { face: 'smug', text: 'ข้าจะกลิ้งเฟืองตัวเลขใส่เจ้า! พิมพ์เลขไทยบนเฟืองให้ถูก มันถึงจะหยุด!' },
+      ],
+      caught: [
+        { face: 'shock', text: 'ข้อผิดพลาด!? คำนวณแล้วเจ้าต้องตามไม่ทันสิ!' },
+        { face: 'shock', text: 'อย่ากระโดดใส่ข้านะ เฟืองข้าจะหลุด— ปิ๊บ ปิ๊บ ปิ๊บ!' },
+      ],
+      escaped: [
+        { face: 'smug', text: 'ระบบขัดข้อง! เฟืองทองหลุดมือซะได้…' },
+        { face: 'smug', text: 'รอบนี้ข้ายอม แต่ข้าจะอัปเกรดตัวเองแล้วกลับมาใหม่!' },
+      ],
+      won: [
+        { face: 'smug', text: 'ติ๊ด ติ๊ด ติ๊ด ช้าไปแล้ว! เฟืองทองเป็นของข้า!' },
+        { face: 'smug', text: 'กลับไปฝึกพิมพ์ตัวเลขมาใหม่ แล้วค่อยมาไล่ข้า!' },
+      ],
+    },
+    taunts: { start: 'ตามมาสิ มนุษย์!', throw: 'ปล่อยเฟือง!', throwRage: 'เฟืองทั้งหอคอย!!', laugh: 'ฮ่าๆๆ!', stomped: 'ปิ๊บ! ระบบรวน!' },
+  },
+  9: {
+    name: 'พญามังกรทอง',
+    dir: 'assets/boss/stage9/',
+    run: 'run.png', runChest: 'run-carry.png', frames: 8, w: 101, h: 82, fps: 11, fly: 20,
+    chest: 'item.png',                       // ถ้วยแชมป์
+    head: 'head.png',
+    faces: { smug: 'half-smug.png', shock: 'half-shock.png' },
+    faceArt: { right: 94, bottom: { smug: 119, shock: 114 } },
+    qte: 'seq', seqLen: 3, seqSecs: 2.6, obstacle: 'fire',
+    keys: ['ฟ', 'ห', 'ก', 'ด', 'เ', 'ง', 'ร', 'พ', 'ม', 'น', 'อ', 'ท', 'บ', 'ล', 'ค', 'ต'],   // from every stage
+    qteText: { on: 'คอมโบ 3 ปุ่ม หลบลูกไฟ!', ok: 'หลบลูกไฟได้!', miss: 'โดนลูกไฟ!' },
+    lines: {
+      intro: [
+        { face: 'smug', text: 'ฮ่าๆๆ! ถ้วยแชมป์บนยอดเขานี้ ต้องเป็นของพญามังกรทองเท่านั้น!' },
+        { face: 'smug', text: 'เจ้ามาไกลถึงนี่ได้ ก็เก่งอยู่หรอก… แต่จะตามข้าทันไหมล่ะ!' },
+        { face: 'smug', text: 'ระวังลูกไฟของข้า! กดคอมโบ 3 ปุ่มให้ทัน แล้วกระโดดหลบให้ได้!' },
+      ],
+      caught: [
+        { face: 'shock', text: 'ไม่จริง!? เจ้าตามพญามังกรทันได้ยังไง!' },
+        { face: 'shock', text: 'เจ้า… เจ้าคือแชมป์ตัวจริงสินะ— โอ๊ยยย!' },
+      ],
+      escaped: [
+        { face: 'smug', text: 'แย่แล้ว! ถ้วยแชมป์หลุดมือข้าซะได้…' },
+        { face: 'smug', text: 'วันนี้เจ้าชนะ แต่ข้าจะรอเจ้าบนยอดเขาอีกนะ!' },
+      ],
+      won: [
+        { face: 'smug', text: 'ฮ่าๆๆ ช้าไปแล้ว! ถ้วยแชมป์เป็นของพญามังกรทอง!' },
+        { face: 'smug', text: 'ฝึกพิมพ์ให้เก่งกว่านี้ แล้วค่อยกลับมาท้าข้าอีกครั้ง!' },
+      ],
+    },
+    taunts: { start: 'ตามมาเลย ผู้ท้าชิง!', throw: 'รับลูกไฟไป!', throwRage: 'ไฟมังกรทอง!!', laugh: 'ฮ่าๆๆ!', stomped: 'โอ๊ย! เกล็ดทองข้า!' },
   },
 };
 

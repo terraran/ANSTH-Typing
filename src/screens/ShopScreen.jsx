@@ -18,7 +18,8 @@ const THUMB = () => {
   return { body: [FULL, 1.25], hair: [HEAD, 2], hairColor: [HEAD, 2], skin: [HEAD, 2],
     socks: [{ x: 14, y: 40, w: 36, h: 22 }, 2.2], shoes: [{ x: 14, y: 44, w: 36, h: 18 }, 2.4] };
 };
-const nameOf = (k, id) => CharKit.OPTIONS[k].find(o => o.id === id)?.name || id;
+const RPG_ICON = { warrior: '⚔️', mage: '🔮', archer: '🏹', rogue: '🗡️', cleric: '✨', fighter: '🥋', bard: '🎻' };
+const nameOf = (k, id) => { const o = CharKit.OPTIONS[k].find(o => o.id === id); return o ? (o.outfit ? RPG_ICON[o.outfit] + ' ' : '') + o.name : id; };
 
 export function ShopScreen({ initial, wallet, signedIn, onBuy, onSave, onBack }) {
   const short = useShortScreen();
@@ -44,13 +45,16 @@ export function ShopScreen({ initial, wallet, signedIn, onBuy, onSave, onBack })
 
   // Items of this tab: what you wear now, then things to buy (cheapest first), then what you have; "coming soon" at the end.
   const items = useMemo(() => {
-    let list = CharKit.OPTIONS[cat].map(o => ({ k: cat, id: o.id, name: o.name, price: priceOf(cat, o.id), own: ownsLook(owned, cat, o.id) }));
+    // RPG outfits come in a boy and a girl version: show the one that fits the character now.
+    const gender = CharKit.genderOf(draft.body);
+    let list = CharKit.OPTIONS[cat].filter(o => !o.gender || o.gender === gender)
+      .map(o => ({ k: cat, id: o.id, name: nameOf(cat, o.id), price: priceOf(cat, o.id), own: ownsLook(owned, cat, o.id) }));
     list.sort((a, b) => ((b.id === saved[cat]) - (a.id === saved[cat])) || (a.own - b.own) || (a.price - b.price));
     (SHOP_SOON[cat] || []).forEach(([emoji, name, price]) => list.push({ k: cat, soon: true, emoji, name, price, id: 'soon-' + name }));
     if (filter === 'own') list = list.filter(i => !i.soon && i.own);
     if (filter === 'shop') list = list.filter(i => i.price > 0);
     return list;
-  }, [cat, filter, owned.join(','), saved[cat]]);
+  }, [cat, filter, owned.join(','), saved[cat], CharKit.genderOf(draft.body)]);
 
   // How many cards fit (never scroll): cards at least 138 wide, 112 tall, at most 3 rows.
   useLayoutEffect(() => {

@@ -9,7 +9,7 @@
   const h = React.createElement;
   const { useState, useEffect, useRef } = React;
   const BASE = 'assets/char/';
-  const VER = '6';               // bump after replacing any asset file (cache-busting)
+  const VER = '7';               // bump after replacing any asset file (cache-busting)
   const TF = "'Noto Sans Thai Looped','Sarabun','Noto Sans Thai',sans-serif";
 
   // ── Choices ─────────────────────────────────────────────────
@@ -41,10 +41,17 @@
     { id: 'gov_girl_red',       name: 'กระโปรงแดง',    sheet: 'girl', gov: 'girl', bottom: SKIRT.red,   belt: true, swatch: '#b8232f', socks: 'white', shoes: 'black' },
     { id: 'gov_girl_black',     name: 'กระโปรงดำ',     sheet: 'girl', gov: 'girl', bottom: SKIRT.black, belt: true, swatch: '#1c1c22', socks: 'white', shoes: 'black' },
   ];
+  // RPG outfits (dress-up shop, both editions): one sheet per gender, made with PixelLab from the boy / girl base sheets
+  // (.claude/mock/outfits). Bought once as 'body:rpg_<k>' (src/data/shop.js) — the shop puts on the variant that matches
+  // the character. Their sheets are char.json lazySheets: downloaded only when someone wears one.
+  const RPG_OUTFITS = [['warrior', 'นักรบ'], ['mage', 'จอมเวท'], ['archer', 'นักธนู'], ['rogue', 'นักย่อง'],
+    ['cleric', 'นักบวช'], ['fighter', 'นักพรต'], ['bard', 'กวี']];
+  const RPG_BODIES = RPG_OUTFITS.flatMap(([k, name]) => ['boy', 'girl'].map(gender =>
+    ({ id: 'rpg_' + k + '_' + gender, name, sheet: 'outfit_' + k + '_' + gender, outfit: k, gender, shop: true, socks: 'black', shoes: 'black' })));
   // The school edition shows its own uniforms + polos; the public edition swaps the school uniforms for the
   // government ones (useOutfits). sanitize() only accepts the edition's own list.
-  const ALL_BODIES = [...SCHOOL_BODIES, ...GOV_BODIES];
-  let BODIES = SCHOOL_BODIES;
+  const ALL_BODIES = [...SCHOOL_BODIES, ...GOV_BODIES, ...RPG_BODIES];
+  let BODIES = [...SCHOOL_BODIES, ...RPG_BODIES];
   let UNIFORMS = BODIES.slice(0, 2);   // name-based default characters stay in school uniform
   // Polo colours for the picker swatch only: [shadow, main] = the sheets' own shirt tones.
   const SHIRT_COLORS = [
@@ -129,17 +136,22 @@
   // Which edition's outfits to offer: 'school' (default) or 'public'. Call once at start-up, before any character is drawn.
   function useOutfits(edition) {
     const pub = edition === 'public';
-    BODIES = pub ? [...GOV_BODIES, ...SCHOOL_BODIES.slice(2)] : SCHOOL_BODIES;
-    UNIFORMS = pub ? GOV_BODIES : SCHOOL_BODIES.slice(0, 2);
+    BODIES = pub ? [...GOV_BODIES, ...SCHOOL_BODIES.slice(2), ...RPG_BODIES] : [...SCHOOL_BODIES, ...RPG_BODIES];
+    UNIFORMS = pub ? GOV_BODIES : SCHOOL_BODIES.slice(0, 2);   // (RPG outfits are shop-only: never a default)
     OPTIONS.body = BODIES;
     OPTIONS.socks = pub ? PUBLIC_SOCKS : SCHOOL_SOCKS;
     PICKERS[0].list = BODIES; PICKERS[4].list = OPTIONS.socks;
     _cache.clear();
   }
 
+  // 'girl' or 'boy' — which base body an outfit is drawn on (the shop picks RPG variants by it).
+  function genderOf(body) {
+    const b = byId(ALL_BODIES, body);
+    return b && (b.gender === 'girl' || b.gov === 'girl' || b.id === 'girl') ? 'girl' : 'boy';
+  }
   function defaults(body) {
     const b = byId(BODIES, body) || BODIES[0];
-    return { body: b.id, hair: b.id === 'girl' || b.gov === 'girl' ? 'f02_ponytail' : 'm01_neat', hairColor: 'black',
+    return { body: b.id, hair: genderOf(b.id) === 'girl' ? 'f02_ponytail' : 'm01_neat', hairColor: 'black',
       skin: 'natural', socks: b.socks, shoes: b.shoes };
   }
   // Accepts anything (object or JSON string); returns a valid config or null.
@@ -215,6 +227,17 @@
       })
       .catch(err => { _loading = null; throw err; });
     return _loading;
+  }
+
+  // Sheets listed in char.json lazySheets (RPG outfits) are downloaded the first time someone wears one.
+  const _lazy = new Map();
+  function lazySheet(D, outfit) {
+    const k = outfit && (outfit.sheet || outfit.id), f = k && D.lazySheets && D.lazySheets[k];
+    if (!f || D.imgs['body_' + k]) return D;
+    if (!_lazy.has(k)) _lazy.set(k, loadImg(BASE + f + '?v=' + VER)
+      .then(img => { D.imgs['body_' + k] = img; })
+      .catch(err => { _lazy.delete(k); throw err; }));
+    return _lazy.get(k).then(() => D);
   }
 
   // ── Recolouring ─────────────────────────────────────────────
@@ -472,7 +495,7 @@
     const cfg = sanitize(cfgIn) || defaults('boy');
     const key = keyOf(cfg);
     if (_cache.has(key)) return Promise.resolve(_cache.get(key));
-    return load().then(D => {
+    return load().then(D => lazySheet(D, byId(ALL_BODIES, cfg.body))).then(D => {
       if (_cache.has(key)) return _cache.get(key);
       const P = D.palette, S = D.frameSize;
       const hairRamp = byId(HAIR_COLORS, cfg.hairColor).ramp;
@@ -1187,6 +1210,6 @@
     OPTIONS, useOutfits, defaults, sanitize, randomize, loadLocal, saveLocal,
     load, buildSprite, drawFrame, CharCanvas, Avatar, CreatorScreen,
     fromName, fromPlayer, toWire, grayOf, RaceTrack, ResultStage,
-    CROP: { FULL, HEAD }, free,
+    CROP: { FULL, HEAD }, free, genderOf,
   };
 })();

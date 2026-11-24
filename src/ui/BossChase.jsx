@@ -31,7 +31,7 @@
 import { lessonStars } from '../engine/scoring';
 import { mapKey } from '../engine/keymap';
 import { PX_FONT, TH_FONT } from './pixel';
-import { sfx, beatGrid, audioTime, bossSection } from './sound';
+import { sfx, beatGrid, audioTime, bossSection, bossMood, chaseMode } from './sound';
 
 const { useEffect, useRef, useState } = React;
 const INK = '#3B2416';
@@ -434,7 +434,7 @@ export function BossChase(props) {
       const wpm = mins > 0 ? (p.net ? Math.max(0, p.keys / 4 - p.errors) : p.keys / 4) / mins : 0;
       const stars = p.startTime ? lessonStars(wpm, acc, p.target) : 0;
       st.phase = 'end'; st.end = stars; st.endAt = st.now; st.obs = []; st.vel = 0;
-      if (st.qte) { st.qte = null; setQteView(null); }
+      if (st.qte) { st.qte = null; setQteView(null); bossMood({ under: false, tangle: false }); }
       clearNotes(); st.crows.forEach(c => { c.state = 'leave'; });
       if (st.stomp) { st.stomp = null; st.squash = 1; st.heroY = 0; setCue(null); }
       if (st.boosted) { st.boosted = false; st.boostUntil = 0; p.onBoost && p.onBoost(1); }
@@ -463,6 +463,7 @@ export function BossChase(props) {
     function endQte(result) {
       const q = st.qte; if (!q) return;
       st.qte = null;
+      if (q.kind === 'mash') bossMood({ tangle: false }); else if (q.kind === 'dive') bossMood({ under: false });
       st.owe += Date.now() - q.wall0; st.oweStart = live.current.startTime;
       live.current.onPause && live.current.onPause(Date.now() - q.wall0);   // App moves startTime on by the window
       setQteView(result); clearTimeout(qteTimer); qteTimer = setTimeout(() => setQteView(null), qteKind === 'crows' ? 1000 : 650);
@@ -477,7 +478,7 @@ export function BossChase(props) {
     function paintPips(n) { const el = pipsRef.current; if (el) [...el.children].forEach((p, i) => p.classList.toggle('on', i < n)); }
     st.mash = () => {
       const q = st.qte; if (!q || q.kind !== 'mash') return;
-      q.n++; paintPips(q.n); st.wiggle = .12; sfx('pop', q.n * 3);
+      q.n++; paintPips(q.n); st.wiggle = .12; sfx('mash', q.n);
       if (q.n >= MASH_NEED) { q.o.state = 'snap'; snapRoots(); endQte('ok'); jump(); sfx('snap'); }
     };
     function failMash() {
@@ -523,7 +524,7 @@ export function BossChase(props) {
       const j = rtJudgeRef.current;
       if (j) { j.textContent = text; j.style.color = ok ? (text === 'เยี่ยม!' ? '#FFE08A' : '#9BE39A') : '#FF8A7A'; j.classList.remove('pop'); void j.offsetWidth; j.classList.add('pop'); }
       if (ok) { sfx('hit'); nt.crow.state = 'flee'; const r = rtRingRef.current; if (r) { r.classList.remove('flash'); void r.offsetWidth; r.classList.add('flash'); } }
-      else { sfx('wrong'); q.misses++; nt.crow.state = 'peck'; }      // a missed crow lands on the hero and pecks
+      else { sfx('qteWrong'); q.misses++; nt.crow.state = 'peck'; }      // a missed crow lands on the hero and pecks
     }
     st.press = key => {
       const q = st.qte; if (!q || q.kind !== 'crows') return;
@@ -542,7 +543,7 @@ export function BossChase(props) {
       setRtTitle({ text: pass ? 'ไล่อีกาสำเร็จ!' : 'โดนรุมจิก!', cls: pass ? 'ok' : 'miss' });
       endQte(pass ? 'ok' : 'miss');
       const mine = q.notes.map(n => n.crow);
-      if (pass) { mine.forEach(c => { if (c.state === 'peck') c.state = 'leave'; }); sfx('combo', 1); }
+      if (pass) { mine.forEach(c => { if (c.state === 'peck') c.state = 'leave'; }); sfx('qtePass'); }
       else {                                           // failed: every crow, even the shooed ones, comes back and mobs the hero
         mine.forEach(c => { c.state = 'swarm'; }); st.trip = 1.4;
         bubble(boss.taunts.laugh, 1000); setTimeout(() => sfx('laugh'), 150);
@@ -562,7 +563,7 @@ export function BossChase(props) {
     }
     st.diveDown = () => {
       const q = st.qte; if (!q || q.kind !== 'dive' || q.held) return;
-      q.held = true; setDiveHeld(true); sfx('dive'); splash(6, st.heroX);
+      q.held = true; setDiveHeld(true); sfx('dive'); splash(6, st.heroX); bossMood({ under: true });
       setQteWord(q.t < DIVE_HIT ? 'ค้างไว้… หางกำลังมา!' : 'รอให้หางผ่าน… แล้วปล่อย!');
     };
     st.diveUp = () => {
@@ -605,7 +606,7 @@ export function BossChase(props) {
       const len = boss.seqSecs || (variant === 'word' ? 1.5 + .7 * keys.length : SEQ_SECS);
       st.qte = { kind: 'seq', variant, o, t: 0, len, from: o.x, keys, i: 0, wall0: Date.now() };
       setQteSeq({ keys, i: 0, bad: 0, variant, shiftDown: false }); setQteView('on'); sfx('qte');
-      sfx(variant === 'seq' || variant === 'num' ? 'rumble' : 'whoosh');
+      sfx(boss.obstacle === 'fire' ? 'fire' : variant === 'seq' || variant === 'num' ? 'rumble' : 'whoosh');   // stage 9's fireball is fire, not a rock
     }
     st.seqShift = down => setQteSeq(v => v && v.variant === 'shift' ? { ...v, shiftDown: down } : v);
     st.seqKey = key => {
@@ -626,9 +627,9 @@ export function BossChase(props) {
           }
           else { q.o.state = 'past'; st.jump = { t: 0, len: .5 * q.keys.length, hgt: (height < 90 ? 30 : 34) + 10, hops: q.keys.length }; sfx('jump'); }
         }
-      } else if (/[\u0E00-\u0E7F]/.test(key)) { sfx('wrong'); setQteSeq(v => v && { ...v, bad: (v.bad || 0) + 1 }); }
+      } else if (/[\u0E00-\u0E7F]/.test(key)) { sfx('qteWrong'); setQteSeq(v => v && { ...v, bad: (v.bad || 0) + 1 }); }
     };
-    function showCue(text, isGo) { setCue({ text, go: isGo }); sfx(isGo ? 'go' : 'count'); }
+    function showCue(text, isGo, quiet) { setCue({ text, go: isGo }); if (!quiet) sfx(isGo ? 'go' : 'count'); }
 
     let last = performance.now();
     function loop(t) {
@@ -755,7 +756,7 @@ export function BossChase(props) {
             o.x -= (st.vel + 110) * dt;
             if (o.x - st.heroX < 18 && st.phase === 'chase' && !st.qte) {
               o.state = 'grab'; o.x = st.heroX; o.t = 0; sfx('root');
-              st.qte = { kind: 'mash', o, t: 0, len: MASH_SECS, n: 0, wall0: Date.now() }; paintPips(0); setQteView('on'); sfx('qte');
+              st.qte = { kind: 'mash', o, t: 0, len: MASH_SECS, n: 0, wall0: Date.now() }; paintPips(0); setQteView('on'); sfx('qte'); bossMood({ tangle: true });
             }
           } else if (o.state === 'grab' || o.state === 'hold') o.x = st.heroX;
           if (o.state === 'hold' && o.t > 1) { o.state = 'sink'; o.t = 0; }
@@ -820,7 +821,7 @@ export function BossChase(props) {
           st.heroY = (bh * .75 + jumpH + F) * Math.sin(k * Math.PI * .5) * (k < .7 ? 1 : 1 - (k - .7) * 1.3); }
         else if (!s.hit) {
           s.hit = true; s.x1 = st.heroX; st.flash = .15; st.squash = .6;
-          showCue('เหยียบ! ×' + st.mult, true); sfx('stomp'); setTimeout(() => sfx('combo', 2), 120);
+          showCue('เหยียบ! ×' + st.mult, true, true); sfx('stomp'); bossSection('stomp');   // the song answers with 4 bars of the village theme
           bubble(boss.taunts.stomped || 'อ๊าก!!', 900);
           for (let i = 0; i < 14; i++) st.parts.push({ x: st.bossX, y: ground - bh * .9 - F, vx: (Math.random() - .5) * 260,
             vy: -120 - Math.random() * 200, s: 3, c: Math.random() < .5 ? '#FFFFFF' : '#FFE08A', life: .4 + Math.random() * .3 });
@@ -963,7 +964,9 @@ export function BossChase(props) {
 
     // The boss talks first; the clock only starts at the first key, which the dialogue holds back.
     // after it talks, the boss dashes in and overtakes; typing opens after "พร้อม… เริ่ม!"
-    // the story song (src/data/bossThemes.js, if this stage has one) follows: intro → dash → p1 (→ p2 on rage) → ending
+    // the story song (SONGS in src/ui/orchestra.js) follows: intro → dash → p1 (→ p2 on rage, ↔ stomp) → ending;
+    // while the chase is on screen its sound effects are the orchestral ones, with this boss's own laugh
+    chaseMode(+((/stage(\d+)/.exec(boss.dir || '') || [])[1]) || 1);
     if (!live.current.startTime) { bossSection('intro'); say(boss.lines.intro, () => { st.phase = 'dash'; bossSection('dash'); }); }
     else { st.phase = 'ready'; st.bossX = wrapRef.current.clientWidth - boss.w / 2 - 12; bossSection('p1'); }
 
@@ -976,6 +979,7 @@ export function BossChase(props) {
       if (talkRef.current || st.block) { talkRef.current = null; p.onTalking && p.onTalking(false); }
       if (st.rage) p.onRage && p.onRage(false);
       if (st.boosted) p.onBoost && p.onBoost(1);
+      chaseMode(null); bossMood({ under: false, tangle: false });
     };
   }, [boss]);
 

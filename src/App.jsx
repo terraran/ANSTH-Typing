@@ -245,7 +245,7 @@ export function ThaiTypingApp() {
   })();
   const musicId = (screen==='countdown' || screen==='mp-lobby' || screen==='host-dashboard' || (screen==='practice' && roomCode)) ? 'race'
     : screen==='practice' ? (activeTest ? 'race' : activeHw ? 'calm' : !isBossLesson ? 'calm'
-        // the boss chase (timed step) plays the stage's orchestral story song when it has one (src/data/bossThemes.js)
+        // the boss chase (timed step) plays the stage's orchestral story song when it has one (SONGS in src/ui/orchestra.js)
         : timeLimit>0 && bossFor(lesson.stage) && hasBossTheme(lesson.stage) ? 'theme' + lesson.stage : 'boss' + lesson.stage)
     : screen==='results' ? null
     : 'home';

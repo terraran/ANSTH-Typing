@@ -29,6 +29,7 @@
 // Everything moves in requestAnimationFrame on refs, so typing never re-renders the page for the animation.
 // ═══════════════════════════════════════════════════════════════
 import { lessonStars } from '../engine/scoring';
+import { mapKey } from '../engine/keymap';
 import { PX_FONT, TH_FONT } from './pixel';
 import { sfx, beatGrid, audioTime } from './sound';
 
@@ -63,7 +64,8 @@ const FIRE = [['....rr....', '..rroorr..', '.rooyyoor.', 'rooyyyyoor', 'rooyyyyo
               ['...rr.....', '.rroorr.r.', 'rooyyoorr.', 'rooyyyyoor', 'rooyyyyoor', 'rooyyoorr.', '.rroorr.r.', '...rr.....']];
 const FIRE_PAL = { r: '#d4361c', o: '#ff8a1f', y: '#ffe36b' };
 // rhythm track: note speed (px/s) · centre of the ring (px in the lane) · judgement windows (s), kind to young hands
-const RT_SPEED = 300, RT_HIT = 93, RT_PERFECT = .08, RT_OK = .16, RT_LATE = .22;
+const RT_SPEED = 300, RT_HIT = 93, RT_PERFECT = .08, RT_OK = .2, RT_LATE = .3;   // (Nov 2026: eased — young players never made it)
+const RT_MISSES = 2;                                    // crows a player may miss and still pass
 const CHASE_H = 132;
 const MASH_NEED = 5, MASH_SECS = 2.2;
 const DIVE_SECS = 2.4, DIVE_HIT = 1.2, DIVE_SAFE = 1.5;   // window · the tail reaches the hero · it has passed
@@ -106,6 +108,16 @@ const CSS = `
 .bc-why{position:absolute;inset:-2px 0;display:none;align-items:center;justify-content:center;font-size:12px;font-weight:800;color:#fff;white-space:nowrap;z-index:2;
   text-shadow:0 1px 0 ${INK},1px 0 0 ${INK},-1px 0 0 ${INK},0 -1px 0 ${INK};pointer-events:none}
 .bc-why.on{display:flex}.bc-why.low{color:#FFD0C8}
+/* after a QTE: where to type next */
+.bc-ptr{position:fixed;z-index:50;pointer-events:none;display:none}
+.bc-ptr-ring{position:absolute;inset:-5px -4px;border:3px solid #FFC23D;border-radius:7px;box-shadow:0 0 14px 5px rgba(255,194,61,.75);
+  animation:bcPtrRing .45s ease-in-out infinite alternate}
+@keyframes bcPtrRing{to{box-shadow:0 0 4px 1px rgba(255,194,61,.5);border-color:#FFE08A}}
+.bc-ptr-tag{position:absolute;left:50%;bottom:calc(100% + 6px);transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;
+  animation:bcPtrBob .4s ease-in-out infinite alternate}
+@keyframes bcPtrBob{to{transform:translate(-50%,-6px)}}
+.bc-ptr-tag b{background:#FFC23D;border:2px solid ${INK};color:${INK};font-size:14px;padding:0 9px;white-space:nowrap;font-weight:800;box-shadow:0 2px 0 ${INK}}
+.bc-ptr-tag i{font-style:normal;color:#FFC23D;font-size:22px;line-height:.9;text-shadow:0 2px 0 ${INK},1px 0 0 ${INK},-1px 0 0 ${INK}}
 .bc-acc.warn{animation:bcAccPulse .9s ease-in-out infinite}
 @keyframes bcAccPulse{50%{background:#C0392B;color:#fff;transform:scale(1.08)}}
 .bc-rage{position:absolute;inset:0;pointer-events:none;opacity:0;transition:opacity .4s;
@@ -316,10 +328,11 @@ export function BossChase(props) {
       if (!st || !st.qte || e.repeat) return;
       const k = st.qte.kind;
       if ((k === 'rock' || k === 'mash') && e.key === ' ') { e.preventDefault(); k === 'rock' ? st.dodge() : st.mash(); }
-      else if (k === 'crows' && e.key.length === 1) { e.preventDefault(); st.press(e.key); }
+      // letters: the key's place on the Kedmanee keyboard, like typing (the English layout works too)
+      else if (k === 'crows' && mapKey(e)) { e.preventDefault(); st.press(mapKey(e)); }
       else if (k === 'dive' && e.key === ' ') { e.preventDefault(); st.diveDown(); }
       else if (k === 'seq' && e.key === 'Shift') st.seqShift(true);
-      else if (k === 'seq' && e.key.length === 1) { e.preventDefault(); st.seqKey(e.key); }
+      else if (k === 'seq' && mapKey(e)) { e.preventDefault(); st.seqKey(mapKey(e)); }
     };
     const onUp = e => {
       const st = S.current; if (!st || !st.qte) return;
@@ -432,6 +445,14 @@ export function BossChase(props) {
       }
     }
     const done = () => { if (!st.finished) { st.finished = true; live.current.onDone && live.current.onDone(); } };
+    // the "type here next" pointer, on document.body (fixed) like the dialogue: the text sits in another part of the page
+    const ptr = document.createElement('div'); ptr.className = 'bc-ptr';
+    ptr.innerHTML = '<div class="bc-ptr-ring"></div><div class="bc-ptr-tag"><b>พิมพ์ต่อตรงนี้</b><i>▼</i></div>';
+    document.body.appendChild(ptr);
+    st.ptrFrom = 0; st.ptrUntil = 0; st.ptrPos = -1;
+    function pointNext() {                              // after the QTE card has faded
+      st.ptrFrom = st.now + (qteKind === 'crows' ? 1 : .65); st.ptrUntil = st.ptrFrom + 2.2; st.ptrPos = live.current.pos;
+    }
 
     // ── rock QTE: Space within the window = jump; the clock stands still for the whole window ──
     const QTE_AT = 230, QTE_SECS = 1.3;               // px from the hero when it starts · window length
@@ -445,6 +466,7 @@ export function BossChase(props) {
       st.owe += Date.now() - q.wall0; st.oweStart = live.current.startTime;
       live.current.onPause && live.current.onPause(Date.now() - q.wall0);   // App moves startTime on by the window
       setQteView(result); clearTimeout(qteTimer); qteTimer = setTimeout(() => setQteView(null), qteKind === 'crows' ? 1000 : 650);
+      if (st.phase === 'chase') pointNext();
     }
     const jump = () => { st.jump = { t: 0, len: .55, hgt: (height < 90 ? 30 : 34) + 6 }; sfx('jump'); };
     st.dodge = () => {                                 // rock: Space in time = jump
@@ -476,7 +498,7 @@ export function BossChase(props) {
       let beat = grid ? grid.beat : .5, first = grid ? grid.next : t + .1;
       while (beat < .3) beat *= 2;                     // never closer than ~0.3 s (very fast songs: every other beat)
       while (first < t + beat * 2) first += beat;      // the first crow lands 2+ beats from now
-      const pattern = st.rage ? [0, 1, 1.5, 2, 3] : [0, 1, 2, 3];   // rage: 5 crows with a quick double
+      const pattern = st.rage ? [0, 1, 2, 3, 4] : [0, 1, 2, 3];      // rage: 5 crows, still one per beat
       const keys = boss.keys || [' '];
       let last = '';
       clearNotes();
@@ -506,14 +528,17 @@ export function BossChase(props) {
     st.press = key => {
       const q = st.qte; if (!q || q.kind !== 'crows') return;
       const t = q.clock();
-      const nt = q.notes.filter(n => n.state === 'live').sort((a, b) => Math.abs(a.at - t) - Math.abs(b.at - t))[0];
-      if (!nt || Math.abs(nt.at - t) > RT_LATE) return;                 // nothing near the ring: ignored (no penalty)
+      // crows inside the window, earliest first: a late press is meant for the earlier crow, not the next one
+      // (in rage the crows are only ~0.38 s apart); a key that matches one of them counts for that one
+      const near = q.notes.filter(n => n.state === 'live' && Math.abs(n.at - t) <= RT_LATE).sort((a, b) => a.at - b.at);
+      if (!near.length) return;                                         // nothing near the ring: ignored (no penalty)
+      const nt = near.find(n => n.key === key) || near[0];
       const d = Math.abs(nt.at - t);
       if (key !== nt.key) return judgeNote(nt, 'ผิดแป้น', false);
       judgeNote(nt, d <= RT_PERFECT ? 'เยี่ยม!' : d <= RT_OK ? 'ดี!' : (nt.at > t ? 'เร็วไปนิด' : 'ช้าไปนิด'), true);
     };
     function finishCrows() {
-      const q = st.qte, pass = q.misses <= 1;
+      const q = st.qte, pass = q.misses <= RT_MISSES;
       setRtTitle({ text: pass ? 'ไล่อีกาสำเร็จ!' : 'โดนรุมจิก!', cls: pass ? 'ok' : 'miss' });
       endQte(pass ? 'ok' : 'miss');
       const mine = q.notes.map(n => n.crow);
@@ -809,6 +834,19 @@ export function BossChase(props) {
         }
       }
       if (st.flash > 0) st.flash = Math.max(0, st.flash - dt);
+      // "type here next": shown a moment after a QTE, gone after ~2 s or as soon as a letter is typed
+      if (st.ptrUntil && (p.pos !== st.ptrPos || st.phase !== 'chase' || st.qte)) st.ptrUntil = 0;
+      let ptrOn = false;
+      if (st.ptrUntil > st.now && st.now >= st.ptrFrom) {
+        const box = p.overlay && p.overlay.current;
+        const el = box && [...box.querySelectorAll('[data-i="' + p.pos + '"]')].find(n => !n.closest('[aria-hidden="true"]'));
+        const r = el && el.getBoundingClientRect();
+        if (r && r.width) {
+          ptrOn = true;
+          ptr.style.left = r.left + 'px'; ptr.style.top = r.top + 'px'; ptr.style.width = r.width + 'px'; ptr.style.height = r.height + 'px';
+        }
+      }
+      if (ptr.style.display !== (ptrOn ? 'block' : 'none')) ptr.style.display = ptrOn ? 'block' : 'none';
 
       // endings
       if (st.phase === 'end' && st.hold) { st.endAt = st.now; setHero('idle'); }
@@ -930,7 +968,7 @@ export function BossChase(props) {
 
     return () => {
       alive = false; cancelAnimationFrame(raf);
-      lay.forEach(({ el }) => el.remove()); bossCv.remove();
+      lay.forEach(({ el }) => el.remove()); bossCv.remove(); ptr.remove();
       st.bubbles.forEach(b => b.el.remove());
       const p = live.current;
       clearTimeout(qteTimer); clearNotes();

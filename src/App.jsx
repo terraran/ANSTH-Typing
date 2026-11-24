@@ -32,12 +32,17 @@ import { FINGERS_ID, GuideLayer, HelpButton, TOUR_ID, TourLayer, guideInit, isSe
 import { FingerLayer } from './ui/FingerIntro';
 import { music, setRage, sfx, hasBossTheme } from './ui/sound';
 import { SoundButton } from './ui/SoundButton';
+import { ShopScreen } from './screens/ShopScreen';
+import { GemNotices, WalletPill } from './ui/gems';
+import { demoWallet } from './engine/gems';
 
 // BR anti-AFK: after the zone starts moving, no correct key for AFK_FIRST_MS → lose 1 life,
 // then 1 more every AFK_REPEAT_MS. Spam-penalty freezes and connection drops don't count.
 const AFK_FIRST_MS = 15000, AFK_REPEAT_MS = 5000, AFK_WARN_MS = 8000;
 
 const { useCallback, useEffect, useMemo, useRef, useState } = React;
+// Dress-up shop switch (src/edition.js): 'demo' = stand-in wallet on this device, for local testing only
+const SHOP_ON = !!EDITION.shop, SHOP_DEMO = EDITION.shop === 'demo';
 
 export function ThaiTypingApp() {
   if (PERF_ON) perf.renders++;
@@ -46,6 +51,11 @@ export function ThaiTypingApp() {
   const [studentName,   setStudentName]   = useState('');
   const [displayName,   setDisplayName]   = useState('');
   const [saveStatus,    setSaveStatus]    = useState('idle'); // idle|saving|saved|error
+  // Dress-up shop (EDITION.shop): wallet = { gems, owned } once loaded · loot = gems earned this round (results screen)
+  const [wallet,        setWallet]        = useState(null);
+  const [gemNotices,    setGemNotices]    = useState([]);
+  const [loot,          setLoot]          = useState(null);
+  const [walletBump,    setWalletBump]    = useState(0);
   const [saveError,     setSaveError]     = useState('');
   const [lesson,        setLesson]        = useState(null);
   const [exercise,      setExercise]      = useState(null);
@@ -711,6 +721,7 @@ export function ThaiTypingApp() {
         const rush = stepState(progress, lesson, idx).rush;                 // played as a ⚔️ Rush?
         const clears = idx === lesson.exercises.length - 1 && stars >= RUSH_STARS && !progress.cleared[lesson.id];
         setCurResult({ stars, prevStars, wpm: Math.round(wpm * 10) / 10, target, net, accuracy: acc, rush, cleared: clears });
+        if (SHOP_DEMO) setLoot(demoWallet.session({ lesson, exercise, stars, rushClear: clears }));
         if (stars > prevStars || clears) {
           const np = { ...progress, stars: { ...progress.stars, [k]: Math.max(stars, prevStars) },
             cleared: clears ? { ...progress.cleared, [lesson.id]: true } : progress.cleared };
@@ -757,7 +768,7 @@ export function ThaiTypingApp() {
         score:scoreRef.current, maxScore, cpm:finalKpm, accuracy:finalAcc,
         errors, totalChars:pos, duration:Math.min(duration,TEST_SECS),
       })
-        .then(d => { setSaveStatus('saved'); setTestBoard(d); setWeekly(d); setWeeklyStatus('ok'); })
+        .then(d => { setSaveStatus('saved'); setTestBoard(d); setWeekly(d); setWeeklyStatus('ok'); if (d?.gems) setLoot(d.gems); })
         .catch(err => { setSaveStatus('error'); setSaveError(backend.describeError(err)); });
       return;
     }
@@ -772,9 +783,33 @@ export function ThaiTypingApp() {
       duration,
       score: rcRef.current ? 0 : scoreRef.current,
     })
-      .then(d => setSaveStatus(d.ok ? 'saved' : 'error'))
+      .then(d => { setSaveStatus(d.ok ? 'saved' : 'error'); if (d?.gems) setLoot(d.gems); })
       .catch(()  => setSaveStatus('error'));
   }, [screen]);
+  useEffect(() => { if (screen !== 'results') setLoot(null); }, [screen]);
+
+  // Dress-up shop: the wallet is loaded at sign-in (the server pays gems for earlier stars on the first call).
+  // A backend without Shop.gs answers with an error → no wallet → the old character screen stays.
+  useEffect(() => {
+    if (!SHOP_ON) return;
+    let alive = true;
+    const signed = studentName && backend.enabled && backend.getWallet && (auth.idToken || codeUser);
+    if (!SHOP_DEMO && !signed) { setWallet(null); return; }
+    (SHOP_DEMO ? demoWallet.getWallet({ progress: readLocalProgress() }) : backend.getWallet({ classCode, studentName }))
+      .then(w => { if (!alive) return; setWallet({ gems: w.gems || 0, owned: w.owned || [] }); if (w.notices?.length) setGemNotices(w.notices); })
+      .catch(() => { if (alive) setWallet(null); });
+    return () => { alive = false; };
+  }, [classCode, studentName]);
+  const buyItem = useCallback(async (item, price) => {
+    try {
+      const w = SHOP_DEMO ? await demoWallet.buyItem(item, price) : await backend.buyItem({ classCode, studentName, item });
+      setWallet({ gems: w.gems, owned: w.owned }); setWalletBump(n => n + 1);
+    } catch (err) { throw new Error(SHOP_DEMO ? err.message : backend.describeError(err)); }
+  }, [classCode, studentName]);
+  const lootLanded = useCallback(() => {
+    setWallet(w => w && loot ? { ...w, gems: loot.gems ?? w.gems + loot.earned } : w);
+    setWalletBump(n => n + 1);
+  }, [loot]);
 
   // Load practice high scores: from Sheets when signed in, else this device.
   useEffect(() => {
@@ -1074,7 +1109,7 @@ export function ThaiTypingApp() {
     setSaveStatus('saving');
     backend.saveMatch({classCode:ccRef.current,studentName:snRef.current,matchId,type:info.type,room:code,
       cpm,accuracy,chars:st.pos,...m})
-      .then(d=>setSaveStatus(d&&d.ok?'saved':'error'))
+      .then(d=>{ setSaveStatus(d&&d.ok?'saved':'error'); if(d?.gems) setLoot(d.gems); })
       .catch(()=>{ setSaveStatus('error'); matchSavedRef.current=''; });
   },[]);
 
@@ -1512,7 +1547,8 @@ export function ThaiTypingApp() {
   const watchBoard = screen==='host-dashboard' && !spectatingPlayer && !(roomType==='royale'&&brOver);   // watch screen fills the page
   const wideScreen = screen==='my-stats' || screen==='weekly' || screen==='character' || screen==='results' || watchBoard;
   // These screens stretch to the bottom of the window; the rest (typing, results, rooms…) keep their natural height.
-  const fillScreen = screen==='lessons' || screen==='my-stats' || screen==='weekly' || screen==='results' || watchBoard;
+  const shopScreen = screen==='character' && SHOP_ON && (!!wallet || !studentName);
+  const fillScreen = screen==='lessons' || screen==='my-stats' || screen==='weekly' || screen==='results' || watchBoard || shopScreen;
   return (
     <div style={{height:'100dvh',overflow:'hidden',fontFamily:TH_FONT,position:'relative',
       display:'flex',flexDirection:'column',alignItems:'center',justifyContent:soloTyping?'center':'flex-start',
@@ -1549,6 +1585,7 @@ export function ThaiTypingApp() {
             คีย์บอร์ดเควส</span>
         </button>
         <div style={{display:'flex',gap:8,alignItems:'center',flexWrap:'wrap'}}>
+          {wallet && <WalletPill gems={wallet.gems} bumpKey={walletBump} onClick={()=>!roomCode&&!raceRunning&&setScreen('character')}/>}
           <SoundButton/>
           <HelpButton page={helpPage} disabled={raceRunning}/>
           {screen!=='lessons'&&screen!=='spam'&&(
@@ -1596,9 +1633,15 @@ export function ThaiTypingApp() {
             }}
           />
         )}
-        {screen==='character' && window.CharKit && (
+        {screen==='character' && window.CharKit && (shopScreen ? (
+          <ShopScreen initial={character} wallet={wallet} signedIn={!!wallet}
+            onBuy={buyItem} onSave={saveCharacter} onBack={()=>setScreen('lessons')}/>
+        ) : (
           <CharKit.CreatorScreen initial={character} signedIn={!!studentName}
             onSave={saveCharacter} onBack={()=>setScreen('lessons')}/>
+        ))}
+        {screen==='lessons' && gemNotices.length>0 && (
+          <GemNotices notices={gemNotices} onDone={()=>{ setGemNotices(n=>n.slice(1)); setWalletBump(n=>n+1); }}/>
         )}
         {screen==='lessons' && (
           <LessonScreen onSelect={startExercise} progress={progress}
@@ -1901,6 +1944,7 @@ export function ThaiTypingApp() {
             curResult={!roomCode&&!activeTest&&!activeHw?curResult:null}
             nextStep={!roomCode&&!activeTest&&!activeHw?nextStepOf(lesson,exercise):null}
             hwResult={!roomCode&&activeHw?hwResult:null}
+            loot={loot} onLootLanded={lootLanded}
             onNext={()=>{ const n=nextStepOf(lesson,exercise); if(n) startExercise(n.lesson,n.exercise); }}
             myCfg={myCfg}
             sOffset={serverTimeOffset}

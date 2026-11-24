@@ -6,6 +6,7 @@ import { raceRunners } from '../race/Hud';
 import { stillWorld } from '../data/lanes';
 
 import { PxButton, Sprite, useShortScreen } from '../ui/pixel';
+import { GemLoot } from '../ui/gems';
 
 const { useEffect, useRef, useState } = React;
 
@@ -79,7 +80,7 @@ function BigStars({ n }) {
   );
 }
 
-export function ResultsScreen({ cpm, accuracy, errors, totalChars, lesson, saveStatus, saveError, studentName, ghostData, newRecord, roomCode, roomType, roomPlayers, myName, myCfg, bestCombo, score, maxScore, isTest, testBoard, prevBest, sOffset=0, brFinal, onDuelSettled, onRestart, onBack, curResult, nextStep, onNext, hwResult }) {
+export function ResultsScreen({ cpm, accuracy, errors, totalChars, lesson, saveStatus, saveError, studentName, ghostData, newRecord, roomCode, roomType, roomPlayers, myName, myCfg, bestCombo, score, maxScore, isTest, testBoard, prevBest, sOffset=0, brFinal, onDuelSettled, onRestart, onBack, curResult, nextStep, onNext, hwResult, loot, onLootLanded }) {
   const tf="'Noto Sans Thai Looped','Sarabun','Noto Sans Thai',sans-serif";
   const isDuel = roomType==='1v1' && !!roomCode;
   const short = useShortScreen();
@@ -145,6 +146,8 @@ export function ResultsScreen({ cpm, accuracy, errors, totalChars, lesson, saveS
           background:accuracy>=95?'#059669':accuracy>=85?'#2563EB':'#F59E0B',
           transition:'width 1s ease-out'}}/>
       </div>
+      {/* Dress-up shop: gems earned this round (the server's lines) — under the stage, where there is room */}
+      {loot && <div style={{marginTop:short?8:12}}><GemLoot loot={loot} onLanded={onLootLanded}/></div>}
         </div>
         <div className="px-scroll" style={{display:'flex',flexDirection:'column'}}>
           <div style={{margin:'auto 0',display:'flex',flexDirection:'column',gap:short?8:12,minHeight:0,maxHeight:'100%'}}>

@@ -20,6 +20,14 @@ export const saveProgress = ({ classCode, studentName, key, stars, cleared }) =>
 export const saveCharacter = (classCode, studentName, cfg) =>
   apiRequest('saveCharacter', { code: classCode, student: studentName, character: JSON.stringify(cfg) });
 
+// Dress-up shop (Apps Script Shop.gs). The server works out every gem itself.
+// → { gems, owned: ['hairColor:gold', …], notices: [{ kind: 'backpay', amount, stars, rush } | { kind: 'weekly', amount, place, room }] }
+//   (gems for the stars earned before the shop opened are paid on the first call)
+// saveSession / submitWeeklyTest / saveMatch replies then carry gems: { earned, lines: [{ kind, amount, … }], gems }
+export const getWallet = ({ classCode, studentName }) => apiRequest('getWallet', { code: classCode, student: studentName });
+// → { gems, owned } · throws NOT_ENOUGH | NOT_FOR_SALE | OWNED
+export const buyItem = ({ classCode, studentName, item }) => apiRequest('buyItem', { code: classCode, student: studentName, item });
+
 export const getStats = apiGetStudentStats;
 export const markTipsSeen = apiMarkTipsSeen;
 export const saveMatch = apiSaveMatch;

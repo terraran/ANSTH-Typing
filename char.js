@@ -78,6 +78,13 @@
     { id: 'blue',      name: 'น้ำเงิน', ramp: [[18, 26, 80], [30, 50, 132], [54, 92, 188], [92, 142, 230], [148, 194, 252]] },
     { id: 'green',     name: 'เขียว', ramp: [[14, 54, 40], [24, 92, 58], [46, 136, 80], [88, 182, 108], [152, 224, 152]] },
     { id: 'silver',    name: 'เทา', ramp: [[62, 64, 80], [104, 108, 126], [148, 152, 170], [194, 198, 214], [238, 240, 248]] },
+    // Shop items (shop: true): bought with gems — prices in src/data/shop.js. Never picked at random or offered free.
+    { id: 'mint',   name: 'มิ้นต์',       shop: true, ramp: [[16, 70, 66], [30, 120, 108], [64, 176, 152], [120, 220, 190], [190, 250, 228]] },
+    { id: 'sky',    name: 'ฟ้าใส',       shop: true, ramp: [[20, 70, 120], [40, 120, 190], [80, 170, 236], [140, 210, 250], [200, 238, 255]] },
+    { id: 'snow',   name: 'ขาวหิมะ',     shop: true, ramp: [[110, 120, 140], [160, 170, 190], [205, 212, 228], [236, 240, 248], [255, 255, 255]] },
+    { id: 'gold',   name: 'ทองคำ',       shop: true, ramp: [[110, 62, 8], [170, 110, 14], [222, 168, 30], [250, 214, 70], [255, 244, 160]] },
+    { id: 'lava',   name: 'แดงเพลิง',    shop: true, ramp: [[90, 10, 0], [160, 30, 0], [226, 80, 10], [250, 150, 30], [255, 220, 90]] },
+    { id: 'galaxy', name: 'ม่วงกาแล็กซี', shop: true, ramp: [[30, 10, 60], [70, 20, 120], [130, 50, 190], [190, 110, 240], [240, 190, 255]] },
   ];
   const SKIN_TONES = [
     { id: 'light',   name: 'ขาว',      ramp: [[66, 40, 34], [250, 214, 188]] },
@@ -94,8 +101,14 @@
     { id: 'blue',  name: 'ฟ้า',    ramp: null },
     { id: 'pink',  name: 'ชมพู',   ramp: [[188, 92, 136], [246, 166, 200]] },
   ];
-  const SCHOOL_SOCKS = SOCK_COLORS.slice();
-  const PUBLIC_SOCKS = [...SOCK_COLORS, { id: 'brown', name: 'น้ำตาล', ramp: [[70, 46, 30], [132, 96, 64]] }];   // goes with brown uniform trousers
+  const SHOP_SOCKS = [
+    { id: 'yellow', name: 'เหลือง',     shop: true, ramp: [[176, 130, 10], [255, 226, 90]] },
+    { id: 'red',    name: 'แดง',        shop: true, ramp: [[130, 24, 30], [236, 90, 84]] },
+    { id: 'purple', name: 'ม่วง',       shop: true, ramp: [[70, 40, 120], [170, 130, 230]] },
+    { id: 'lime',   name: 'เขียวมะนาว', shop: true, ramp: [[70, 130, 20], [190, 240, 90]] },
+  ];
+  const SCHOOL_SOCKS = [...SOCK_COLORS, ...SHOP_SOCKS];
+  const PUBLIC_SOCKS = [...SOCK_COLORS, { id: 'brown', name: 'น้ำตาล', ramp: [[70, 46, 30], [132, 96, 64]] }, ...SHOP_SOCKS];   // goes with brown uniform trousers
   const SHOE_COLORS = [
     { id: 'black', name: 'ดำ',    ramp: [[20, 20, 26], [128, 128, 140]] },
     { id: 'white', name: 'ขาว',   ramp: [[150, 152, 164], [252, 252, 254]] },
@@ -103,9 +116,15 @@
     { id: 'red',   name: 'แดง',   ramp: [[120, 24, 28], [250, 150, 140]] },
     { id: 'blue',  name: 'น้ำเงิน', ramp: [[28, 48, 120], [150, 190, 250]] },
     { id: 'green', name: 'เขียว', ramp: null },
+    { id: 'orange', name: 'ส้ม',       shop: true, ramp: [[140, 60, 10], [255, 170, 80]] },
+    { id: 'purple', name: 'ม่วง',      shop: true, ramp: [[60, 30, 110], [190, 150, 250]] },
+    { id: 'pink',   name: 'ชมพู',      shop: true, ramp: [[150, 40, 90], [255, 170, 210]] },
+    { id: 'neon',   name: 'เขียวนีออน', shop: true, ramp: [[30, 120, 20], [180, 255, 90]] },
+    { id: 'gold',   name: 'ทองคำ',     shop: true, ramp: [[120, 80, 10], [255, 226, 100]] },
   ];
   const OPTIONS = { body: BODIES, hair: HAIRSTYLES, hairColor: HAIR_COLORS, skin: SKIN_TONES, socks: SCHOOL_SOCKS, shoes: SHOE_COLORS };
   const byId = (list, id) => list.find(o => o.id === id);
+  const free = list => list.filter(o => !o.shop);      // what anyone may pick without buying
 
   // Which edition's outfits to offer: 'school' (default) or 'public'. Call once at start-up, before any character is drawn.
   function useOutfits(edition) {
@@ -133,7 +152,7 @@
     return out;
   }
   function randomize(body) {
-    const pick = l => l[Math.floor(Math.random() * l.length)].id;
+    const pick = l => { l = free(l); return l[Math.floor(Math.random() * l.length)].id; };
     return { body: body || pick(BODIES), hair: pick(HAIRSTYLES), hairColor: pick(HAIR_COLORS),
       skin: pick(SKIN_TONES), socks: pick(OPTIONS.socks), shoes: pick(SHOE_COLORS) };
   }
@@ -156,6 +175,7 @@
   function fromName(name) {
     let x = hashStr(name || 'player') || 1;
     const pick = list => {
+      list = free(list);                 // shop colours left out: the same name keeps its old look
       const v = list[x % list.length];
       x = Math.imul(x ^ (x >>> 13), 0x5bd1e995) >>> 0;
       x = (x ^ (x >>> 15)) >>> 0;
@@ -1045,7 +1065,7 @@
   }
 
   function PickerRow({ p, cfg, active, onStep, onFocus }) {
-    const list = p.list, i = Math.max(0, list.findIndex(o => o.id === cfg[p.key])), o = list[i];
+    const list = free(p.list), i = Math.max(0, list.findIndex(o => o.id === cfg[p.key])), o = list[i] || p.list.find(o => o.id === cfg[p.key]);
     let thumb;
     if (p.key === 'hair') thumb = h(CharCanvas, { config: cfg, crop: HEAD, scale: 1.5, still: true, style: { width: 51, height: 45 } });
     else if (p.key === 'body' && o.swatch) thumb = h('span', { style: { width: 34, height: 34, flex: 'none',   // white shirt over the trouser/skirt colour
@@ -1091,7 +1111,7 @@
     }); };
     // One step through a category, wrapping around at both ends.
     const step = (k, dir) => {
-      const list = OPTIONS[k];
+      const list = free(OPTIONS[k]);
       const i = Math.max(0, list.findIndex(o => o.id === cfg[k]));
       const v = list[(i + dir + list.length) % list.length].id;
       if (k === 'body') setBody(v);
@@ -1167,6 +1187,6 @@
     OPTIONS, useOutfits, defaults, sanitize, randomize, loadLocal, saveLocal,
     load, buildSprite, drawFrame, CharCanvas, Avatar, CreatorScreen,
     fromName, fromPlayer, toWire, grayOf, RaceTrack, ResultStage,
-    CROP: { FULL, HEAD },
+    CROP: { FULL, HEAD }, free,
   };
 })();

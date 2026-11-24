@@ -86,3 +86,47 @@
 /* "Play me next" — the next door / step bobs gently (2-frame, pixel style) */
 @keyframes pxBob{0%,100%{transform:translateY(0)}50%{transform:translateY(-4px)}}
 .px-bob{animation:pxBob 1s steps(2,jump-none) infinite}
+/* ── Dress-up shop (src/screens/ShopScreen.jsx) + gems 💎 ── */
+.gem-s{zoom:.42;vertical-align:middle}
+.gem-m{zoom:.6}
+.wallet{display:inline-flex;align-items:center;gap:6px;background:#3B2416;color:#BDF3FF;border:3px solid #1E120A;padding:0 12px 0 4px;
+  min-height:var(--hb,40px);font-family:'Press Start 2P',monospace;font-size:14px;box-shadow:inset 0 -3px 0 rgba(0,0,0,.35);cursor:pointer}
+.wallet.bump{animation:gemBump .5s}
+@keyframes gemBump{30%{transform:scale(1.18)}}
+.gem-fly{position:fixed;z-index:60;pointer-events:none;animation:gemFly .9s cubic-bezier(.5,0,.8,.4) forwards}
+@keyframes gemFly{to{transform:translate(var(--dx),var(--dy)) scale(.5);opacity:.2}}
+.shop{display:flex;gap:16px;min-height:0}
+.shop-left{flex:0 0 280px;display:flex;flex-direction:column;gap:8px;min-height:0}
+.shop-lane{border:3px solid #3B2416;flex:1 1 auto;min-height:0;display:flex;align-items:flex-end;justify-content:center;padding:6px 0;position:relative;overflow:hidden}
+.shop-lane .tag{position:absolute;top:6px;left:6px;right:6px;background:rgba(255,249,230,.94);border:2px solid #3B2416;font-size:12.5px;font-weight:700;padding:2px 8px;text-align:center;color:#3B2416}
+.shop-pill{flex:1;min-height:36px;border:3px solid #3B2416;background:#EFE2BF;font-family:inherit;font-weight:700;font-size:13px;cursor:pointer;color:#3B2416}
+.shop-pill.on{background:#CFEBC0}
+.shop-right{flex:1 1 auto;min-width:0;display:flex;flex-direction:column;gap:8px;min-height:0}
+.shop-tabs{display:flex;gap:4px;flex-wrap:wrap;padding-top:8px}
+.shop-tab{border:3px solid #3B2416;background:#EFE2BF;padding:3px 12px;font-family:inherit;font-weight:800;font-size:14px;cursor:pointer;color:#3B2416;position:relative}
+.shop-tab.on{background:#FFE9A8;box-shadow:inset 0 -4px 0 #E8A317}
+.shop-tab .dot{position:absolute;top:-13px;right:-8px;background:#E2463B;color:#fff;font-size:10px;border:2px solid #3B2416;padding:0 4px;font-weight:800;line-height:1.4}
+.shop-chip{border:2px solid #3B2416;background:#fff;padding:1px 10px;cursor:pointer;font-family:inherit;font-weight:700;font-size:12.5px;color:#3B2416}
+.shop-chip.on{background:#3B2416;color:#FFE08A}
+.shop-grid{flex:1 1 auto;min-height:0;display:grid;gap:8px;overflow:hidden}
+.shop-card{border:3px solid #3B2416;background:#FFF9E6;display:flex;flex-direction:column;align-items:center;justify-content:space-between;padding:6px 4px 4px;cursor:pointer;position:relative;min-width:0;min-height:0;font-family:inherit;color:#3B2416}
+.shop-card:hover{background:#FFF1C6}
+.shop-card:focus-visible{outline:3px solid #FFC23D;outline-offset:2px}
+.shop-card .th{flex:1;display:flex;align-items:center;justify-content:center;min-height:0;overflow:hidden}
+.shop-card .nm{font-size:13px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+.shop-card .pr{display:flex;align-items:center;gap:2px;font-family:'Press Start 2P',monospace;font-size:11px;min-height:22px;color:#1F5F7A}
+.shop-card .pr.poor{color:#B4532A}
+.shop-card .own{font-size:12px;font-weight:800;color:#6A4A30;min-height:22px;display:flex;align-items:center}
+.shop-card.eq{border-color:#2E7D32;box-shadow:inset 0 0 0 3px #7CC46A}
+.shop-card.eq .own{color:#2E7D32}
+.shop-card.try{background:#FFE9A8;box-shadow:inset 0 0 0 3px #E8A317}
+.shop-card.soon{filter:grayscale(1);opacity:.55;cursor:default}
+.shop-card .new{position:absolute;top:-3px;left:-3px;background:#E2463B;color:#fff;font-size:10px;font-weight:800;padding:1px 5px;border:2px solid #3B2416}
+.shop-veil{position:fixed;inset:0;z-index:50;background:rgba(10,20,30,.55);display:grid;place-items:center}
+.gem-loot{border:3px solid #3B2416;background:#E4F6FA;padding:4px 10px;display:flex;flex-direction:column;gap:2px;text-align:left}
+.gem-loot .ln{display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:14px;font-weight:700;color:#3B2416}
+.gem-loot .ln span:last-child{font-family:'Press Start 2P',monospace;font-size:11px;color:#1F5F7A;white-space:nowrap}
+.gem-loot .note{font-size:13px;font-weight:700;color:#8C4A1E;background:#FCE3C7;border:2px dashed #C9773A;padding:4px 8px}
+.gem-loot .tot{border-top:3px solid #3B2416;padding-top:4px;display:flex;justify-content:space-between;align-items:center;font-size:15px;font-weight:800;color:#3B2416}
+.gem-loot .tot b{font-family:'Press Start 2P',monospace;font-size:15px;color:#1F5F7A;display:flex;align-items:center;gap:4px}
+@media (max-height:700px){.shop-left{flex-basis:250px}.shop-tab{padding:1px 10px;font-size:13px}}

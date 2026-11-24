@@ -12,6 +12,9 @@ const SCHOOL = {
   homework: true,      // การบ้าน button + list
   weekly: true,        // ภารกิจประจำสัปดาห์ (weekly test board)
   saveMatch: true,     // 1v1 / Battle Royale results → Matches sheet
+  // Dress-up shop + gems: false = old character screen · true = shop (needs Apps Script Shop.gs) ·
+  // 'demo' = shop with a stand-in wallet on this device (local testing only — never put on the site)
+  shop: false,
   outfits: 'school',   // character outfits: 'school' = school uniforms + polos, 'public' = government-school uniforms + polos
   // Wording that differs
   text: {

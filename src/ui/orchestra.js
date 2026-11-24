@@ -7,6 +7,8 @@
 //     intro → (lurk) → dash → p1 (chase) → p2 (rage, the boss's own song) → win / escape / lost; stomp = 4 bars of the
 //     village theme after the hero stomps the boss, then back to where the song was (`back`)
 //   makeOrchestra(ctx, out)         the hall for a song: voices → reverb → glue compressor → `out` (the music bus)
+//   MAIN_SONGS.home / race / calm   the rest of the game's music (one looping section 'main')
+//   FAR                             boss lesson steps 1–2: that boss's chase song from far away (slower, setLowpass, setLevel)
 //   setUnderwater(on)               muffle the song (stage 4, the hero diving under the tail)
 //   playChaseSfx(ctx, bus, stage, name, arg)   one chase sound effect into `bus` (the sfx bus); false if it has none
 // One event = one sound: the music never plays event sounds (stomp, splash, rumble …) — those are the sound effects.
@@ -1677,6 +1679,64 @@ B9.stomp = { bars: 4, back: true, name: '👟 เหยียบบอส! — �
   } };
 
 
+// ═══════════════ the rest of the game's music (replacing the 8-bit songs in src/data/music.js) ═══════════════
+// HOME  = the village theme, warm and relaxed (title, home, character) · RACE = a new upbeat race song (1v1, Battle Royale,
+// countdown, weekly test) · CALM = soft harp + strings, no tune to follow (practice, homework) ·
+// boss lesson steps 1–2 = that boss's chase song heard from far away (slower, muffled, quieter) — the boss is waiting ahead.
+const shaker = (t, v) => noise(t, 0.05, { v, hp: 6000, lp: 12000, pan: 0.35 });
+const tamb = (t, v) => { noise(t, 0.12, { v, hp: 5000, lp: 12000, pan: -0.35 }); tone(t, 5200, 0.06, { v: v * 0.3, a: 0.002, pan: -0.35 }); };
+const VIL_B = ['F5 4 A5 2 C6 2 A5 4 F5 4', 'E5 4 G5 2 C6 2 G5 8', 'D5 4 F5 2 A5 2 G5 4 F5 2 E5 2', 'D5 4 E5 2 F5 2 G5 8'];
+const homeA = line(VILLAGE), homeB = line(VIL_B), homeCounter = line(['G4 8 E4 8', 'D4 8 B3 8', 'C4 8 E4 8', 'E4 8 C4 8']);
+const HOME_CH = ['C', 'G', 'Am', 'C', 'F', 'C', 'Dm', 'G'];
+const OTHER = {
+  home: { bpm: 92, bars: 16, loop: true, name: '🏠 หน้าหลัก — ทำนองหมู่บ้าน', chords: [...HOME_CH, ...HOME_CH],
+    text: 'ทำนองหมู่บ้าน (ทำนองฝั่งเราที่กลับมาตอนชนะบอสทุกด่าน) แบบสบาย ๆ อบอุ่น: รอบแรกฟลูตเล่นทำนอง พิณดีด ดีดสายเบส เครื่องสายรองนุ่ม ๆ · รอบสองไวโอลินรับทำนอง คลาริเน็ตเล่นสวน ฮอร์นอุ่น ๆ กลอคเคนสปีลวิบวับ · เคาะเบา ๆ ไม่กวนเวลาเลือกบท',
+    play(b, s, t, sd) {
+      const c = this.chords[b], k = chord(c), m = tri(c), bar = 16 * sd, A = b < 8, bb = b % 8, half = bb < 4;
+      if (s === 0) { cello(t, hz(k.bass), bar * 0.95, 0.06, { a: 0.1, r: 0.4 }); m.forEach(n => strings(t, hz(n), bar, 0.022, { a: 0.4, r: 0.6, voices: 2, pan: -0.1 })); }
+      if (s % 4 === 0) pizz(t, hz(k.bass + (s === 8 ? 7 : 0)), 0.09, 0.3);
+      if (s % 2 === 0) harpP(t, hz(([m[0], m[1], m[2], m[1]])[(s / 2) % 4] + 12), 0.04, -0.35, 1);
+      if (s % 2 === 1) shaker(t, 0.012); if (s === 4 || s === 12) tamb(t, 0.02); if (s === 0) bigDrum(t, 0.06, { low: 1.1 });
+      const mel = (half ? homeA : homeB).get((bb % 4) * 16 + s) || [];
+      mel.forEach(n => { const d = n.len * sd * 0.95;
+        if (A) flute(t, hz(n.m), d, 0.12);
+        else { vln(t, hz(n.m), d, 0.06, { a: 0.03, r: 0.3 }); vln(t, hz(n.m + 12), d, 0.025, { a: 0.03, r: 0.3, voices: 2 }); if (!half) horns(t, hz(n.m - 12), d, 0.035, { a: 0.05, open: 3 }); } });
+      if (!A && half) (homeCounter.get((bb % 4) * 16 + s) || []).forEach(n => clarinet2(t, hz(n.m), n.len * sd * 0.9, 0.05));
+      if (!A && s === 10 && bb % 2 === 1) glock(t, hz(m[2] + 24), 0.025, 0.5, 1);
+    } },
+  race: { bpm: 150, bars: 16, loop: true, name: '⚔️ แข่ง — เพลงแข่งใหม่', chords: ['Am', 'F', 'C', 'G', 'Am', 'F', 'G', 'E', 'Am', 'F', 'C', 'G', 'Am', 'F', 'G', 'E'],
+    text: 'เพลงแข่งแต่งใหม่ เร้าใจแต่ไม่ดุแบบบอส: เชลโลรัวโน้ตถี่ กลองใหญ่ 3+3+2 สแนร์ดัน · รอบแรกทองเหลืองเป่าทำนองแข่ง (ทำนองไต่ขึ้นเหมือนเร่งความเร็ว) · รอบสองไวโอลินรับทำนองเสียงสูง ฮอร์นเล่นสวน ฉาบทุก 4 ห้อง',
+    play(b, s, t, sd, first) {
+      const c = this.chords[b], k = chord(c), bb = b % 8, B = b >= 8;
+      if (b === 0 && s === 0 && first) { crash(t, 0.14); timpani(t, hz(45), 0.4, 1); }
+      battle(s, t, sd, k.bass, hz, 0.85);
+      if (s === 0) { choir(t, wide(c), 16 * sd, 0.08, { vowel: 'ah', a: 0.2 }); if (bb % 4 === 0) crash(t, 0.1); }
+      (raceT.get(bb * 16 + s) || []).forEach(n => { const d = n.len * sd * 0.88;
+        if (!B) { horns(t, hz(n.m - 12), d, 0.075, { a: 0.01 }); bones(t, hz(n.m - 24), d, 0.045, { a: 0.01 }); vln(t, hz(n.m), d, 0.03, { a: 0.01, r: 0.1, voices: 2 }); }
+        else { vln(t, hz(n.m), d, 0.07, { a: 0.01, r: 0.12 }); vln(t, hz(n.m + 12), d, 0.035, { a: 0.01, r: 0.12, voices: 2 }); } });
+      if (B) (raceC.get(bb * 16 + s) || []).forEach(n => horns(t, hz(n.m - 12), n.len * sd * 0.9, 0.05, { a: 0.05 }));
+      if (bb === 7 && s === 0) swell(t, 16 * sd, 0.1);
+    } },
+  calm: { bpm: 70, bars: 8, loop: true, name: '📖 ฝึกพิมพ์ — เบา ๆ ไม่กวนสมาธิ', chords: ['F', 'Em', 'Dm', 'C', 'A#', 'Am', 'Gm', 'C'],
+    text: 'พิณดีดคอร์ดไล่ขึ้นลงช้า ๆ เครื่องสายรองนุ่ม ๆ เชลโลโน้ตยาว กลอคเคนสปีลวิบวับทุกสองห้อง — ไม่มีทำนองเด่นให้ฟังตาม ไม่มีกลอง เพื่อให้นักเรียนสนใจการพิมพ์',
+    play(b, s, t, sd) {
+      const c = this.chords[b], k = chord(c), m = tri(c), bar = 16 * sd, seven = m[0] + (c.endsWith('m') ? 10 : 11);
+      if (s === 0) { cello(t, hz(k.bass), bar * 0.98, 0.045, { a: 0.6, r: 1, vib: false }); [...m, seven].forEach(n => strings(t, hz(n), bar, 0.015, { a: 0.8, r: 1, voices: 2, pan: -0.1 })); }
+      if (s % 2 === 0) { const arp = [m[0], m[1], m[2], seven, m[0] + 12, seven, m[2], m[1]]; harpP(t, hz(arp[(s / 2) % 8] + 12), 0.035, (s % 4 ? 0.3 : -0.3), 1.6); }
+      if (s === 12 && b % 2 === 1) glock(t, hz(m[2] + 24), 0.018, 0.5, 1.5);
+    } },
+};
+const RACE_T = ['A4 2 C5 2 E5 2 A5 2 G5 4 E5 4', 'F5 2 E5 2 C5 2 A4 2 C5 4 F5 4', 'G5 2 E5 2 C5 2 E5 2 G5 4 C6 4', 'B5 4 A5 2 G5 2 D5 8',
+                'A5 2 B5 2 C6 2 A5 2 E6 4 C6 4', 'F6 2 E6 2 C6 2 A5 2 C6 4 A5 4', 'G5 2 A5 2 B5 2 D6 2 G6 4 D6 4', 'E6 4 B5 4 G#5 4 E5 4'];
+const raceT = line(RACE_T), raceC = line(['E5 8 A5 8', 'C6 8 A5 8', 'G5 8 E5 8', 'D5 8 G5 8', 'E5 8 C6 8', 'A5 8 F5 8', 'D6 8 B5 8', 'G#5 8 B5 8'], -12);
+function clarinet2(t, f, dur, v) {      // clarinet: hollow (odd harmonics), soft attack
+  const g = C.createGain(), lp = C.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = Math.min(f * 4, 2600);
+  const o = osc('square', f, t, t + dur + 0.3, 0, lp); if (dur > 0.3) vibrato(t, t + dur + 0.3, f, [o], 0.003, 5, 0.2);
+  env(g, t, v * 0.5, 0.05, dur, 0.15); lp.connect(g); dest(g, 0.25);
+}
+// boss lesson steps 1–2: the boss's chase song heard from far away
+export const FAR = { tempo: 0.88, lowpass: 1300, level: 0.55 };
+
 // ── chase sound effects ──
 const now2 = () => C.currentTime + 0.02;
 const SPENTA = [0, 2, 4, 7, 9, 12, 14, 16, 19, 21, 24];
@@ -1724,7 +1784,11 @@ const NEW_GAIN = { caw: 0.84, chest: 0.07, count: 0.32, dive: 0.31, go: 0.23, hi
 
 // ── exports ──
 export const SONGS = { 1: V4, 2: B2, 3: B3, 4: B4, 5: B5, 6: B6, 7: B7, 8: B8, 9: B9 };
+// the rest of the game: one looping section each (music ids from src/data/music.js)
+export const MAIN_SONGS = { home: { main: OTHER.home }, race: { main: OTHER.race }, calm: { main: OTHER.calm } };
 export function makeOrchestra(ctx, out) { C = ctx; G = graph(ctx, out); return G; }
+export function setLowpass(freq) { if (G && C) { const f = G.uw.frequency; f.cancelScheduledValues(C.currentTime); f.setValueAtTime(freq, C.currentTime); } }
+export function setLevel(x) { if (G && C) G.out.gain.setValueAtTime(LEVEL * x, C.currentTime); }
 export function setUnderwater(on) {
   if (!G || !C) return;
   const f = G.uw.frequency; f.cancelScheduledValues(C.currentTime); f.setTargetAtTime(on ? 420 : 20000, C.currentTime, on ? 0.06 : 0.12);

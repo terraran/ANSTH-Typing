@@ -1,7 +1,9 @@
 // Sound for แป้นพิมพ์ผจญภัย — 8-bit sound effects and chiptune music, all generated in code (no audio files).
 //   sfx('wrong')            play one effect (names in SFX below)
 //   sfx.type(combo)         the student's chosen "correct key" sound (tick / pop / click / off)
-//   music('home' | null)    switch the background song (songs in src/data/music.js); null = silence
+//   music('home' | null)    switch the background song; null = silence. Every song is orchestral now (src/ui/orchestra.js):
+//                           home / race / calm = MAIN_SONGS · boss1–9 (boss lesson steps 1–2) = that boss's chase song from far away ·
+//                           theme1–9 = the boss chase's story song. (The 8-bit TRACKS in src/data/music.js are only a fallback.)
 //   setRage(true)           boss song speeds up ("boss almost beaten"); a story song moves to its rage section
 //   music('theme1')         the boss chase's orchestral story song for a stage (SONGS in src/ui/orchestra.js)
 //   bossSection('dash')     move the story song along with the chase: intro · dash · p1 · p2 · stomp · win · escape · lost
@@ -10,7 +12,7 @@
 //   useSoundSettings()      React hook: { music, sfx, typeSound } + setters (saved on this device)
 // Browsers only allow sound after the first click or key press; until then everything is queued silently.
 import { TRACKS } from '../data/music';
-import { SONGS, makeOrchestra, setUnderwater, playChaseSfx } from './orchestra';
+import { SONGS, MAIN_SONGS, FAR, makeOrchestra, setUnderwater, setLowpass, setLevel, playChaseSfx } from './orchestra';
 
 const { useEffect, useState } = React;
 
@@ -308,15 +310,16 @@ let story = null;              // { S: sections, sec, pos, pending, first, over,
 let storySec = 'intro';        // the section the chase is in now (kept even while music is off / not started yet)
 let tangle = false;            // stage 3: roots hold the hero → the song drags
 const storyStage = (id) => (/^theme(\d+)$/.exec(id || '') || [])[1];
+const farStage = (id) => (/^boss(\d+)$/.exec(id || '') || [])[1];
 const BAR = (sec) => sec.steps || 16, BEAT = (sec) => sec.beat || 4;       // 3/4 & 6/8 = 12 steps, 7/8 = 14, 5/4 = 20
 const BPM = (sy, sec) => sec.bpm || (sy.S[sy.back] || sy.S.p1).bpm;           // a stomp plays at the tempo it interrupted
-const secDur = (sy, sec) => 60 / BPM(sy, sec) / 4 * (tangle && sec.tangle ? 1.45 : 1);
+const secDur = (sy, sec) => 60 / BPM(sy, sec) / 4 * (tangle && sec.tangle ? 1.45 : 1) * (sy.kind === 'far' ? 1 / FAR.tempo : 1);
 export const hasBossTheme = (stage) => !!SONGS[stage];
 // The chase moves on (src/ui/BossChase.jsx). Same section again = keep playing.
 // 'stomp' is a detour: 4 bars of the village theme, then back to the chase / rage section at its next bar.
 export function bossSection(name) {
   if (name !== 'stomp') storySec = name;
-  if (!story || story.over) return;
+  if (!story || story.over || story.kind !== 'theme') return;
   if (name === 'stomp' && (story.sec === 'stomp' || story.pending === 'stomp' || !['p1', 'p2'].includes(story.pending || story.sec))) return;
   if (story.sec === 'stomp' && name === 'p2') { story.back = 'p2'; story.backPos = 0; return; }   // rage during a stomp: go there after it
   if (name === (story.pending || story.sec)) return;
@@ -338,7 +341,7 @@ function tickStory() {
     const sec = sy.S[sy.sec];
     if (!sec) { sy.over = true; clearInterval(timer); return; }
     const sd = secDur(sy, sec), L = BAR(sec);
-    sec.play(Math.floor(sy.pos / L), sy.pos % L, nextT, sd, sy.first);
+    sec.play(Math.floor(sy.pos / L), sy.pos % L, nextT, sd, sy.first && sy.kind !== 'far');   // far away: no opening BRAAAM
     nextT += sd; sy.pos++;
     if (sy.pos >= sec.bars * L) {
       sy.pos = 0; sy.first = false;
@@ -349,7 +352,9 @@ function tickStory() {
   }
 }
 function startTrack(id) {
-  const n = storyStage(id), tr = n ? (SONGS[n] && { group: 'boss', story: true }) : trackOf(id);
+  const n = storyStage(id), fs = farStage(id), orch = n ? SONGS[n] : fs ? SONGS[fs] : MAIN_SONGS[id];
+  const kind = n ? 'theme' : fs ? 'far' : 'main';
+  const tr = orch ? { group: kind === 'main' ? 'main' : 'boss', story: true } : trackOf(id);
   if (!tr || !ctx) return;
   if (settings.music === 0) { curTrack = null; return; }     // silent: start when the student turns music up
   clearInterval(timer);
@@ -358,11 +363,12 @@ function startTrack(id) {
     musicBus = newMusicBus();
   }
   curTrack = tr; step = 0; nextT = ctx.currentTime + 0.12; story = null;
-  if (n) {
-    // an ending that has already played (music turned back on later) stays silent
+  if (orch) {
+    // a story song's ending that has already played (music turned back on later) stays silent
     makeOrchestra(ctx, musicBus);
-    story = { S: SONGS[n], sec: storySec, pos: 0, pending: null, first: true, over: false, back: null, backPos: 0 };
-    if (ENDINGS.includes(storySec)) story.over = true;
+    if (kind === 'far') { setLowpass(FAR.lowpass); setLevel(FAR.level); }      // the boss is waiting ahead: muffled, quieter
+    story = { S: orch, kind, sec: kind === 'theme' ? storySec : kind === 'far' ? 'p1' : 'main', pos: 0, pending: null, first: true, over: false, back: null, backPos: 0 };
+    if (kind === 'theme' && ENDINGS.includes(storySec)) story.over = true;
     else { timer = setInterval(tickStory, 25); tickStory(); }
     return;
   }
@@ -402,6 +408,8 @@ export function setRage(on) {
   on = !!on;
   if (on === rage) return;
   rage = on;
+  // boss lesson steps 1–2 (far away): near the end of the text the faraway song moves to its rage section too
+  if (story && story.kind === 'far') { if (on && story.sec === 'p1' && !story.pending) story.pending = 'p2'; return; }
   // a story song has its own rage section (BRAAAM + gong) instead of the chiptune sting
   if (on && ['intro', 'lurk', 'dash', 'p1', 'stomp'].includes(story ? (story.pending || story.sec) : storySec) && (story || storyStage(curWanted))) { bossSection('p2'); return; }
   if (on && curTrack && curTrack.group === 'boss' && settings.music > 0) sfx('rage');

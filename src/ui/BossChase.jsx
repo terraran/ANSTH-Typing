@@ -822,7 +822,7 @@ export function BossChase(props) {
           st.heroY = (bh * .75 + jumpH + F) * Math.sin(k * Math.PI * .5) * (k < .7 ? 1 : 1 - (k - .7) * 1.3); }
         else if (!s.hit) {
           s.hit = true; s.x1 = st.heroX; st.flash = .15; st.squash = .6;
-          showCue('เหยียบ! ×' + st.mult, true, true); sfx('stomp'); bossSection('stomp');   // the song answers with 4 bars of the village theme
+          showCue('เหยียบ! ×' + st.mult, true, true); sfx('stomp');   // the song keeps going (the teacher found a switch odd); the stomp sound is the reward
           bubble(boss.taunts.stomped || 'อ๊าก!!', 900);
           for (let i = 0; i < 14; i++) st.parts.push({ x: st.bossX, y: ground - bh * .9 - F, vx: (Math.random() - .5) * 260,
             vy: -120 - Math.random() * 200, s: 3, c: Math.random() < .5 ? '#FFFFFF' : '#FFE08A', life: .4 + Math.random() * .3 });

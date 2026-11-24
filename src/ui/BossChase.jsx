@@ -336,8 +336,9 @@ export function BossChase(props) {
     };
     const onUp = e => {
       const st = S.current; if (!st || !st.qte) return;
-      if (st.qte.kind === 'dive' && e.key === ' ') { e.preventDefault(); st.diveUp(); }
-      if (st.qte.kind === 'seq' && e.key === 'Shift') st.seqShift(false);
+      const k = st.qte.kind;                           // read once: diveUp() can end the QTE (st.qte → null)
+      if (k === 'dive' && e.key === ' ') { e.preventDefault(); st.diveUp(); }
+      else if (k === 'seq' && e.key === 'Shift') st.seqShift(false);
     };
     window.addEventListener('keydown', onKey); window.addEventListener('keyup', onUp);
     return () => { window.removeEventListener('keydown', onKey); window.removeEventListener('keyup', onUp); };

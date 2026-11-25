@@ -41,8 +41,8 @@ export const submitHomework = apiSubmitHomework;
 
 export const titleRunners = apiTitleRunners;
 
-// Student ID sign-in (young students without their Google password) — only while the teacher has opened the room.
-// → { token, exp, classCode, displayName, email } · throws ID_CLOSED | ID_NOT_FOUND | ID_BUSY
+// Student ID sign-in (young students without their Google password) — any room in the Roster, any time.
+// → { token, exp, classCode, displayName, email } · throws ID_NOT_FOUND | ID_BUSY
 export async function idLogin(studentId) {
   const d = await apiIdLogin(studentId);
   if (d?.error) throw new Error(d.error);
@@ -61,9 +61,6 @@ export const classData = classCode => apiRequest('getClassData', { classCode });
 export const getUnlocks = () => apiRequest('getUnlocks');
 // stage 0 = remove the unlock; studentName '' = whole class. Replies with getUnlocks' shape.
 export const setUnlock = (classCode, studentName, stage) => apiRequest('setUnlock', { classCode, studentName, stage });
-// Student ID sign-in switch of a room → { classCode, openUntil (ms, 0 = closed) }; open: true = for 2 hours
-export const getIdLogin = classCode => apiRequest('getIdLogin', { classCode });
-export const setIdLogin = (classCode, open) => apiRequest('setIdLogin', { classCode, open: open ? '1' : '0' });
 // Show Mr.AT's tips again to a whole class → { reset: n }
 export const resetTips = classCode => apiRequest('resetTips', { target: classCode });
 

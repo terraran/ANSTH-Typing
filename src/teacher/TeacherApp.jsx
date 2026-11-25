@@ -17,7 +17,6 @@ import { downloadBackup, forgetAllRosters, forgetRoster, loadRoster, saveRoster 
 import { demoDrive, realDrive } from './classroom/driveRoster';
 import { gradeOf, groups, roomLabel } from './rooms';
 import { Modal, StagePick } from './ui';
-import { IdLoginSwitch } from './IdLoginSwitch';
 
 // Public edition: rooms of student codes (backend/public.js); school: Apps Script rooms from the roster sheet.
 const PUBLIC = EDITION.backend === 'public';
@@ -233,7 +232,6 @@ function Room({ code, rows, loading, error, unlocks, onReload, onUnlocks, tab, s
             ['🗑️ ลบห้องนี้', remove],
           ]}/>
         </> : <>
-          {api.getIdLogin && <IdLoginSwitch api={api} code={code} onMsg={setMsg}/>}
           <button className="btn ghost" onClick={doTips} disabled={!!busy}>💡 ให้ดูคำแนะนำใหม่</button>
         </>}
         <button className="btn ghost" onClick={() => { onReload(); if (tab === 'hw') onReloadHw(); if (tab === 'wk') onReloadWk(); }}

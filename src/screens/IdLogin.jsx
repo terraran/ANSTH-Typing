@@ -1,6 +1,6 @@
 // Student ID sign-in (school edition) — for young students who can't type their Google password yet.
 // Type the student ID (on-screen keypad or the keyboard) → "is this you?" → play as that student.
-// Works only while the teacher has opened the room in the teacher page (Apps Script IdLogin.gs);
+// Open for every room in the Roster at any time (Apps Script IdLogin.gs);
 // everything is saved to the student's own account, so it carries on after a Google sign-in later.
 import { backend } from '../edition';
 import { INK, PX_FONT, PxButton, PxPanel, TH_FONT } from '../ui/pixel';

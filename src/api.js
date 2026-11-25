@@ -27,7 +27,7 @@ export async function apiTitleRunners() {
 }
 
 // Student ID sign-in (no Google): → { token, exp, classCode, displayName, email } or { error }.
-// Works only while a teacher has opened the student's room (Apps Script IdLogin.gs).
+// Any room in the Roster, any time (Apps Script IdLogin.gs).
 export async function apiIdLogin(studentId) {
   if (!SCRIPT_URL) throw new Error('Apps Script endpoint is not configured');
   const body = new URLSearchParams({ action: 'idLogin', studentId });
@@ -49,8 +49,7 @@ export function describeApiError(err) {
     'CONFIG_SCRIPT_PERMISSION':'Apps Script ยังไม่ได้รับสิทธิ์ใหม่ — ครูต้อง Authorize และ Deploy ใหม่',
     'TEST_NOT_FOUND':'ครูเปลี่ยนหรือลบแบบทดสอบนี้แล้ว — กลับไปหน้ากระดานเพื่อดูแบบทดสอบล่าสุด',
     'TEST_CLOSED':'แบบทดสอบของสัปดาห์นี้ปิดแล้ว — คะแนนรอบนี้ไม่ถูกนับ',
-    'ID_NOT_FOUND':'ไม่พบเลขนี้ หรือห้องของหนูยังไม่เปิด — ถามครูนะ',
-    'ID_CLOSED':'ครูยังไม่ได้เปิดให้เข้าด้วยเลขประจำตัว — บอกครูให้เปิดก่อนนะ',
+    'ID_NOT_FOUND':'ไม่พบเลขนี้ — ลองพิมพ์ใหม่ หรือถามครูนะ',
     'ID_BUSY':'มีคนพิมพ์เลขผิดหลายครั้ง ระบบพักไว้ 10 นาที — เรียกครูมาช่วย',
     'NOT_ENOUGH':'เพชรไม่พอ — เล่นบทเรียนเพื่อสะสมเพชรเพิ่มนะ',
     'NOT_FOR_SALE':'ของชิ้นนี้ไม่ได้ขายแล้ว',

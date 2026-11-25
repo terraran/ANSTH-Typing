@@ -593,6 +593,22 @@
   }
 
   // ── React: animated character on a canvas ───────────────────
+  // Light mode (src/ui/lite.js): the race lane and result stage draw about 20 frames a second instead of every frame.
+  // Light mode draws from a 50 ms timer, not requestAnimationFrame: a browser may slow its frame clock right down
+  // for a page that skips frames. drawLoop(fn) calls fn(now) each frame; returns the stop function (for useEffect).
+  let LITE = false;
+  function setLite(on) { LITE = !!on; }
+  function drawLoop(fn) {
+    let raf = 0, wait = 0, alive = true;
+    const run = now => { if (!alive) return; fn(now); next(); };
+    const next = () => {
+      if (LITE) wait = setTimeout(() => run(performance.now()), 50);
+      else raf = requestAnimationFrame(run);
+    };
+    raf = requestAnimationFrame(run);
+    return () => { alive = false; cancelAnimationFrame(raf); clearTimeout(wait); };
+  }
+
   // Animation runs in requestAnimationFrame, outside React state, so it never
   // re-renders the page. `speed` multiplies the animation rate (e.g. typing speed).
   const FULL = { x: 6, y: 0, w: 52, h: 62 };
@@ -898,17 +914,14 @@
         }
       }
 
-      let raf = 0, last = performance.now();
-      const tick = now => {
+      let last = performance.now();
+      return drawLoop(now => {
         const dt = Math.min(100, now - last); last = now;
         ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
         ctx.clearRect(0, 0, width, height);
         ctx.imageSmoothingEnabled = false;
         paint(now, dt, optRef.current);
-        raf = requestAnimationFrame(tick);
-      };
-      raf = requestAnimationFrame(tick);
-      return () => cancelAnimationFrame(raf);
+      });
     }, [width, height, isDuel, !!world]);
 
     const canvas = h('canvas', { ref: cvRef, style: { width: (width || 0) + 'px', height: height + 'px', display: 'block', imageRendering: 'pixelated', position: 'relative' } });
@@ -1039,15 +1052,12 @@
         });
       }
 
-      let raf = 0, last = performance.now();
-      const tick = now => {
+      let last = performance.now();
+      return drawLoop(now => {
         const dt = Math.min(100, now - last); last = now;
         ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
         paint(now, dt);
-        raf = requestAnimationFrame(tick);
-      };
-      raf = requestAnimationFrame(tick);
-      return () => cancelAnimationFrame(raf);
+      });
     }, [width, height]);
 
     return h('div', { ref: wrapRef, style: Object.assign({ width: '100%' }, style) },
@@ -1206,7 +1216,9 @@
             style: { flex: '2 1 200px', minHeight: short ? 46 : 54, fontSize: 17, fontFamily: TF } }, '💾 บันทึกตัวละคร')));
   }
 
+
   window.CharKit = {
+    setLite,
     OPTIONS, useOutfits, defaults, sanitize, randomize, loadLocal, saveLocal,
     load, buildSprite, drawFrame, CharCanvas, Avatar, CreatorScreen,
     fromName, fromPlayer, toWire, grayOf, RaceTrack, ResultStage,

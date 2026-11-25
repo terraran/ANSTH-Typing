@@ -4,6 +4,7 @@ import { INK, PX_FONT, PxButton, PxIconButton, PxPanel, Runners, Scene, Sprite, 
 import { auth, parseJwt } from '../auth';
 import { GOOGLE_CLIENT_ID } from '../config';
 import { SoundButton } from '../ui/SoundButton';
+import { useLite } from '../ui/lite';
 import { CardConfirm, CodeBox, checkCode } from './CodeEntry';
 import { IdLoginPanel } from './IdLogin';
 
@@ -128,6 +129,7 @@ const CODES = !!backend.lookupCode;
 const IDS = !!backend.idLogin && backend.enabled;
 
 export function GoogleSignInScreen({ onSignIn, onSolo, onCode, onIdLogin, initialCode = '' }) {
+  const { lite } = useLite();
   const [stage, setStage] = useState(initialCode ? 'checking' : 'title');   // title | signin | checking | confirm | id
   const [code, setCode] = useState(initialCode);
   const [codeErr, setCodeErr] = useState('');
@@ -258,7 +260,7 @@ export function GoogleSignInScreen({ onSignIn, onSolo, onCode, onIdLogin, initia
       </div>
       <div style={{ position: 'fixed', inset: 0 }}>
         <Scene plain dim={small ? 0.35 : 0}>
-          <Runners queue={runners} bottom={'max(16px, 3vh)'}/>
+          <Runners queue={runners} max={lite ? 1 : 3} bottom={'max(16px, 3vh)'}/>
         </Scene>
       </div>
       {stage === 'title' && (

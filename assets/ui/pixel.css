@@ -54,6 +54,8 @@
 .scene>.l-fi{background-image:url(../bg/fields.png)}
 .scene>.l-fr{background-image:url(../bg/front.png)}
 @keyframes px-drift{from{transform:translateX(0)}to{transform:translateX(-90px)}}
+/* light mode (src/ui/lite.js): the clouds stand still — on the school's remote desktops a drifting full-screen layer means the whole screen is sent again every frame */
+html.lite .scene>.l-cl{animation:none}
 .px-logo{background:linear-gradient(180deg,#FFF3B0 0%,#FFC23D 48%,#E8742A 100%);-webkit-background-clip:text;background-clip:text;color:transparent;
   filter:drop-shadow(3px 0 0 #3B2416) drop-shadow(-3px 0 0 #3B2416) drop-shadow(0 3px 0 #3B2416) drop-shadow(0 -3px 0 #3B2416) drop-shadow(5px 6px 0 #3B2416)}
 .px-blink{animation:px-blink 1.2s steps(2) infinite}

@@ -13,6 +13,7 @@
 // Browsers only allow sound after the first click or key press; until then everything is queued silently.
 import { TRACKS } from '../data/music';
 import { SONGS, MAIN_SONGS, FAR, makeOrchestra, setUnderwater, setLowpass, setLevel, playChaseSfx } from './orchestra';
+import { isLite } from './lite';
 
 const { useEffect, useState } = React;
 
@@ -365,7 +366,8 @@ function startTrack(id) {
   curTrack = tr; step = 0; nextT = ctx.currentTime + 0.12; story = null;
   if (orch) {
     // a story song's ending that has already played (music turned back on later) stays silent
-    makeOrchestra(ctx, musicBus);
+    const hall = makeOrchestra(ctx, musicBus);
+    if (isLite()) hall.wet.disconnect();     // light mode: no hall reverb (the reverb is the heaviest part of the music)
     if (kind === 'far') { setLowpass(FAR.lowpass); setLevel(FAR.level); }      // the boss is waiting ahead: muffled, quieter
     story = { S: orch, kind, sec: kind === 'theme' ? storySec : kind === 'far' ? 'p1' : 'main', pos: 0, pending: null, first: true, over: false, back: null, backPos: 0 };
     if (kind === 'theme' && ENDINGS.includes(storySec)) story.over = true;

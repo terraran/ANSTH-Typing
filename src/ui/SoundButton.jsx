@@ -2,10 +2,12 @@
 // The panel opens in a portal at the top right (like the "?" help) so no page layer can cover it.
 import { getSoundSettings, setSoundSetting, sfx, toggleMuteAll, useSoundSettings } from './sound';
 import { INK, PX_FONT, TH_FONT } from './pixel';
+import { setLiteMode, useLite } from './lite';
 
 const { useEffect, useRef, useState } = React;
 
 const TYPE_LABELS = [['tick', 'ติ๊ก'], ['pop', 'ป๊อป'], ['click', 'คลิกแป้น'], ['off', 'ปิด']];
+const LITE_LABELS = [['auto', 'อัตโนมัติ'], ['on', 'เปิด'], ['off', 'ปิด']];
 
 function SpeakerIcon({ muted }) {
   return (
@@ -90,8 +92,31 @@ function SoundPanel({ anchor, onClose }) {
           ))}
         </div>
       </div>
+      <LiteRow/>
       <span style={{ fontSize: 12, fontWeight: 600, color: '#6A4A30', lineHeight: 1.5 }}>
         ใช้หูฟังจะดีที่สุดนะ · ค่าที่ตั้งจำไว้ในเครื่องนี้</span>
+    </div>
+  );
+}
+
+// Light mode (src/ui/lite.js): auto / on / off, and what auto decided on this computer.
+function LiteRow() {
+  const L = useLite();
+  const note = L.forced ? 'ลิงก์นี้สั่ง' + (L.forced === 'on' ? 'เปิด' : 'ปิด') + 'โหมดเบาไว้'
+    : L.mode !== 'auto' ? (L.lite ? 'ฉากเคลื่อนไหวน้อยลง เครื่องทำงานเบาลง' : 'ภาพเคลื่อนไหวเต็มที่')
+    : !L.detected ? 'กำลังตรวจเครื่องนี้…'
+    : (L.lite ? 'เปิดอยู่ — ' : 'ปิดอยู่ — ') + L.detected.why;
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+      <span style={{ fontWeight: 800, fontSize: 15 }}>🐢 โหมดเบา (เครื่องช้า)</span>
+      <div role="group" aria-label="โหมดเบา" style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+        {LITE_LABELS.map(([id, name]) => (
+          <button key={id} aria-pressed={L.mode === id} onClick={() => setLiteMode(id)}
+            style={{ minHeight: 38, padding: '0 10px', border: '3px solid ' + INK, background: L.mode === id ? '#FFC23D' : '#F8EED2',
+              fontFamily: TH_FONT, fontSize: 14, fontWeight: 800, color: INK, cursor: 'pointer' }}>{name}</button>
+        ))}
+      </div>
+      <span style={{ fontSize: 12, fontWeight: 600, color: '#6A4A30' }}>{note}</span>
     </div>
   );
 }

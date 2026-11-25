@@ -42,7 +42,8 @@ const AFK_FIRST_MS = 15000, AFK_REPEAT_MS = 5000, AFK_WARN_MS = 8000;
 
 const { useCallback, useEffect, useMemo, useRef, useState } = React;
 // Dress-up shop switch (src/edition.js): 'demo' = stand-in wallet on this device, for local testing only
-const SHOP_ON = !!EDITION.shop, SHOP_DEMO = EDITION.shop === 'demo';
+// The shop needs a backend with a wallet (school: Apps Script Shop.gs). The public edition has none yet → no shop there.
+const SHOP_DEMO = EDITION.shop === 'demo', SHOP_ON = SHOP_DEMO || (!!EDITION.shop && !!backend.getWallet);
 
 export function ThaiTypingApp() {
   if (PERF_ON) perf.renders++;
@@ -768,7 +769,7 @@ export function ThaiTypingApp() {
         score:scoreRef.current, maxScore, cpm:finalKpm, accuracy:finalAcc,
         errors, totalChars:pos, duration:Math.min(duration,TEST_SECS),
       })
-        .then(d => { setSaveStatus('saved'); setTestBoard(d); setWeekly(d); setWeeklyStatus('ok'); if (d?.gems) setLoot(d.gems); })
+        .then(d => { setSaveStatus('saved'); setTestBoard(d); setWeekly(d); setWeeklyStatus('ok'); if (SHOP_ON && d?.gems) setLoot(d.gems); })
         .catch(err => { setSaveStatus('error'); setSaveError(backend.describeError(err)); });
       return;
     }
@@ -783,7 +784,7 @@ export function ThaiTypingApp() {
       duration,
       score: rcRef.current ? 0 : scoreRef.current,
     })
-      .then(d => { setSaveStatus(d.ok ? 'saved' : 'error'); if (d?.gems) setLoot(d.gems); })
+      .then(d => { setSaveStatus(d.ok ? 'saved' : 'error'); if (SHOP_ON && d?.gems) setLoot(d.gems); })
       .catch(()  => setSaveStatus('error'));
   }, [screen]);
   useEffect(() => { if (screen !== 'results') setLoot(null); }, [screen]);
@@ -1109,7 +1110,7 @@ export function ThaiTypingApp() {
     setSaveStatus('saving');
     backend.saveMatch({classCode:ccRef.current,studentName:snRef.current,matchId,type:info.type,room:code,
       cpm,accuracy,chars:st.pos,...m})
-      .then(d=>{ setSaveStatus(d&&d.ok?'saved':'error'); if(d?.gems) setLoot(d.gems); })
+      .then(d=>{ setSaveStatus(d&&d.ok?'saved':'error'); if(SHOP_ON&&d?.gems) setLoot(d.gems); })
       .catch(()=>{ setSaveStatus('error'); matchSavedRef.current=''; });
   },[]);
 
